@@ -1,13 +1,15 @@
-import { EthereumAddress, Hash256 } from '@l2beat/shared-pure'
+import { EthereumAddress, type Hash256 } from '@l2beat/shared-pure'
 import { utils } from 'ethers'
 import * as z from 'zod'
 
-import { ContractValue, get$Implementations } from '@l2beat/discovery-types'
+import {
+  type ContractValue,
+  get$Implementations,
+} from '@l2beat/discovery-types'
 import { uniqBy } from 'lodash'
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
 import { ProxyDetector } from '../../proxies/ProxyDetector'
-import { Handler, HandlerResult } from '../Handler'
+import type { Handler, HandlerResult } from '../Handler'
 import { toContractValue } from '../utils/toContractValue'
 
 export type ZKsyncEraScheduledTransactionsHandlerDefinition = z.infer<
@@ -63,7 +65,6 @@ export class ZKsyncEraScheduledTransactionHandler implements Handler {
   constructor(
     readonly field: string,
     readonly abi: string[],
-    readonly logger: DiscoveryLogger,
   ) {
     this.timelockInterface = new utils.Interface(abi)
   }
@@ -192,7 +193,6 @@ export class ZKsyncEraScheduledTransactionHandler implements Handler {
     const result = await detector.detectProxy(
       provider,
       EthereumAddress(call.target),
-      DiscoveryLogger.SILENT,
     )
     const addresses = [EthereumAddress(call.target)]
     if (result !== undefined) {

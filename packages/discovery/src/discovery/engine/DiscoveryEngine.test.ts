@@ -2,10 +2,13 @@ import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
 import { expect, mockFn, mockObject } from 'earl'
 
 import { DiscoveryLogger } from '../DiscoveryLogger'
-import { AddressAnalyzer } from '../analysis/AddressAnalyzer'
+import type { AddressAnalyzer } from '../analysis/AddressAnalyzer'
 import { DiscoveryConfig } from '../config/DiscoveryConfig'
-import { RawDiscoveryConfig } from '../config/RawDiscoveryConfig'
-import { IProvider } from '../provider/IProvider'
+import {
+  DiscoveryContract,
+  type RawDiscoveryConfig,
+} from '../config/RawDiscoveryConfig'
+import type { IProvider } from '../provider/IProvider'
 import { EMPTY_ANALYZED_CONTRACT } from '../utils/testUtils'
 import { DiscoveryEngine } from './DiscoveryEngine'
 
@@ -32,14 +35,7 @@ describe(DiscoveryEngine.name, () => {
 
   it('can perform a discovery', async () => {
     const config = generateFakeConfig([A], {
-      [B.toString()]: { ignoreDiscovery: true },
-    })
-
-    const discoveryLogger = mockObject<DiscoveryLogger>({
-      flushServer: () => {},
-      log: () => {},
-      logSkip: () => {},
-      logRelatives: () => {},
+      [B.toString()]: DiscoveryContract.parse({ ignoreDiscovery: true }),
     })
 
     const addressAnalyzer = mockObject<AddressAnalyzer>({
@@ -68,7 +64,7 @@ describe(DiscoveryEngine.name, () => {
         relatives: {},
       })
 
-    const engine = new DiscoveryEngine(addressAnalyzer, discoveryLogger)
+    const engine = new DiscoveryEngine(addressAnalyzer, DiscoveryLogger.SILENT)
     const result = await engine.discover(provider, config)
 
     expect(result).toEqual([
@@ -88,10 +84,6 @@ describe(DiscoveryEngine.name, () => {
       },
       { ...base, type: 'Contract', name: 'D', address: D },
     ])
-
-    expect(discoveryLogger.log).toHaveBeenCalledTimes(5)
-    expect(discoveryLogger.logRelatives).toHaveBeenCalledTimes(0)
-    expect(discoveryLogger.flushServer).toHaveBeenCalledTimes(1)
   })
 })
 

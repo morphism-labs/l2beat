@@ -1,7 +1,7 @@
-import { ProxyDetails } from '@l2beat/discovery-types'
+import type { ProxyDetails } from '@l2beat/discovery-types'
 import { Bytes, EthereumAddress } from '@l2beat/shared-pure'
 
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
 import { getModules } from '../../utils/getSafeModules'
 
 // TODO: (sz-piotr) Is this simply equivalent to 0x66 and 0x67?
@@ -48,13 +48,13 @@ export async function detectGnosisSafeZodiacModule(
     values: {
       // TODO: (sz-piotr) is this correct?
       $immutable: false,
-      ZodiacModule_modules: modules ?? [],
+      ZodiacModule_modules: (modules ?? []).map((m) => m.toString()),
       // TODO: (sz-piotr) ignore relative
-      ZodiacModule_avatar: avatar,
+      ZodiacModule_avatar: avatar.toString(),
       // TODO: (sz-piotr) ignore relative
-      ZodiacModule_target: target,
+      ZodiacModule_target: target.toString(),
       // TODO: (sz-piotr) ignore relative
-      ZodiacModule_guard: guard,
+      ZodiacModule_guard: guard.toString(),
     },
   }
 }

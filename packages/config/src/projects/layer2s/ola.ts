@@ -1,8 +1,11 @@
+import { UnixTime } from '@l2beat/shared-pure'
+import type { Layer2 } from '../../types'
 import { upcomingL2 } from './templates/upcoming'
-import { Layer2 } from './types'
 
 export const ola: Layer2 = upcomingL2({
   id: 'ola',
+  capability: 'universal',
+  addedAt: new UnixTime(1705060311), // 2024-01-12T11:51:51Z
   display: {
     name: 'Ola',
     slug: 'ola',
@@ -12,9 +15,7 @@ export const ola: Layer2 = upcomingL2({
     category: 'ZK Rollup',
     links: {
       websites: ['https://olavm.org/'],
-      apps: [],
       documentation: ['https://ola-2.gitbook.io/ola-developer-documents/'],
-      explorers: [],
       repositories: ['https://github.com/Sin7Y'],
       socialMedia: [
         'https://twitter.com/ola_zkzkvm',

@@ -1,7 +1,7 @@
-import { DiscoveryOutput } from '@l2beat/discovery-types'
+import type { DiscoveryOutput } from '@l2beat/discovery-types'
 import { ChainId, Hash256, UnixTime } from '@l2beat/shared-pure'
-import { Insertable, Selectable } from 'kysely'
-import { UpdateMonitor } from '../../kysely/generated/types'
+import type { Insertable, Selectable } from 'kysely'
+import type { UpdateMonitor } from '../../kysely/generated/types'
 
 export interface UpdateMonitorRecord {
   projectName: string
@@ -10,31 +10,26 @@ export interface UpdateMonitorRecord {
   timestamp: UnixTime | null
   discovery: DiscoveryOutput
   configHash: Hash256
-  version: number
 }
 
 export function toRow(record: UpdateMonitorRecord): Insertable<UpdateMonitor> {
   return {
-    project_name: record.projectName,
-    chain_id: +record.chainId,
-    block_number: record.blockNumber,
-    unix_timestamp: record.timestamp ? record.timestamp.toDate() : null,
-    discovery_json_blob: JSON.stringify(record.discovery),
-    config_hash: record.configHash.toString(),
-    version: record.version,
+    projectName: record.projectName,
+    chainId: +record.chainId,
+    blockNumber: record.blockNumber,
+    timestamp: record.timestamp ? record.timestamp.toDate() : null,
+    discoveryJsonBlob: JSON.stringify(record.discovery),
+    configHash: record.configHash.toString(),
   }
 }
 
 export function toRecord(row: Selectable<UpdateMonitor>): UpdateMonitorRecord {
   return {
-    projectName: row.project_name,
-    chainId: ChainId(row.chain_id),
-    blockNumber: row.block_number,
-    timestamp: row.unix_timestamp
-      ? UnixTime.fromDate(row.unix_timestamp)
-      : null,
-    discovery: row.discovery_json_blob as unknown as DiscoveryOutput,
-    configHash: Hash256(row.config_hash),
-    version: row.version,
+    projectName: row.projectName,
+    chainId: ChainId(row.chainId),
+    blockNumber: row.blockNumber,
+    timestamp: row.timestamp ? UnixTime.fromDate(row.timestamp) : null,
+    discovery: row.discoveryJsonBlob as unknown as DiscoveryOutput,
+    configHash: Hash256(row.configHash),
   }
 }

@@ -8,6 +8,9 @@ import { utils } from 'ethers'
 import { Badge } from '../badges'
 
 import {
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NEW_CRYPTOGRAPHY,
@@ -15,12 +18,10 @@ import {
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('degate2')
 
@@ -46,15 +47,28 @@ const maxForcedWithdrawalFeeString = `${utils.formatEther(
   maxForcedWithdrawalFee,
 )} ETH`
 
+const owner1 = discovery.getAddressFromValue('DefaultDepositContract', 'owner')
+const owner2 = discovery.getAddressFromValue('LoopringIOExchangeOwner', 'owner')
+const owner3 = discovery.getAddressFromValue('LoopringV3', 'owner')
+
+// making sure that the description is correct
+// if it was updated, we should add multisig participants
+
+assert(owner1 === owner2 && owner2 === owner3 && owner3, 'DeGate')
+const permissionedAccount = discovery.formatPermissionedAccounts([owner1])
+assert(permissionedAccount[0].type === 'EOA', 'DeGate')
+
 export const degate2: Layer2 = {
   isArchived: true,
   type: 'layer2',
+  id: ProjectId('degate2'),
+  capability: 'appchain',
+  addedAt: new UnixTime(1684838286), // 2023-05-23T10:38:06Z
   badges: [
     Badge.VM.AppChain,
     Badge.DA.EthereumCalldata,
     Badge.Fork.LoopringFork,
   ],
-  id: ProjectId('degate2'),
   display: {
     name: 'DeGate V1 Legacy',
     slug: 'degate2',
@@ -62,14 +76,13 @@ export const degate2: Layer2 = {
     description:
       'DeGate is an app-specific ZK Rollup that enables a trustless, fast and low-fee decentralized order book exchange, helping users to trade easy and sleep easy. DeGate smart contracts are forked from Loopring V3.',
     purposes: ['Exchange'],
-    provider: 'Loopring',
+    stack: 'Loopring',
     category: 'ZK Rollup',
 
     links: {
       websites: ['https://degate.com/'],
       apps: ['https://app.degate.com/'],
       documentation: ['https://docs.degate.com/'],
-      explorers: [],
       repositories: ['https://github.com/degatedev/protocols'],
       socialMedia: [
         'https://twitter.com/DeGateDex',
@@ -109,45 +122,22 @@ export const degate2: Layer2 = {
       },
     ],
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'State diffs',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.STATE_DIFFS,
+  },
+  riskView: {
     stateValidation: RISK_VIEW.STATE_ZKP_SN,
     dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
     exitWindow: RISK_VIEW.EXIT_WINDOW_NON_UPGRADABLE,
-    sequencerFailure: {
-      ...RISK_VIEW.SEQUENCER_FORCE_VIA_L1_LOOPRING(
-        forcedWithdrawalDelay,
-        forcedWithdrawalFee,
-        maxAgeDepositUntilWithdrawable,
-      ),
-      sources: [
-        {
-          contract: 'ExchangeV3',
-          references: [
-            'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F23#L102',
-            'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F35#L162',
-          ],
-        },
-      ],
-    },
-    proposerFailure: {
-      ...RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_MP,
-      sources: [
-        {
-          contract: 'ExchangeV3',
-          references: [
-            'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L420',
-          ],
-        },
-      ],
-    },
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+    sequencerFailure: RISK_VIEW.SEQUENCER_FORCE_VIA_L1_LOOPRING(
+      forcedWithdrawalDelay,
+      forcedWithdrawalFee,
+      maxAgeDepositUntilWithdrawable,
+    ),
+    proposerFailure: RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_MP,
+  },
   stage: getStage({
     stage0: {
       callsItselfRollup: true,
@@ -156,6 +146,7 @@ export const degate2: Layer2 = {
       rollupNodeSourceAvailable: 'UnderReview',
     },
     stage1: {
+      principle: true,
       stateVerificationOnL1: true,
       fraudProofSystemAtLeast5Outsiders: null,
       usersHave7DaysToExit: null,
@@ -165,10 +156,12 @@ export const degate2: Layer2 = {
     stage2: {
       proofSystemOverriddenOnlyInCaseOfABug: null,
       fraudProofSystemIsPermissionless: null,
-      delayWith30DExitWindow: [
-        true,
-        'Users have at least 30d to exit as the system cannot be upgraded.',
-      ],
+      delayWith30DExitWindow: {
+        satisfied: true,
+        message:
+          'Users have at least 30d to exit as the system cannot be upgraded.',
+        mode: 'replace',
+      },
     },
   }),
   technology: {
@@ -176,8 +169,8 @@ export const degate2: Layer2 = {
       ...STATE_CORRECTNESS.VALIDITY_PROOFS,
       references: [
         {
-          text: 'Operator - DeGate design doc',
-          href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/DeGate%20Protocol%20Specification%20Document.md#operator',
+          title: 'Operator - DeGate design doc',
+          url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/DeGate%20Protocol%20Specification%20Document.md#operator',
         },
       ],
     },
@@ -185,8 +178,8 @@ export const degate2: Layer2 = {
       ...NEW_CRYPTOGRAPHY.ZK_SNARKS,
       references: [
         {
-          text: 'Operator - DeGate design doc',
-          href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/DeGate%20Protocol%20Specification%20Document.md#operator',
+          title: 'Operator - DeGate design doc',
+          url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/DeGate%20Protocol%20Specification%20Document.md#operator',
         },
       ],
     },
@@ -194,8 +187,8 @@ export const degate2: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CALLDATA,
       references: [
         {
-          text: 'Introduction - DeGate design doc',
-          href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/DeGate%20Protocol%20Specification%20Document.md#design-features',
+          title: 'Introduction - DeGate design doc',
+          url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/DeGate%20Protocol%20Specification%20Document.md#design-features',
         },
       ],
     },
@@ -203,12 +196,12 @@ export const degate2: Layer2 = {
       ...OPERATOR.CENTRALIZED_OPERATOR,
       references: [
         {
-          text: 'ExchangeV3.sol#L341-L348 - DeGate source code',
-          href: 'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L341',
+          title: 'ExchangeV3.sol#L341-L348 - DeGate source code',
+          url: 'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L341',
         },
         {
-          text: 'LoopringIOExchangeOwner.sol#L98-L101 - DeGate source code',
-          href: 'https://etherscan.io/address/0x2CFd271e9b4d0344Fd2Aa0cb1ffd4f6b85c0B215#code#F1#L98',
+          title: 'LoopringIOExchangeOwner.sol#L98-L101 - DeGate source code',
+          url: 'https://etherscan.io/address/0x2CFd271e9b4d0344Fd2Aa0cb1ffd4f6b85c0B215#code#F1#L98',
         },
       ],
     },
@@ -216,31 +209,32 @@ export const degate2: Layer2 = {
       ...FORCE_TRANSACTIONS.WITHDRAW_OR_HALT(),
       references: [
         {
-          text: 'Forced Withdrawals - DeGate design doc',
-          href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#force-withdrawal',
+          title: 'Forced Withdrawals - DeGate design doc',
+          url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#force-withdrawal',
         },
       ],
     },
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('zk', 'no proof'),
+        ...EXITS.REGULAR_WITHDRAWAL('zk'),
         references: [
           {
-            text: 'Withdraw - DeGate design doc',
-            href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#normal-withdrawal',
+            title: 'Withdraw - DeGate design doc',
+            url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#normal-withdrawal',
           },
         ],
       },
       {
-        ...EXITS.FORCED(),
+        ...EXITS.FORCED_WITHDRAWAL(),
         references: [
           {
-            text: 'Forced Request Handling - DeGate design doc',
-            href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#force-withdrawal',
+            title: 'Forced Request Handling - DeGate design doc',
+            url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#force-withdrawal',
           },
           {
-            text: 'ExchangeV3.sol#L392 - DeGate source code, forceWithdraw function',
-            href: 'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L392',
+            title:
+              'ExchangeV3.sol#L392 - DeGate source code, forceWithdraw function',
+            url: 'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L392',
           },
         ],
       },
@@ -252,87 +246,74 @@ export const degate2: Layer2 = {
         ),
         references: [
           {
-            text: 'Forced Request Handling - DeGate design doc',
-            href: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#exodus-mode',
+            title: 'Forced Request Handling - DeGate design doc',
+            url: 'https://github.com/degatedev/protocols/blob/degate_mainnet/Smart%20Contract%20Design.md#exodus-mode',
           },
 
           {
-            text: 'ExchangeV3.sol#L420 - DeGate source code, withdrawFromMerkleTree function',
-            href: 'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L420',
+            title:
+              'ExchangeV3.sol#L420 - DeGate source code, withdrawFromMerkleTree function',
+            url: 'https://etherscan.io/address/0x9C8f884B15a1fcd5B4bcEb8647DC2D15165906c7#code#F1#L420',
           },
         ],
       },
     ],
   },
-  permissions: [
-    {
-      name: 'DefaultDepositContract Owner',
-      accounts: (() => {
-        const owner1 = discovery.getAddressFromValue(
-          'DefaultDepositContract',
-          'owner',
-        )
-        const owner2 = discovery.getAddressFromValue(
-          'LoopringIOExchangeOwner',
-          'owner',
-        )
-        const owner3 = discovery.getAddressFromValue('LoopringV3', 'owner')
-
-        // making sure that the description is correct
-        assert(owner1 === owner2 && owner2 === owner3 && owner3, 'DeGate')
-
-        const permissionedAccount = discovery.formatPermissionedAccount(owner1)
-
-        // if it was updated, we should add multisig participants
-        assert(permissionedAccount.type === 'EOA', 'DeGate')
-
-        return [permissionedAccount]
-      })(),
-      description: `This address is the owner of the following contracts: LoopringIOExchangeOwner, LoopringV3, DefaultDepositContract. Can add or remove block submitters. Can change the forced withdrawal fee up to ${maxForcedWithdrawalFeeString}. Can change a way that balance is calculated per contract during the deposit, allowing the support of non-standard tokens.`,
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'DefaultDepositContract Owner',
+          permissionedAccount,
+          `This address is the owner of the following contracts: LoopringIOExchangeOwner, LoopringV3, DefaultDepositContract. Can add or remove block submitters. Can change the forced withdrawal fee up to ${maxForcedWithdrawalFeeString}. Can change a way that balance is calculated per contract during the deposit, allowing the support of non-standard tokens.`,
+        ),
+        discovery.getPermissionDetails(
+          'BlockVerifier Owner',
+          discovery.getPermissionedAccounts('BlockVerifier', 'owner'),
+          'This address is the owner of the BlockVerifier contract.',
+        ),
+        discovery.getPermissionDetails(
+          'Block Submitters',
+          discovery.getPermissionedAccounts(
+            'LoopringIOExchangeOwner',
+            'blockSubmitters',
+          ),
+          'Actors who can submit new blocks, updating the L2 state on L1.',
+        ),
+      ],
     },
-    {
-      name: 'BlockVerifier Owner',
-      description: 'This address is the owner of the BlockVerifier contract.',
-      accounts: [discovery.getPermissionedAccount('BlockVerifier', 'owner')],
-    },
-    {
-      name: 'Block Submitters',
-      accounts: discovery.getPermissionedAccounts(
-        'LoopringIOExchangeOwner',
-        'blockSubmitters',
-      ),
-      description:
-        'Actors who can submit new blocks, updating the L2 state on L1.',
-    },
-  ],
+  },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('ExchangeV3', 'Main ExchangeV3 contract.'),
-      discovery.getContractDetails(
-        'LoopringIOExchangeOwner',
-        'Contract used by the Prover to submit exchange blocks with zkSNARK proofs that are later processed and verified by the BlockVerifier contract.',
-      ),
-      discovery.getContractDetails(
-        'DefaultDepositContract',
-        'ERC 20 token basic deposit contract. Handles user deposits and withdrawals.',
-      ),
-      discovery.getContractDetails(
-        'LoopringV3',
-        'Contract for setting exchange fee parameters.',
-      ),
-      discovery.getContractDetails(
-        'BlockVerifier',
-        'zkSNARK Verifier based on ethsnarks library.',
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('ExchangeV3', 'Main ExchangeV3 contract.'),
+        discovery.getContractDetails(
+          'LoopringIOExchangeOwner',
+          'Contract used by the Prover to submit exchange blocks with zkSNARK proofs that are later processed and verified by the BlockVerifier contract.',
+        ),
+        discovery.getContractDetails(
+          'DefaultDepositContract',
+          'ERC 20 token basic deposit contract. Handles user deposits and withdrawals.',
+        ),
+        discovery.getContractDetails(
+          'LoopringV3',
+          'Contract for setting exchange fee parameters.',
+        ),
+        discovery.getContractDetails(
+          'BlockVerifier',
+          'zkSNARK Verifier based on ethsnarks library.',
+        ),
+      ],
+    },
     risks: [],
   },
   milestones: [
     {
-      name: 'DeGate Redeploy',
-      link: 'https://medium.com/degate/degate-mainnet-beta-redeployment-update-a0f1a6b7350c',
+      title: 'DeGate Redeploy',
+      url: 'https://medium.com/degate/degate-mainnet-beta-redeployment-update-a0f1a6b7350c',
       date: '2023-09-14T00:00:00Z',
       description: 'DeGate redeploys the contracts to fix a bug.',
+      type: 'general',
     },
   ],
 }

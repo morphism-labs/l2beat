@@ -1,23 +1,23 @@
-import { BackendProject } from '@l2beat/config'
-import { AnomalyRecord, Database } from '@l2beat/database'
+import type { BackendProject } from '@l2beat/backend-shared'
+import type { AnomalyRecord, Database } from '@l2beat/database'
 import {
   assert,
-  ProjectId,
-  TrackedTxsConfigSubtype,
+  type ProjectId,
+  type TrackedTxsConfigSubtype,
   UnixTime,
   clampRangeToDay,
   notUndefined,
 } from '@l2beat/shared-pure'
 import {
   ManagedChildIndexer,
-  ManagedChildIndexerOptions,
+  type ManagedChildIndexerOptions,
 } from '../../../../../tools/uif/ManagedChildIndexer'
 import {
-  LivenessRecordWithConfig,
+  type LivenessRecordWithConfig,
   LivenessWithConfigService,
 } from '../services/LivenessWithConfigService'
 import { RunningStatistics } from '../utils/RollingVariance'
-import { Interval, calculateIntervals } from '../utils/calculateIntervals'
+import { type Interval, calculateIntervals } from '../utils/calculateIntervals'
 import { getActiveConfigurations } from '../utils/getActiveConfigurations'
 import { groupByType } from '../utils/groupByType'
 
@@ -54,7 +54,17 @@ export class AnomaliesIndexer extends ManagedChildIndexer {
 
     const anomalies = await this.getAnomalies(unixTo)
 
-    await this.$.db.anomalies.upsertMany(anomalies)
+    await this.$.db.transaction(async () => {
+      // anomalies are recalculated on each run so we can safely delete all records
+      // to make sure we don't have any outdated records
+      const deleted = await this.$.db.anomalies.deleteAll()
+      await this.$.db.anomalies.upsertMany(anomalies)
+
+      this.logger.info('Anomaly records saved to db', {
+        deleted,
+        upserted: anomalies.length,
+      })
+    })
 
     return unixTo.toNumber()
   }

@@ -1,26 +1,31 @@
 import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
-
-import { subtractOne } from '../../common/assessCount'
+import { REASON_FOR_BEING_OTHER } from '../../common'
+import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
-import { underReviewL2 } from './templates/underReview'
-import { Layer2 } from './types'
+import { AnytrustDAC } from '../da-beat/templates/anytrust-template'
+import { orbitStackL2 } from './templates/orbitStack'
 
-export const alienx: Layer2 = underReviewL2({
-  id: 'alienx',
+const discovery = new ProjectDiscovery('alienx')
+
+export const alienx: Layer2 = orbitStackL2({
+  addedAt: new UnixTime(1719847684), // 2024-07-01T15:28:04Z
+  additionalPurposes: ['Gaming', 'AI', 'NFT'],
+  additionalBadges: [Badge.RaaS.Caldera, Badge.DA.DAC],
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.CLOSED_PROOFS,
+    REASON_FOR_BEING_OTHER.SMALL_DAC,
+  ],
   display: {
     name: 'AlienX',
     slug: 'alienx',
-    category: 'Optimium',
-    provider: 'Arbitrum',
     description:
       'AlienX is an Orbit stack Optimium on Ethereum focused on Gaming, AI and NFTs.',
-    purposes: ['AI', 'Gaming', 'NFT'],
     links: {
       websites: ['https://alienxchain.io/'],
       apps: ['https://bridge.alienxchain.io/', 'https://alienswap.xyz/'],
       documentation: ['https://docs.alienxchain.io'],
       explorers: ['https://explorer.alienxchain.io'],
-      repositories: [],
       socialMedia: [
         'https://x.com/ALIENXchain',
         'https://discord.gg/alienxchain',
@@ -28,29 +33,28 @@ export const alienx: Layer2 = underReviewL2({
         'https://t.me/alienx_ainode',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  // rpcUrl: 'https://rpc.alienxchain.io/http',
-  transactionApi: {
-    type: 'rpc',
-    startBlock: 1,
-    defaultUrl: 'https://rpc.alienxchain.io/http',
-    defaultCallsPerMinute: 1500,
-    assessCount: subtractOne,
-  },
-  badges: [Badge.VM.EVM, Badge.Stack.Orbit, Badge.RaaS.Caldera],
-  escrows: [
-    {
-      address: EthereumAddress('0x69aB55146Bc52A0b31F74dBDc527b8B7e9c7C27c'),
-      sinceTimestamp: new UnixTime(1717630139),
-      tokens: ['ETH'],
-      chain: 'ethereum',
-    },
-    {
+  nonTemplateEscrows: [
+    discovery.getEscrowDetails({
       address: EthereumAddress('0x5625d2a46fc582b3e6dE5288D9C5690B20EBdb8D'),
-      sinceTimestamp: new UnixTime(1717630163),
       tokens: '*',
-      chain: 'ethereum',
+      description:
+        'Main entry point for users depositing ERC20 tokens. Upon depositing, on L2 a generic, "wrapped" token will be minted.',
+    }),
+  ],
+  rpcUrl: 'https://rpc.alienxchain.io/http',
+  discovery,
+  bridge: discovery.getContract('Bridge'),
+  rollupProxy: discovery.getContract('RollupProxy'),
+  sequencerInbox: discovery.getContract('SequencerInbox'),
+  milestones: [
+    {
+      title: 'Mainnet launch',
+      url: 'https://medium.com/@ALIENXchain/alienx-mainnet-launch-join-the-genesis-voyage-and-claim-your-passcard-for-aix-airdrop-9bdf6a2a0472',
+      date: '2024-06-24T00:00:00Z',
+      description: 'AlienX launches their public mainnet.',
+      type: 'general',
     },
   ],
+  customDa: AnytrustDAC({ discovery }),
 })

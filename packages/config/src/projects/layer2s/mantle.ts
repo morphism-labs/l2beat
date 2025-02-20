@@ -1,16 +1,19 @@
 import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
-
+import { BigNumber, utils } from 'ethers'
+import { DA_BRIDGES, DA_LAYERS, REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { CustomDa, Layer2 } from '../../types'
 import { Badge } from '../badges'
+import {
+  DaCommitteeSecurityRisk,
+  DaEconomicSecurityRisk,
+  DaFraudDetectionRisk,
+  DaUpgradeabilityRisk,
+} from '../da-beat/common'
+import { DaRelayerFailureRisk } from '../da-beat/common/DaRelayerFailureRisk'
 import { opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('mantle')
-
-const regularUpgrades = {
-  upgradableBy: ['MantleSecurityMultisig'],
-  upgradeDelay: 'No delay',
-}
 
 const committeeMembers = discovery.getContractValue<number>(
   'BLSRegistry',
@@ -23,19 +26,71 @@ const threshold =
     'quorumThresholdBasisPoints',
   ) / 1000 // Quorum threshold is in basis points, but stake is equal for all members (100k MNT)
 
+const totalStakeArray = discovery.getContractValue<number[]>(
+  'BLSRegistry',
+  'totalStake',
+)
+const totalStake = BigNumber.from(totalStakeArray[0])
+
+const requiredStake = totalStake.div(committeeMembers)
+
+const requiredStakeFormatted = parseFloat(
+  utils.formatEther(requiredStake),
+).toLocaleString()
+
+const mantleDa: CustomDa = {
+  type: 'Data Availability Committee',
+  name: 'Mantle DA',
+  description:
+    'Mantle DA is a data availability solution built on EigenDA contracts, which have been forked and significantly modified.',
+  technology: {
+    description: `
+## Architecture
+![MantleDA architecture](/images/da-layer-technology/mantleda/architecture.png#center)
+Mantle DA is an independent DA module that is built on top of an early version of EigenDA smart contracts.
+The system is made up of two main component: onchain smart contracts for storing and verifying data commitments, and an offchain network of permissioned nodes storing the data.
+The permissioned set of nodes is tasked with providing data availability to the Mantle network. 
+They receive Mantle network transaction data, sign it using a BLS signature scheme, and send back signatures to the sequencer to post commitments to the DataLayrServiceManager (DA Bridge) contract on Ethereum.
+The DA DataLayrServiceManager acts as a verifier smart contract,  verifying that the signatures provided by the sequencer are indeed from node operators who have agreed to be in the quorum.
+To become members of the DA network, node operators are required to stake ${requiredStakeFormatted} MNT tokens, and can only be registered by an authorized entity. There is no slashing mechanism in place for misbehaving nodes.
+
+## DA Bridge
+![MantleDA bridge](/images/da-bridge-technology/mantleda/architecture.png#center)
+
+The DA bridge contract is used for storing transaction data headers and confirming the data store by verifying operators signatures.
+The Mantle sequencer posts the data hash as a commitment to the DataLayrServiceManager contract on Ethereum through an InitDataStore() transaction.
+Once the commitment is posted, the sequencer sends the data to the permissioned set of nodes, who sign the data and send back the signatures to the sequencer.
+The sequencer then posts the signatures to the DataLayrServiceManager contract on Ethereum through a confirmDataStore() transaction.
+The confirmDataStore() function verify the signatures and if the quorum is reached, the data is considered available.
+      `,
+  },
+  dac: {
+    requiredMembers: threshold,
+    membersCount: committeeMembers,
+  },
+  risks: {
+    economicSecurity: DaEconomicSecurityRisk.OnChainNotSlashable('MNT'),
+    fraudDetection: DaFraudDetectionRisk.NoFraudDetection,
+    committeeSecurity: DaCommitteeSecurityRisk.NoDiversityCommitteeSecurity(
+      `${threshold}/${committeeMembers}`,
+    ),
+    upgradeability: DaUpgradeabilityRisk.LowOrNoDelay(), // no delay
+    relayerFailure: DaRelayerFailureRisk.NoMechanism,
+  },
+}
+
 export const mantle: Layer2 = opStackL2({
-  badges: [Badge.DA.CustomDA],
+  addedAt: new UnixTime(1680782525), // 2023-04-06T12:02:05Z
   daProvider: {
-    name: 'MantleDA',
-    bridge: {
-      type: 'Staked Operators',
+    layer: DA_LAYERS.MANTLE_DA,
+    bridge: DA_BRIDGES.STAKED_OPERATORS({
       requiredSignatures: threshold,
       membersCount: committeeMembers,
-    },
+    }),
     riskView: {
       value: 'External',
       description:
-        'Proof construction and state derivation rely fully on data that is NOT published on chain. MantleDA contracts are forked from EigenDA with significant modifications, most importantly removal of slashing conditions. DA fraud proof mechanism is not live yet.',
+        'Proof construction and state derivation rely fully on data that is NOT published on chain. Mantle DA contracts are forked from EigenDA with significant modifications, most importantly removal of slashing conditions. DA fraud proof mechanism is not live yet.',
       sentiment: 'bad',
     },
     technology: {
@@ -51,27 +106,32 @@ export const mantle: Layer2 = opStackL2({
       ],
       references: [
         {
-          text: 'DataLayrServiceManager.sol#L389 - Etherscan source code, confirmDataStore function',
-          href: 'https://etherscan.io/address/0xab42127980a3bff124e6465e097a5fc97228827e#code#F1#L389',
+          title:
+            'DataLayrServiceManager.sol#L389 - Etherscan source code, confirmDataStore function',
+          url: 'https://etherscan.io/address/0xab42127980a3bff124e6465e097a5fc97228827e#code#F1#L389',
         },
         {
-          text: 'DataLayrServiceManager.sol#L404 - Etherscan source code, signature verification check ',
-          href: 'https://etherscan.io/address/0xab42127980a3bff124e6465e097a5fc97228827e#code#F1#L404',
+          title:
+            'DataLayrServiceManager.sol#L404 - Etherscan source code, signature verification check ',
+          url: 'https://etherscan.io/address/0xab42127980a3bff124e6465e097a5fc97228827e#code#F1#L404',
         },
       ],
     },
+    badge: Badge.DA.CustomDA,
   },
   associatedTokens: ['MNT'],
+  nonTemplateExcludedTokens: ['SolvBTC', 'SolvBTC.BBN', 'FBTC'],
   discovery,
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.NO_PROOFS,
+    REASON_FOR_BEING_OTHER.SMALL_DAC,
+  ],
   display: {
     name: 'Mantle',
     slug: 'mantle',
     architectureImage: 'mantle',
     description:
       'Mantle is an under development EVM compatible Optimium, based on the OP Stack.',
-    warning:
-      'Fraud proof system is currently under development. Users need to trust the block proposer to submit correct L1 state roots.',
-    purposes: ['Universal'],
     links: {
       websites: ['https://mantle.xyz/'],
       apps: ['https://bridge.mantle.xyz'],
@@ -85,14 +145,13 @@ export const mantle: Layer2 = opStackL2({
         'https://t.me/mantlenetwork',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
   rpcUrl: 'https://rpc.mantle.xyz',
   genesisTimestamp: new UnixTime(1688428800),
   chainConfig: {
     name: 'mantle',
     chainId: 5000,
-    explorerUrl: 'https://explorer.mantle.xyz/',
+    explorerUrl: 'https://explorer.mantle.xyz',
     explorerApi: {
       url: 'https://api.routescan.io/v2/network/mainnet/evm/5000/etherscan/api',
       type: 'etherscan',
@@ -108,69 +167,29 @@ export const mantle: Layer2 = opStackL2({
     ],
     coingeckoPlatform: 'mantle',
   },
-  nonTemplateContracts: [
-    discovery.getContractDetails('DataLayrServiceManager', {
-      description:
-        'This contract is the main entry point for data availability. It is responsible for storing transaction data headers and confirming the data store by verifying operators signatures.',
-    }),
-    discovery.getContractDetails('BLSRegistry', {
-      description:
-        'This contract stores the number of Mantle DA operators and their public keys. It also store the quorum threshold and the minimum stake required to be part of the quorum.',
-    }),
-    discovery.getContractDetails('InvestmentManager', {
-      description:
-        'Contract managing different investment strategies, forked from EigenLayer StrategyManager.',
-    }),
-    discovery.getContractDetails('MantleFirstStrat', {
-      description: 'Basic do-nothing investment strategy.',
-    }),
-    discovery.getContractDetails('MantleSecondStrat', {
-      description: 'Basic do-nothing investment strategy.',
-    }),
-    discovery.getContractDetails('AddressManager', {
-      description:
-        'This is a library that stores the mappings between names and their addresses. Changing the values effectively upgrades the system. It is controlled by the MantleSecurityMultisig.',
-      ...regularUpgrades,
-    }),
-    discovery.getContractDetails('PubkeyCompendium'),
-    discovery.getContractDetails('RegistryPermission'),
-    discovery.getContractDetails('Delegation'),
-    discovery.getContractDetails('PauserRegistry'),
-    discovery.getContractDetails('PauserRegistry2'),
-    discovery.getContractDetails('L1MantleToken', {
-      description:
-        'Mantle uses Mantle (MNT) as the designated gas token, allowing users to utilize MNT to pay for blockspace.',
-    }),
-  ],
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'MantleSecurityMultisig',
-      'This address can upgrade the following contracts: L1CrossDomainMessenger, L1StandardBridge, AddressManager, L1MantleToken, EigenDataLayerChain, SystemConfig.',
-    ),
-    ...discovery.getMultisigPermission(
-      'MantleEngineeringMultisig',
-      'This address is the owner of the following contracts: EigenDataLayerChain, DataLayrServiceManager, BLSRegistry, Delegation. It is also designated as a Challenger and Guardian of the OptimismPortal, meaning it can halt withdrawals and change incorrect state roots.',
-    ),
-  ],
   milestones: [
     {
-      name: 'Mainnet launch',
-      link: 'https://www.mantle.xyz/blog/announcements/mantle-network-mainnet-alpha',
+      title: 'Mainnet launch',
+      url: 'https://www.mantle.xyz/blog/announcements/mantle-network-mainnet-alpha',
       date: '2023-07-14T00:00:00.00Z',
       description: 'Mantle is live on mainnet.',
+      type: 'general',
     },
     {
-      name: 'Mainnet v2 Tectonic Upgrade',
-      link: 'https://www.mantle.xyz/blog/announcements/mantle-completes-mainnet-v2-tectonic-upgrade',
+      title: 'Mainnet v2 Tectonic Upgrade',
+      url: 'https://www.mantle.xyz/blog/announcements/mantle-completes-mainnet-v2-tectonic-upgrade',
       date: '2024-03-15T00:00:00.00Z',
       description: 'Mantle completes Mainnet v2 Tectonic Upgrade.',
+      type: 'general',
     },
     {
-      name: 'MNT token migration begins',
-      link: 'https://www.mantle.xyz/blog/announcements/bit-to-mnt-user-guide',
+      title: 'MNT token migration begins',
+      url: 'https://www.mantle.xyz/blog/announcements/bit-to-mnt-user-guide',
       date: '2023-07-11T00:00:00.00Z',
       description: 'User can exchange their BIT tokens to MNT tokens.',
+      type: 'general',
     },
   ],
   nonTemplateOptimismPortalEscrowTokens: ['MNT'],
+  customDa: mantleDa,
 })

@@ -2,8 +2,8 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('polynetwork')
 
@@ -16,6 +16,7 @@ const warningText = isPaused ? 'The bridge is currently paused.' : undefined
 export const polynetwork: Bridge = {
   type: 'bridge',
   id: ProjectId('polynetwork'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'Poly Bridge',
     slug: 'polynetwork',
@@ -93,12 +94,8 @@ export const polynetwork: Bridge = {
         'Poly Bridge operation is centered around PolyNetwork chain that acts as a type of a light client for all supported chains. Each supported chain has a set or Relayers that transmit successive block headers to the PolyNetwork chain, as well as lock or burn events. Those events, after passing verification on PolyNetwork chain, are relayed to the destination chain by Relayers that are responsible for the destination chain. Relayers on the destination chain pass messages to appropriate contracts that mint or release corresponding tokens to the user after verifying validity of the message.',
       references: [
         {
-          text: 'PolyNetwork docs from source code',
-          href: 'https://github.com/polynetwork/docs',
-        },
-        {
-          text: 'Ethereum-related PolyNetwork docs from source code',
-          href: 'https://github.com/polynetwork/docs/blob/master/eth/README.md',
+          title: 'Poly Bridge docs',
+          url: 'https://github.com/polynetwork/poly-bridge/tree/master/doc',
         },
       ],
       risks: [
@@ -115,20 +112,18 @@ export const polynetwork: Bridge = {
         'Each supported chain has a set of Relayers that are responsible for sending successive block headers since pre-specified origin to the PolyNetwork chain, which stores these blocks after validating their aspects, such as structure, difficulty, consistency with previous blocks, etc. When user locks or burns an asset for a cross-chain swap, an event is relayed by Relayer to the PolyNetwork chain with a Merkle proof of that transaction being included in a block. The PolyNetwork chain is able to verify Merkle proof using block headers that it keeps. PolyNetwork chain itself uses a set of Keepers to sign transactions after checking their validity. Once a cross-chain transaction is verified on PolyNetwork, an event is emitted that is picked by Relayers on the destination chain. The block header and Merkle proof for a transaction on a source chain is validated by a contract on the destination chain (if it supports such verification) and the asset is minted or released to the recipient.',
       references: [
         {
-          text: 'Header verification source code',
-          href: 'https://github.com/polynetwork/poly/blob/master/native/service/header_sync/eth/header_sync.go#L99',
+          title: 'Header verification source code',
+          url: 'https://github.com/polynetwork/poly/blob/master/native/service/header_sync/eth/header_sync.go#L99',
         },
       ],
       risks: [
         {
           category: 'Users can be censored if',
           text: 'chain Relayers decide to not pass certain transactions to the destination chain.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'a fake block header is relayed through the PolyNetwork chain that allows to prove a burn/mint transaction that never occurred on the source chain.',
-          isCritical: true,
         },
         {
           category: 'Funds can be frozen if',
@@ -143,106 +138,119 @@ export const polynetwork: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'PolyWrapper',
-        'Entrypoint contract for the bridge. It proxies requests to LockProxy.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 1',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 2',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 3',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 4',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 5',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 6',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 7',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails(
-        'Lock Proxy 8',
-        'Escrow and proxy contract for the Bridge.',
-      ),
-      discovery.getContractDetails('EthCrossChainManager', {
-        description:
-          'Contract responsible for building cross-chain messages and validating incoming messages, including Merkle proofs.',
-        pausable: {
-          paused: discovery.getContractValue('EthCrossChainManager', 'paused'),
-          pausableBy: ['EthCrossChainManager'],
-        },
-      }),
-      discovery.getContractDetails(
-        'EthCrossChainData',
-        "Used to store Keepers' signatures and other parameters used by EthCrossChainManager.",
-      ),
-      discovery.getContractDetails('EthCrossChainManagerProxy', {
-        description:
-          'Used to proxy requests from LockProxy to EthCrossChainManager.',
-        pausable: {
-          paused: discovery.getContractValue(
-            'EthCrossChainManagerProxy',
-            'paused',
-          ),
-          pausableBy: ['EthCrossChainManager'],
-        },
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'PolyWrapper',
+          'Entrypoint contract for the bridge. It proxies requests to LockProxy.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 1',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 2',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 3',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 4',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 5',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 6',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 7',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails(
+          'Lock Proxy 8',
+          'Escrow and proxy contract for the Bridge.',
+        ),
+        discovery.getContractDetails('EthCrossChainManager', {
+          description:
+            'Contract responsible for building cross-chain messages and validating incoming messages, including Merkle proofs.',
+          pausable: {
+            paused: discovery.getContractValue(
+              'EthCrossChainManager',
+              'paused',
+            ),
+            pausableBy: ['EthCrossChainManager'],
+          },
+        }),
+        discovery.getContractDetails(
+          'EthCrossChainData',
+          "Used to store Keepers' signatures and other parameters used by EthCrossChainManager.",
+        ),
+        discovery.getContractDetails('EthCrossChainManagerProxy', {
+          description:
+            'Used to proxy requests from LockProxy to EthCrossChainManager.',
+          pausable: {
+            paused: discovery.getContractValue(
+              'EthCrossChainManagerProxy',
+              'paused',
+            ),
+            pausableBy: ['EthCrossChainManager'],
+          },
+        }),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    {
-      accounts: [discovery.getPermissionedAccount('PolyWrapper', 'owner')],
-      name: 'Owner and Fee Collector at PolyWrapper and owner at LockProxyWithLP',
-      description:
-        'Can add new bridge contracts (Escrows, LockProxy), pause the bridge, and transfer to itself all funds and ERC20 tokens of the PolyWrapper contract.',
-    },
-    {
-      accounts: [
-        discovery.getPermissionedAccount('EthCrossChainManager', 'owner'),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Owner and Fee Collector at PolyWrapper and owner at LockProxyWithLP',
+          discovery.getPermissionedAccounts('PolyWrapper', 'owner'),
+          'Can add new bridge contracts (Escrows, LockProxy), pause the bridge, and transfer to itself all funds and ERC20 tokens of the PolyWrapper contract.',
+        ),
+        discovery.getPermissionDetails(
+          'Owner of EthCrossChainManager',
+          discovery.getPermissionedAccounts('EthCrossChainManager', 'owner'),
+          'Can pause the contracts and update implementation of EthCrossChainData contract.',
+        ),
+        discovery.getPermissionDetails(
+          'Lock Proxy owners',
+          [
+            ...discovery.getPermissionedAccounts('Lock Proxy 1', 'owner'),
+            ...discovery.getPermissionedAccounts('Lock Proxy 2', 'owner'),
+            ...discovery.getPermissionedAccounts('Lock Proxy 3', 'owner'),
+            ...discovery.getPermissionedAccounts('Lock Proxy 4', 'owner'),
+            ...discovery.getPermissionedAccounts('Lock Proxy 5', 'owner'),
+          ],
+          'Can update address of EthCrossChainManagerProxy contract.',
+        ),
       ],
-      name: 'Owner of EthCrossChainManager',
-      description:
-        'Can pause the contracts and update implementation of EthCrossChainData contract.',
     },
-    {
-      accounts: [
-        discovery.getPermissionedAccount('Lock Proxy 1', 'owner'),
-        discovery.getPermissionedAccount('Lock Proxy 2', 'owner'),
-        discovery.getPermissionedAccount('Lock Proxy 3', 'owner'),
-        discovery.getPermissionedAccount('Lock Proxy 4', 'owner'),
-        discovery.getPermissionedAccount('Lock Proxy 5', 'owner'),
-      ],
-      name: 'Lock Proxy owners',
-      description: 'Can update address of EthCrossChainManagerProxy contract.',
-    },
-  ],
+  },
   milestones: [
     {
-      name: 'Contracts hacked for $611M',
-      date: '2021-08-10T00:00:00.00Z',
-      link: 'https://en.wikipedia.org/wiki/Poly_Network_exploit',
+      title: 'New deployments suspended',
+      date: '2024-04-10T00:00:00.00Z',
+      url: 'https://x.com/PolyNetwork2/status/1778012918941892984',
+      type: 'general',
     },
     {
-      name: 'Compromised multisig steals funds',
+      title: 'Contracts hacked for $611M',
+      date: '2021-08-10T00:00:00.00Z',
+      url: 'https://en.wikipedia.org/wiki/Poly_Network_exploit',
+      type: 'incident',
+    },
+    {
+      title: 'Compromised multisig steals funds',
       date: '2023-07-03T00:00:00.00Z',
-      link: 'https://rekt.news/poly-network-rekt2/',
+      url: 'https://rekt.news/poly-network-rekt2/',
+      type: 'incident',
     },
   ],
 }

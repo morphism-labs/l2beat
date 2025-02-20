@@ -1,10 +1,10 @@
 import { expect } from 'earl'
 
-import { assert } from '@l2beat/backend-tools'
-import { ChainId } from '@l2beat/shared-pure'
-import { chains } from '../../chains'
+import { assert, ChainId } from '@l2beat/shared-pure'
+import { uniq } from 'lodash'
 import { NUGGETS } from '../../common'
-import { tokenList } from '../../tokens'
+import { tokenList } from '../../tokens/tokens'
+import { chains } from '../chains'
 import { layer2s } from '../layer2s'
 import { layer3s } from './index'
 
@@ -31,8 +31,9 @@ describe('layer3s', () => {
       }
     })
   })
-  it('every layer3 has a valid host chain except those with Multiple', () => {
-    for (const layer3 of layer3s.filter((x) => x.hostChain !== 'Multiple')) {
+
+  it('every layer3 has a valid host chain', () => {
+    for (const layer3 of layer3s) {
       expect(layer3.hostChain).not.toBeNullish()
       const hostChain = layer2s.find((x) => x.id === layer3.hostChain)
       expect(hostChain).not.toBeNullish()
@@ -99,18 +100,6 @@ describe('layer3s', () => {
     })
   })
 
-  describe('every purpose is short', () => {
-    const purposes = layer3s.map((x) => x.display.purposes)
-    for (const purpose of purposes) {
-      const totalLength = purpose.reduce((acc, curr) => {
-        return acc + curr.length
-      }, 0)
-      it(purpose.join(', '), () => {
-        expect(totalLength).toBeLessThanOrEqual(20)
-      })
-    }
-  })
-
   describe('milestones', () => {
     describe('knowledgeNuggets', () => {
       const knowledgeNuggets = layer3s.flatMap(
@@ -149,5 +138,16 @@ describe('layer3s', () => {
         })
       }
     })
+  })
+
+  describe('badges', () => {
+    for (const layer3 of layer3s) {
+      if (layer3.badges === undefined) {
+        continue
+      }
+      it(`${layer3.display.name} does not have duplicated badges`, () => {
+        expect(layer3.badges?.length).toEqual(uniq(layer3.badges).length)
+      })
+    }
   })
 })

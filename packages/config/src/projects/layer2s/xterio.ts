@@ -1,9 +1,17 @@
 import { UnixTime, formatSeconds } from '@l2beat/shared-pure'
-
+import { DA_LAYERS } from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
-import { opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
+import {
+  DaCommitteeSecurityRisk,
+  DaEconomicSecurityRisk,
+  DaFraudDetectionRisk,
+  DaRelayerFailureRisk,
+  DaUpgradeabilityRisk,
+} from '../da-beat/common'
+import { DACHALLENGES_DA_PROVIDER, opStackL2 } from './templates/opStack'
 
 const discovery = new ProjectDiscovery('xterio')
 
@@ -22,14 +30,20 @@ const daResolveWindow = formatSeconds(
 )
 
 export const xterio: Layer2 = opStackL2({
+  addedAt: new UnixTime(1714996778), // 2024-05-06T11:59:38Z
   discovery,
-  badges: [Badge.DA.CustomDA],
+  additionalBadges: [Badge.DA.CustomDA, Badge.RaaS.AltLayer],
+  additionalPurposes: ['Gaming'],
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.NO_PROOFS,
+    REASON_FOR_BEING_OTHER.NO_DA_ORACLE,
+  ],
   display: {
+    architectureImage: 'opstack-dachallenge',
     name: 'Xterio Chain',
     slug: 'xterio',
     description:
       'Xterio Chain is an OP stack Optimium on Ethereum. The chain focuses on gaming, high performance and low fees .',
-    purposes: ['Universal', 'Gaming'],
     links: {
       websites: ['https://xter.io/'],
       apps: ['https://xter.io/', 'https://eth-bridge.xter.io/'],
@@ -42,72 +56,67 @@ export const xterio: Layer2 = opStackL2({
         'https://medium.com/@XterioGames',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  daProvider: {
+  isNodeAvailable: 'UnderReview',
+  daProvider: DACHALLENGES_DA_PROVIDER(
+    daChallengeWindow,
+    daResolveWindow,
+    'https://github.com/ethereum-optimism/optimism/releases/tag/op-node%2Fv1.7.5',
+    DA_LAYERS.OP_ALT_DA,
+  ), // source: altlayer on telegram
+  genesisTimestamp: new UnixTime(1716537433),
+  rpcUrl: 'https://xterio-eth.alt.technology/',
+  customDa: {
+    type: 'DA Challenges',
     name: 'XterioDA',
-    riskView: {
-      value: 'External',
-      description:
-        'Proof construction and state derivation rely on data that is NOT published onchain. Xterio uses a custom data availability provider without attestations, relying though on DA challenges.',
-      sentiment: 'bad',
-    },
+    description:
+      'XterioDA is a data availability solution using data availability challenges (DA Challenges).',
+    fallback: DA_LAYERS.ETH_CALLDATA,
+    challengeMechanism: 'DA Challenges',
     technology: {
-      name: 'Data required to compute fraud proofs is published offchain without onchain attestations',
-      description: `Xterio relies on DA challenges for data availability. If a DA challenger finds that the data behind a tx data commitment is not available, they can submit a challenge which requires locking a bond within ${daChallengeWindow}. A challenge can be resolved by publishing the preimage data within an additional ${daResolveWindow}. In such a case, a portion of the challenger bond is burned, with the exact amount estimated as the cost incurred by the resolver to publish the full data, meaning that the resolver and challenger will approximately lose the same amount of funds. The system is not secure if the malicious sequencer is able to outspend the altruistic challengers. If instead, after a challenge, the preimage data is not published, the chain reorgs to the last fully derivable state.`,
+      description: `
+## Architecture
+![XterioDA layer](/images/da-layer-technology/xterioda/architecture.png#center)
+
+## Data Availability Challenges
+Xterio relies on DA challenges for data availability. 
+The DA Provider submits an input commitment on Ethereum, and users can request the data behind the commitment off-chain from the DA Provider.
+If a DA challenger finds that the data behind a tx data commitment is not available, they can submit a challenge which requires locking a bond within ${daChallengeWindow}. 
+A challenge can be resolved by publishing the preimage data within an additional ${daResolveWindow}.
+In such case, a portion of the challenger bond is burned, with the exact amount estimated as the cost incurred by the resolver to publish the full data, meaning that the resolver and challenger will approximately lose the same amount of funds.
+The system is not secure if the malicious sequencer is able to outspend the altruistic challengers. 
+If instead, after a challenge, the preimage data is not published, the chain reorgs to the last fully derivable state.
+
+## DA Bridge
+Only hashes of data batches are posted as DA commitments to an EOA on Ethereum. However, there is a mechanism that allows users to challenge unavailability of data.
+    `,
       references: [
         {
-          text: 'OP Plasma design docs',
-          href: 'https://github.com/ethereum-optimism/design-docs/blob/main/protocol/plasma-mode.md',
+          title: 'Alt-DA Specification',
+          url: 'https://github.com/ethereum-optimism/specs/blob/main/specs/experimental/alt-da.md',
         },
         {
-          text: 'Universal Plasma and DA Challenges - Ethresear.ch',
-          href: 'https://ethresear.ch/t/universal-plasma-and-da-challenges/18629',
+          title: 'Security Considerations - Ethresear.ch ',
+          url: 'https://ethresear.ch/t/universal-plasma-and-da-challenges/18629',
         },
       ],
       risks: [
         {
-          category: 'Funds can be stolen if',
-          text: 'the sequencer is malicious and is able to economically outspend the altruistic challengers.',
+          category: 'Funds can be lost if',
+          text: `the sequencer posts an invalid data availability certificate and there are no challengers.`,
         },
         {
-          category: 'Funds can be stolen if',
-          text: 'there is no challenger willing to challenge unavailable data commitments.',
+          category: 'Funds can be lost if',
+          text: `the sequencer posts an invalid data availability certificate, and he is able to outspend the challengers.`,
         },
       ],
     },
-    bridge: { type: 'None + DA challenges' },
+    risks: {
+      economicSecurity: DaEconomicSecurityRisk.DAChallengesNoFunds,
+      fraudDetection: DaFraudDetectionRisk.NoFraudDetection,
+      committeeSecurity: DaCommitteeSecurityRisk.NoCommitteeSecurity(),
+      upgradeability: DaUpgradeabilityRisk.LowOrNoDelay(), // no delay
+      relayerFailure: DaRelayerFailureRisk.NoMechanism,
+    },
   },
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'RollupOwnerMultisig',
-      'Owner of the ProxyAdmin and the rollup system. It can upgrade the bridge implementation potentially gaining access to all funds, and change any system component.',
-    ),
-    {
-      name: 'DataAvailabilityChallenge owner',
-      accounts: [
-        discovery.getPermissionedAccount('DataAvailabilityChallenge', 'owner'),
-      ],
-      description:
-        'Owner of the DataAvailabilityChallenge contract. It can upgrade the contract params, potentially making the system insecure.',
-    },
-    {
-      name: 'SystemConfig owner',
-      description:
-        'Account privileged to change System Config parameters such as Sequencer Address and gas limit.',
-      accounts: [discovery.getPermissionedAccount('SystemConfig', 'owner')],
-    },
-  ],
-  nonTemplateContracts: [
-    discovery.getContractDetails('DataAvailabilityChallenge', {
-      description:
-        'The DataAvailabilityChallenge contract is used to challenge the data availability of tx data hashes. See the technology section for more details.',
-    }),
-    discovery.getContractDetails('SuperchainConfig', {
-      description: `Upgradable contract that manages the PAUSED_SLOT, a boolean value indicating whether the Superchain is paused, and GUARDIAN_SLOT, the address of the guardian which can pause and unpause the system. The address of the guardian can only be modified by the ProxyAdmin by upgrading the SuperchainConfig contract. This contract is a fork of Optimism's superchainConfig contract and is unrelated to the one used by the OP stack Superchain.`,
-    }),
-  ],
-  isNodeAvailable: 'UnderReview',
-  genesisTimestamp: new UnixTime(1716537433),
-  rpcUrl: 'https://xterio-eth.alt.technology/',
 })

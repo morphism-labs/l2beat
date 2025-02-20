@@ -1,18 +1,20 @@
-import { assert, Logger } from '@l2beat/backend-tools'
+import { createIndexerId } from '@l2beat/backend-shared'
+import type { Logger } from '@l2beat/backend-tools'
+import { assert } from '@l2beat/shared-pure'
 import {
   ChildIndexer,
-  Indexer,
-  IndexerOptions,
-  RetryStrategy,
+  type Indexer,
+  type IndexerOptions,
+  type RetryStrategy,
 } from '@l2beat/uif'
-
-import { IndexerService } from './IndexerService'
+import type { IndexerService } from './IndexerService'
 import { assertUniqueIndexerId } from './ids'
+import type { IndexerTags } from './types'
 
 export interface ManagedChildIndexerOptions extends IndexerOptions {
   parents: Indexer[]
   name: string
-  tag?: string
+  tags?: IndexerTags
   minHeight: number
   indexerService: IndexerService
   logger: Logger
@@ -24,9 +26,9 @@ export abstract class ManagedChildIndexer extends ChildIndexer {
   private readonly indexerId: string
 
   constructor(public readonly options: ManagedChildIndexerOptions) {
-    const logger = options.logger.tag(options.tag)
+    const logger = options.logger.tag(options.tags ?? {})
     super(logger, options.parents, options)
-    this.indexerId = Indexer.createId(options.name, options.tag)
+    this.indexerId = createIndexerId(options.name, options.tags?.tag)
     assertUniqueIndexerId(this.indexerId)
   }
 

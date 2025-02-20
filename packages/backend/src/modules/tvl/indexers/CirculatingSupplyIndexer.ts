@@ -1,26 +1,38 @@
-import { CoingeckoId, UnixTime } from '@l2beat/shared-pure'
+import { INDEXER_NAMES, createAmountId } from '@l2beat/backend-shared'
+import { UnixTime } from '@l2beat/shared-pure'
 import { Indexer } from '@l2beat/uif'
 import { ManagedChildIndexer } from '../../../tools/uif/ManagedChildIndexer'
-import { createAmountId } from '../utils/createAmountId'
-import { CirculatingSupplyIndexerDeps } from './types'
+import type { CirculatingSupplyIndexerDeps } from './types'
 
-const NAME = 'circulating_supply_indexer'
 export class CirculatingSupplyIndexer extends ManagedChildIndexer {
   private readonly configurationId: string
+  private readonly maxHeight: number | undefined
 
   constructor(private readonly $: CirculatingSupplyIndexerDeps) {
     super({
       ...$,
-      name: NAME,
-      tag: $.configuration.coingeckoId.toString(),
+      name: INDEXER_NAMES.CIRCULATING_SUPPLY,
+      tags: {
+        tag: $.configuration.coingeckoId.toString(),
+      },
       updateRetryStrategy: Indexer.getInfiniteRetryStrategy(),
       configHash: $.minHeight.toString(),
     })
     this.configurationId = createAmountId($.configuration)
+    this.maxHeight = this.$.configuration.untilTimestamp?.toNumber()
   }
 
   async update(from: number, to: number): Promise<number> {
-    const adjustedTo = this.$.circulatingSupplyService.getAdjustedTo(from, to)
+    if (this.maxHeight && from > this.maxHeight) {
+      this.logger.info('Skipping update due to maxHeight', {
+        from,
+        to,
+        maxHeight: this.maxHeight,
+      })
+      return to
+    }
+
+    const adjustedTo = this.getAdjustedTo(from, to)
 
     const amounts =
       await this.$.circulatingSupplyService.fetchCirculatingSupplies(
@@ -51,6 +63,14 @@ export class CirculatingSupplyIndexer extends ManagedChildIndexer {
     return adjustedTo.toNumber()
   }
 
+  private getAdjustedTo(from: number, to: number) {
+    const adjustedTo = this.$.circulatingSupplyService.getAdjustedTo(from, to)
+
+    return this.maxHeight && this.maxHeight < adjustedTo.toNumber()
+      ? new UnixTime(this.maxHeight)
+      : adjustedTo
+  }
+
   override async invalidate(targetHeight: number): Promise<number> {
     const deletedRecords = await this.$.db.amount.deleteByConfigAfter(
       this.configurationId,
@@ -65,9 +85,5 @@ export class CirculatingSupplyIndexer extends ManagedChildIndexer {
     }
 
     return targetHeight
-  }
-
-  static getId(coingeckoId: CoingeckoId) {
-    return Indexer.createId(NAME, coingeckoId.toString())
   }
 }

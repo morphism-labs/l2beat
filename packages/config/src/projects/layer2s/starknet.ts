@@ -4,12 +4,15 @@ import {
   EthereumAddress,
   ProjectId,
   UnixTime,
-  formatLargeNumberShared,
+  formatLargeNumber,
   formatSeconds,
 } from '@l2beat/shared-pure'
 
 import {
   CONTRACTS,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NEW_CRYPTOGRAPHY,
@@ -18,9 +21,9 @@ import {
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
+import { ESCROW } from '../../common'
+import { formatExecutionDelay } from '../../common/formatDelays'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
 import {
   getProxyGovernance,
@@ -28,10 +31,11 @@ import {
   getSHARPVerifierGovernors,
   getSHARPVerifierUpgradeDelay,
 } from '../../discovery/starkware'
+import type { Layer2 } from '../../types'
 import { delayDescriptionFromSeconds } from '../../utils/delayDescription'
 import { Badge } from '../badges'
+import { PROOFS } from '../zk-catalog/common/proofSystems'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('starknet')
 const verifierAddress = discovery.getAddressFromValue('Starknet', 'verifier')
@@ -145,7 +149,7 @@ function formatMaxTotalBalanceString(
   ) {
     return 'There is no bridge cap.'
   } else {
-    return `The current bridge cap is ${formatLargeNumberShared(
+    return `The current bridge cap is ${formatLargeNumber(
       maxTotalBalance / 10 ** decimals,
     )} ${ticker}.`
   }
@@ -233,13 +237,35 @@ const escrowEKUBOMaxTotalBalanceString = formatMaxTotalBalanceString(
   18,
 )
 
+const finalizationPeriod = 0
+
+const proxyGovernors = getProxyGovernance(discovery, 'Starknet')
+const governors = discovery.getPermissionedAccounts('Starknet', 'governors')
+
+// big governance assert
+assert(
+  proxyGovernors[0].address ===
+    discovery.getContract('StarknetAdminMultisig').address &&
+    proxyGovernors[1].address ===
+      discovery.getContract('StarknetSecurityCouncil').address &&
+    proxyGovernors.length === 2 &&
+    governors[0].address ===
+      discovery.getContract('StarknetOpsMultisig').address &&
+    governors[1].address ===
+      discovery.getContract('StarknetSecurityCouncil').address &&
+    governors.length === 2,
+  'gov has changed, review non-discodriven perms and gov section.',
+)
+
 export const starknet: Layer2 = {
   type: 'layer2',
   id: ProjectId('starknet'),
+  capability: 'universal',
+  addedAt: new UnixTime(1642687633), // 2022-01-20T14:07:13Z
   display: {
     name: 'Starknet',
     slug: 'starknet',
-    provider: 'Starknet',
+    stack: 'SN Stack',
     description:
       'Starknet is a general purpose ZK Rollup based on STARKs and the Cairo VM.',
     purposes: ['Universal'],
@@ -253,7 +279,7 @@ export const starknet: Layer2 = {
         'https://starkware.co/ecosystem/',
         'https://community.starknet.io/',
       ],
-      documentation: ['https://starknet.io/learn/what-is-starknet'],
+      documentation: ['https://docs.starknet.io'],
       explorers: ['https://voyager.online/', 'https://starkscan.co/'],
       repositories: ['https://github.com/starkware-libs'],
       socialMedia: [
@@ -264,17 +290,16 @@ export const starknet: Layer2 = {
         'https://youtube.com/channel/UCnDWguR8mE2oDBsjhQkgbvg',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
     liveness: {
       explanation:
         'Starknet is a ZK rollup that posts state diffs to the L1. For a transaction to be considered final, the state diffs have to be submitted and validity proof should be generated, submitted, and verified. Proofs are aggregated with other projects using SHARP and state updates have to refer to proved claims.',
     },
     finality: {
-      finalizationPeriod: 0,
+      finalizationPeriod,
     },
     costsWarning: {
       sentiment: 'warning',
-      content:
+      value:
         'The proof verification costs are shared among all projects that use the Starkware SHARP verifier. Therefore, Starknet’s costs represent a rough estimate, and we are working to provide more accurate values.',
     },
   },
@@ -287,13 +312,22 @@ export const starknet: Layer2 = {
         tokens: ['ETH'],
         description:
           'StarkGate bridge for ETH.' + ' ' + escrowETHMaxTotalBalanceString,
-        upgradableBy: ['StarkGate ETH owner', 'BridgeMultisig'],
-        upgradeDelay: formatSeconds(escrowETHDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'StarkGate ETH owner',
+            delay: formatSeconds(escrowETHDelaySeconds),
+          },
+          {
+            name: 'BridgeMultisig',
+            delay: formatSeconds(escrowETHDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0x0437465dfb5B79726e35F08559B0cBea55bb585C'),
         sinceTimestamp: new UnixTime(1652101033),
         tokens: ['DAI'],
+        ...ESCROW.CANONICAL_EXTERNAL,
         description:
           'DAI Vault for custom DAI Gateway managed by MakerDAO.' +
           ' ' +
@@ -305,14 +339,18 @@ export const starknet: Layer2 = {
         tokens: ['WBTC'],
         description:
           'StarkGate bridge for WBTC.' + ' ' + escrowWBTCMaxTotalBalanceString,
-        upgradableBy: ['BridgeMultisig'],
-        upgradeDelay: formatSeconds(escrowWBTCDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'BridgeMultisig',
+            delay: formatSeconds(escrowWBTCDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_USDC_ADDRESS),
         sinceTimestamp: new UnixTime(1657137639),
         tokens: ['USDC'],
-        upgradableBy: ['BridgeMultisig'],
+        upgradableBy: [{ name: 'BridgeMultisig', delay: 'no' }],
         description:
           'StarkGate bridge for USDC.' + ' ' + escrowUSDCMaxTotalBalanceString,
       }),
@@ -322,8 +360,12 @@ export const starknet: Layer2 = {
         tokens: ['USDT'],
         description:
           'StarkGate bridge for USDT.' + ' ' + escrowUSDTMaxTotalBalanceString,
-        upgradableBy: ['BridgeMultisig'],
-        upgradeDelay: formatSeconds(escrowUSDTDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'BridgeMultisig',
+            delay: formatSeconds(escrowUSDTDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_WSTETH_ADDRESS),
@@ -333,8 +375,13 @@ export const starknet: Layer2 = {
           'StarkGate bridge for wstETH.' +
           ' ' +
           escrowWSTETHMaxTotalBalanceString,
-        upgradableBy: ['BridgeMultisig'],
-        upgradeDelay: formatSeconds(escrowWSTETHDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'BridgeMultisig',
+            delay: formatSeconds(escrowWSTETHDelaySeconds),
+          },
+        ],
+        ...ESCROW.CANONICAL_EXTERNAL,
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_RETH_ADDRESS),
@@ -342,32 +389,48 @@ export const starknet: Layer2 = {
         tokens: ['rETH'],
         description:
           'StarkGate bridge for rETH.' + ' ' + escrowRETHMaxTotalBalanceString,
-        upgradableBy: ['BridgeMultisig'],
-        upgradeDelay: formatSeconds(escrowRETHDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'BridgeMultisig',
+            delay: formatSeconds(escrowRETHDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_UNI_ADDRESS),
         tokens: ['UNI'],
         description:
           'StarkGate bridge for UNI.' + ' ' + escrowUNIMaxTotalBalanceString,
-        upgradableBy: ['StarkGate UNI owner'],
-        upgradeDelay: formatSeconds(escrowUNIDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'StarkGate UNI owner',
+            delay: formatSeconds(escrowUNIDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_FRAX_ADDRESS),
         tokens: ['FRAX'],
         description:
           'StarkGate bridge for FRAX.' + ' ' + escrowFRAXMaxTotalBalanceString,
-        upgradableBy: ['StarkGate FRAX owner'],
-        upgradeDelay: formatSeconds(escrowFRAXDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'StarkGate FRAX owner',
+            delay: formatSeconds(escrowFRAXDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_FXS_ADDRESS),
         tokens: ['FXS'],
         description:
           'StarkGate bridge for FXS.' + ' ' + escrowFXSMaxTotalBalanceString,
-        upgradableBy: ['StarkGate FXS owner'],
-        upgradeDelay: formatSeconds(escrowFXSDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'StarkGate FXS owner',
+            delay: formatSeconds(escrowFXSDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_SFRXETH_ADDRESS),
@@ -376,16 +439,24 @@ export const starknet: Layer2 = {
           'StarkGate bridge for sfrxETH.' +
           ' ' +
           escrowSFRXETHMaxTotalBalanceString,
-        upgradableBy: ['StarkGate sfrxETH owner'],
-        upgradeDelay: formatSeconds(escrowSFRXETHDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'StarkGate sfrxETH owner',
+            delay: formatSeconds(escrowSFRXETHDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_LUSD_ADDRESS),
         tokens: ['LUSD'],
         description:
           'StarkGate bridge for LUSD.' + ' ' + escrowLUSDMaxTotalBalanceString,
-        upgradableBy: ['StarkGate LUSD owner'],
-        upgradeDelay: formatSeconds(escrowLUSDDelaySeconds),
+        upgradableBy: [
+          {
+            name: 'StarkGate LUSD owner',
+            delay: formatSeconds(escrowLUSDDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_LORDS_ADDRESS),
@@ -397,8 +468,12 @@ export const starknet: Layer2 = {
         tokens: ['STRK'],
         description:
           'StarkGate bridge for STRK.' + ' ' + escrowSTRKMaxTotalBalanceString,
-        upgradeDelay: formatSeconds(escrowSTRKDelaySeconds),
-        upgradableBy: ['BridgeMultisig'],
+        upgradableBy: [
+          {
+            name: 'BridgeMultisig',
+            delay: formatSeconds(escrowSTRKDelaySeconds),
+          },
+        ],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress(ESCROW_MULTIBRIDGE_ADDRESS),
@@ -407,8 +482,12 @@ export const starknet: Layer2 = {
           'StarkGate bridge for EKUBO, ZEND, NSTR (and potentially other tokens listed via StarkgateManager).' +
           ' ' +
           escrowEKUBOMaxTotalBalanceString,
-        upgradeDelay: formatSeconds(escrowMultibridgeDelaySeconds),
-        upgradableBy: ['StarkGate MultiBridge Admin'],
+        upgradableBy: [
+          {
+            name: 'StarkGate MultiBridge Admin',
+            delay: formatSeconds(escrowMultibridgeDelaySeconds),
+          },
+        ],
       }),
     ],
     transactionApi: {
@@ -416,10 +495,22 @@ export const starknet: Layer2 = {
       defaultUrl: 'https://starknet-mainnet.public.blastapi.io',
       defaultCallsPerMinute: 120,
     },
+    daTracking: [
+      {
+        type: 'ethereum',
+        daLayer: ProjectId('ethereum'),
+        sinceBlock: 0, // Edge Case: config added @ DA Module start
+        inbox: '0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4',
+        sequencers: [
+          '0xFf6B2185E357b6e9136A1b2ca5d7C45765D5c591',
+          '0x2C169DFe5fBbA12957Bdd0Ba47d9CEDbFE260CA7',
+        ],
+      },
+    ],
     finality: {
       lag: 0,
       type: 'Starknet',
-      minTimestamp: new UnixTime(1710252998),
+      minTimestamp: new UnixTime(1724856347),
       stateUpdate: 'disabled',
     },
     trackedTxs: [
@@ -491,11 +582,85 @@ export const starknet: Layer2 = {
         query: {
           formula: 'sharpSubmission',
           sinceTimestamp: new UnixTime(1710625271),
+          untilTimestamp: new UnixTime(1715783986), // 15.05.2024 https://app.blocksec.com/explorer/tx/eth/0x3b5c41b3abb8e265b8d58ec3dde79790d4f0ee050de97f8bd0fe68048c070bdd
           programHashes: [
             '3383082961563516565935611087683915026448707331436034043529592588079494402084',
           ],
         },
         _hackCostMultiplier: 0.65,
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'proofSubmissions' },
+          { type: 'l2costs', subtype: 'proofSubmissions' },
+        ],
+        query: {
+          formula: 'sharpSubmission',
+          sinceTimestamp: new UnixTime(1715783986),
+          untilTimestamp: new UnixTime(1724856227),
+          programHashes: [
+            '3383082961563516565935611087683915026448707331436034043529592588079494402084',
+          ],
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'proofSubmissions' },
+          { type: 'l2costs', subtype: 'proofSubmissions' },
+        ],
+        query: {
+          formula: 'sharpSubmission',
+          sinceTimestamp: new UnixTime(1724856227),
+          untilTimestamp: new UnixTime(1732747391),
+          programHashes: [
+            '853638403225561750106379562222782223909906501242604214771127703946595519856', // Starknet OS
+          ],
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'proofSubmissions' },
+          { type: 'l2costs', subtype: 'proofSubmissions' },
+        ],
+        query: {
+          formula: 'sharpSubmission',
+          sinceTimestamp: new UnixTime(1724856227),
+          untilTimestamp: new UnixTime(1732747391),
+          programHashes: [
+            '1161178844461337253856226043908368523817098764221830529880464854589141231910', // old Aggregator
+          ],
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'proofSubmissions' },
+          { type: 'l2costs', subtype: 'proofSubmissions' },
+        ],
+        query: {
+          formula: 'sharpSubmission',
+          sinceTimestamp: new UnixTime(1732747391),
+          programHashes: [
+            '2397984267054479079853548842566103781972463965746662494980785692480538410509', // Starknet OS
+          ],
+        },
+        _hackCostMultiplier: 0.05,
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'proofSubmissions' },
+          { type: 'l2costs', subtype: 'proofSubmissions' },
+        ],
+        query: {
+          formula: 'sharpSubmission',
+          sinceTimestamp: new UnixTime(1732747391),
+          programHashes: [
+            '15787695375210609250491147414005894154890873413229882671403677761527504080', // Aggregator (since Starknet v0.13.3)
+          ],
+        },
+        _hackCostMultiplier: 0.05,
       },
       {
         uses: [
@@ -510,7 +675,7 @@ export const starknet: Layer2 = {
           selector: '0x77552641',
           functionSignature:
             'function updateState(uint256[] programOutput, uint256 onchainDataHash, uint256 onchainDataSize)',
-          sinceTimestamp: new UnixTime(1636978914),
+          sinceTimestamp: new UnixTime(1636979180),
         },
       },
       {
@@ -527,6 +692,23 @@ export const starknet: Layer2 = {
           functionSignature:
             'function updateStateKzgDA(uint256[] programOutput, bytes kzgProof)',
           sinceTimestamp: new UnixTime(1710252995),
+          untilTimestamp: new UnixTime(1724855579),
+        },
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'stateUpdates' },
+          { type: 'l2costs', subtype: 'stateUpdates' },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xc662c410C0ECf747543f5bA90660f6ABeBD9C8c4',
+          ),
+          selector: '0x507ee528',
+          functionSignature:
+            'function updateStateKzgDA(uint256[] programOutput, bytes[] kzgProofs)',
+          sinceTimestamp: new UnixTime(1724855579),
         },
       },
       {
@@ -570,8 +752,67 @@ export const starknet: Layer2 = {
           functionSignature:
             'function registerContinuousMemoryPage(uint256 startAddr,uint256[] values,uint256 z,uint256 alpha,uint256 prime)',
           sinceTimestamp: new UnixTime(1710342000),
+          untilTimestamp: new UnixTime(1722197315),
         },
         _hackCostMultiplier: 0.5,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'batchSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xe583BcDE0160b637330b27a3ea1F3c02ba2eC460',
+          ),
+          selector: '0x5578ceae',
+          functionSignature:
+            'function registerContinuousMemoryPage(uint256 startAddr,uint256[] values,uint256 z,uint256 alpha,uint256 prime)',
+          sinceTimestamp: new UnixTime(1722197315),
+          untilTimestamp: new UnixTime(1732747391),
+        },
+        _hackCostMultiplier: 0.5,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'batchSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xe583BcDE0160b637330b27a3ea1F3c02ba2eC460',
+          ),
+          selector: '0x739ef303',
+          functionSignature:
+            'function registerContinuousPageBatch((uint256 startAddr, uint256[] values, uint256 z, uint256 alpha, uint256 prime)[] memoryPageEntries)',
+          sinceTimestamp: new UnixTime(1722197315),
+          untilTimestamp: new UnixTime(1732747391),
+        },
+        _hackCostMultiplier: 0.5,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'batchSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xe583BcDE0160b637330b27a3ea1F3c02ba2eC460',
+          ),
+          selector: '0x5578ceae',
+          functionSignature:
+            'function registerContinuousMemoryPage(uint256 startAddr,uint256[] values,uint256 z,uint256 alpha,uint256 prime)',
+          sinceTimestamp: new UnixTime(1732747391),
+        },
+        _hackCostMultiplier: 0.03,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'batchSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xe583BcDE0160b637330b27a3ea1F3c02ba2eC460',
+          ),
+          selector: '0x739ef303',
+          functionSignature:
+            'function registerContinuousPageBatch((uint256 startAddr, uint256[] values, uint256 z, uint256 alpha, uint256 prime)[] memoryPageEntries)',
+          sinceTimestamp: new UnixTime(1732747391),
+        },
+        _hackCostMultiplier: 0.03,
       },
       {
         uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
@@ -599,8 +840,53 @@ export const starknet: Layer2 = {
           functionSignature:
             'function verifyFRI(uint256[] proof,uint256[] friQueue,uint256 evaluationPoint,uint256 friStepSize,uint256 expectedRoot)',
           sinceTimestamp: new UnixTime(1710342000),
+          untilTimestamp: new UnixTime(1715783986), //15.05.2024
         },
         _hackCostMultiplier: 0.65,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }], //same config as above but different multiplier
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xDEf8A3b280A54eE7Ed4f72E1c7d6098ad8df44fb',
+          ),
+          selector: '0xe85a6a28',
+          functionSignature:
+            'function verifyFRI(uint256[] proof,uint256[] friQueue,uint256 evaluationPoint,uint256 friStepSize,uint256 expectedRoot)',
+          sinceTimestamp: new UnixTime(1715783986), //15.05.2024
+          untilTimestamp: new UnixTime(1722197315), //28.07.2024
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x30EfaAA99f8eFe310D9FdC83072e2a04c093d400',
+          ),
+          selector: '0xe85a6a28',
+          functionSignature:
+            'function verifyFRI(uint256[] proof,uint256[] friQueue,uint256 evaluationPoint,uint256 friStepSize,uint256 expectedRoot)',
+          sinceTimestamp: new UnixTime(1722197315),
+          untilTimestamp: new UnixTime(1732665600), //27.11
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x30EfaAA99f8eFe310D9FdC83072e2a04c093d400',
+          ),
+          selector: '0xe85a6a28',
+          functionSignature:
+            'function verifyFRI(uint256[] proof,uint256[] friQueue,uint256 evaluationPoint,uint256 friStepSize,uint256 expectedRoot)',
+          sinceTimestamp: new UnixTime(1732665600),
+        },
+        _hackCostMultiplier: 0.05,
       },
       {
         uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
@@ -628,62 +914,73 @@ export const starknet: Layer2 = {
           functionSignature:
             'function verifyMerkle(uint256[] merkleView,uint256[] initialMerkleQueue,uint256 height,uint256 expectedRoot)',
           sinceTimestamp: new UnixTime(1710342000),
+          untilTimestamp: new UnixTime(1715783986),
         },
         _hackCostMultiplier: 0.65,
       },
+      {
+        uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x634DCf4f1421Fc4D95A968A559a450ad0245804c',
+          ),
+          selector: '0x3fe317a6',
+          functionSignature:
+            'function verifyMerkle(uint256[] merkleView,uint256[] initialMerkleQueue,uint256 height,uint256 expectedRoot)',
+          sinceTimestamp: new UnixTime(1715783986),
+          untilTimestamp: new UnixTime(1722197315),
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x32a91Ff604AB2aDCd832e91D68b2f3f25358FdAd',
+          ),
+          selector: '0x3fe317a6',
+          functionSignature:
+            'function verifyMerkle(uint256[] merkleView,uint256[] initialMerkleQueue,uint256 height,uint256 expectedRoot)',
+          sinceTimestamp: new UnixTime(1722197315),
+          untilTimestamp: new UnixTime(1732665600), //27.11
+        },
+        _hackCostMultiplier: 0.2,
+      },
+      {
+        uses: [{ type: 'l2costs', subtype: 'proofSubmissions' }],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x32a91Ff604AB2aDCd832e91D68b2f3f25358FdAd',
+          ),
+          selector: '0x3fe317a6',
+          functionSignature:
+            'function verifyMerkle(uint256[] merkleView,uint256[] initialMerkleQueue,uint256 height,uint256 expectedRoot)',
+          sinceTimestamp: new UnixTime(1732665600),
+        },
+        _hackCostMultiplier: 0.05,
+      },
     ],
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (blobs or calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'State diffs',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_BLOBS_OR_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.STATE_DIFFS_COMPRESSED,
+  },
+  riskView: {
     stateValidation: {
       ...RISK_VIEW.STATE_ZKP_ST,
-      sources: [
-        {
-          contract: 'Starknet',
-          references: [
-            'https://etherscan.io/address/0x6E0aCfDC3cf17A7f99ed34Be56C3DFb93F464e24#code',
-          ],
-        },
-        // we don't have a way to test against shared modules
-        // {
-        //   contract: 'GpsStatementVerifier',
-        //   references: [
-        //     'https://etherscan.io/address/0x6cb3ee90c50a38a0e4662bb7e7e6e40b91361bf6#code#F6#L153',
-        //   ],
-        // },
-      ],
+      secondLine: formatExecutionDelay(finalizationPeriod),
     },
     dataAvailability: {
       ...RISK_VIEW.DATA_ON_CHAIN_STATE_DIFFS,
-      sources: [
-        {
-          contract: 'Starknet',
-          references: [
-            'https://etherscan.io/address/0x6E0aCfDC3cf17A7f99ed34Be56C3DFb93F464e24#code',
-          ],
-        },
-      ],
     },
     exitWindow: RISK_VIEW.EXIT_WINDOW(minDelay, 0),
-    sequencerFailure: {
-      ...RISK_VIEW.SEQUENCER_NO_MECHANISM(),
-      sources: [
-        {
-          contract: 'Starknet',
-          references: [
-            'https://etherscan.io/address/0x6E0aCfDC3cf17A7f99ed34Be56C3DFb93F464e24#code',
-          ],
-        },
-      ],
-    },
+    sequencerFailure: RISK_VIEW.SEQUENCER_NO_MECHANISM(),
     proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   stage: getStage(
     {
       stage0: {
@@ -693,6 +990,7 @@ export const starknet: Layer2 = {
         rollupNodeSourceAvailable: true,
       },
       stage1: {
+        principle: false,
         stateVerificationOnL1: true,
         fraudProofSystemAtLeast5Outsiders: null,
         usersHave7DaysToExit: false,
@@ -714,8 +1012,8 @@ export const starknet: Layer2 = {
       ...STATE_CORRECTNESS.VALIDITY_PROOFS,
       references: [
         {
-          text: 'What is Starknet',
-          href: 'https://starkware.co/starknet/',
+          title: 'What is Starknet',
+          url: 'https://starkware.co/starknet/',
         },
       ],
     },
@@ -731,8 +1029,8 @@ export const starknet: Layer2 = {
       ...FORCE_TRANSACTIONS.SEQUENCER_NO_MECHANISM,
       references: [
         {
-          text: 'Censorship resistance of Starknet - Forum Discussion',
-          href: 'https://community.starknet.io/t/censorship-resistance/196',
+          title: 'Censorship resistance of Starknet - Forum Discussion',
+          url: 'https://community.starknet.io/t/censorship-resistance/196',
         },
       ],
     },
@@ -754,15 +1052,11 @@ export const starknet: Layer2 = {
         title: 'Proven Program',
         description:
           'The source code of the Starknet OS can be found [here](https://github.com/starkware-libs/cairo-lang/tree/v0.13.1/src/starkware/starknet/core/os). The source code of the bootloader can be found [here](https://github.com/starkware-libs/cairo-lang/blob/v0.13.1/src/starkware/cairo/bootloaders/bootloader/bootloader.cairo).',
-        risks: [
-          {
-            category: 'Funds can be lost if',
-            text: 'the proof system is implemented incorrectly.',
-          },
-        ],
+        risks: [],
       },
     ],
     proofVerification: {
+      shortDescription: 'Starknet is a ZK-CairoVM rollup on Ethereum.',
       aggregation: true,
       requiredTools: [],
       verifiers: [
@@ -779,26 +1073,17 @@ export const starknet: Layer2 = {
             // TODO: change links when this is released: https://github.com/starkware-libs/cairo-lang/commit/0e4dab8a6065d80d1c726394f5d9d23cb451706a
             {
               name: 'Main bootloader',
-              proofSystem: 'STARK',
-              mainArithmetization: 'AIR',
-              mainPCS: 'FRI',
-              trustedSetup: 'None',
+              ...PROOFS.PROGRAM,
               link: 'https://github.com/starkware-libs/cairo-lang/blob/v0.13.1/src/starkware/cairo/bootloaders/bootloader/bootloader.cairo',
             },
             {
               name: 'Simple bootloader',
-              proofSystem: 'STARK',
-              mainArithmetization: 'AIR',
-              mainPCS: 'FRI',
-              trustedSetup: 'None',
+              ...PROOFS.PROGRAM,
               link: 'https://github.com/starkware-libs/cairo-lang/blob/v0.13.1/src/starkware/cairo/bootloaders/simple_bootloader/simple_bootloader.cairo',
             },
             {
               name: 'Applicative bootloader',
-              proofSystem: 'STARK',
-              mainArithmetization: 'AIR',
-              mainPCS: 'FRI',
-              trustedSetup: 'None',
+              ...PROOFS.PROGRAM,
               link: 'https://github.com/starkware-libs/cairo-lang/blob/v0.13.2a0/src/starkware/cairo/bootloaders/applicative_bootloader/applicative_bootloader.cairo',
             },
             {
@@ -811,10 +1096,7 @@ export const starknet: Layer2 = {
             },
             {
               name: 'StarknetOS',
-              proofSystem: 'STARK',
-              mainArithmetization: 'AIR',
-              mainPCS: 'FRI',
-              trustedSetup: 'None',
+              ...PROOFS.PROGRAM,
               link: 'https://github.com/starkware-libs/cairo-lang/tree/v0.13.1/src/starkware/starknet/core/os',
             },
           ],
@@ -823,244 +1105,153 @@ export const starknet: Layer2 = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('Starknet', {
-        description:
-          'Starknet contract receives (verified) state roots from the Sequencer, allows users to read L2 -> L1 messages and send L1 -> L2 message.',
-        upgradeDelay: starknetDelaySeconds
-          ? formatSeconds(starknetDelaySeconds)
-          : 'No delay',
-        upgradableBy: ['Starknet Proxy Governors'],
-      }),
-      ...getSHARPVerifierContracts(discovery, verifierAddress),
-      discovery.getContractDetails(
-        'L1DaiGateway',
-        'Custom DAI Gateway, main entry point for users depositing DAI to L2 where "canonical" L2 DAI token managed by MakerDAO will be minted. Managed by MakerDAO.',
-      ),
-      discovery.getContractDetails('StarkgateManager', {
-        description:
-          'This contract allows the permissionless creation and configuration of StarkGate token escrows. Tokens can also be blacklisted for creation, and already actively bridged tokens can be deactivated from depositing by a designated TokenAdmin.',
-        upgradableBy: ['StarkGate MultiBridge Admin'],
-        upgradeDelay: formatSeconds(starkgateManagerDelaySeconds),
-      }),
-      discovery.getContractDetails('StarkgateRegistry', {
-        description:
-          'A central registry contract to map token addresses to their StarkGate bridge contract.',
-        upgradableBy: ['StarkGate MultiBridge Admin'],
-        upgradeDelay: formatSeconds(starkgateRegistryDelaySeconds),
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('Starknet', {
+          description:
+            'Starknet contract receives (verified) state roots from the Sequencer, allows users to read L2 -> L1 messages and send L1 -> L2 message.',
+          upgradableBy: [
+            {
+              name: 'StarknetAdminMultisig',
+              delay: starknetDelaySeconds
+                ? formatSeconds(starknetDelaySeconds)
+                : 'No delay',
+            },
+            {
+              name: 'StarknetSecurityCouncil',
+              delay: starknetDelaySeconds
+                ? formatSeconds(starknetDelaySeconds)
+                : 'No delay',
+            },
+          ],
+        }),
+        ...getSHARPVerifierContracts(discovery, verifierAddress),
+        discovery.getContractDetails(
+          'L1DaiGateway',
+          'Custom DAI Gateway, main entry point for users depositing DAI to L2 where "canonical" L2 DAI token managed by MakerDAO will be minted. Managed by MakerDAO.',
+        ),
+        discovery.getContractDetails('StarkgateManager', {
+          description:
+            'This contract allows the permissionless creation and configuration of StarkGate token escrows. Tokens can also be blacklisted for creation, and already actively bridged tokens can be deactivated from depositing by a designated TokenAdmin.',
+          upgradableBy: [
+            {
+              name: 'StarkgateBridgeMultisig',
+              delay: formatSeconds(starkgateManagerDelaySeconds),
+            },
+          ],
+        }),
+        discovery.getContractDetails('StarkgateRegistry', {
+          description:
+            'A central registry contract to map token addresses to their StarkGate bridge contract.',
+          upgradableBy: [
+            {
+              name: 'StarkgateBridgeMultisig',
+              delay: formatSeconds(starkgateRegistryDelaySeconds),
+            },
+          ],
+        }),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_WITH_DELAY_SECONDS_RISK(minDelay)],
   },
-  upgradesAndGovernance: (() => {
-    const proxyGovernors = getProxyGovernance(discovery, 'Starknet')
-    const proxygovMulti = discovery.getContract('ProxyMultisig')
-    const implGovernors = discovery.getPermissionedAccounts(
-      'Starknet',
-      'governors',
-    )
+  upgradesAndGovernance: `
+  The Starknet ZK Rollup shares its SHARP verifier with other StarkEx and SN Stack Layer 2s. Governance of the system is currently split between three major Multisig admins with instant upgrade capability and one ops Multisig that can tweak central configurations.
 
-    assert(
-      proxyGovernors[1].address === proxygovMulti.address &&
-        proxyGovernors.length === 2 &&
-        discovery.isEOA(implGovernors[0].address),
-      'The pattern of Starkware Governance (One Multisig, one EOA in all three pillars) has changed, please update the description below.',
-    )
-    const description = `
-The Upgrading mechanism of Starknet follows a similar scheme for all of their smart contracts. A contract initializes with the creator of the contract as a Governor, who can then nominate or remove other Governors allowing them to call restricted governor functions.
 
-The Starknet core contract is upgradable by 2 appointed \`Starknet Proxy Governors\`: A Proxy multisig with a ${discovery.getMultisigStats(
-      'ProxyMultisig',
-    )} threshold and an EOA. Implementations can be upgraded ${
-      starknetDelaySeconds === 0
-        ? 'without delay, thus users are not provided with an exit window in case of unwanted upgrades.'
-        : 'with a delay of ' + formatSeconds(starknetDelaySeconds) + '.'
-    }
+  The ${discovery.getMultisigStats('StarknetAdminMultisig')} StarknetAdminMultisig can upgrade the Starknet contract, while the ${discovery.getMultisigStats('StarknetOpsMultisig')} StarknetOpsMultisig is permissioned to tweak its configuration. Starkgate bridge contracts can be upgraded (and configured) by the StarknetEscrowMultisig without delay.
 
-\`Starknet Implementation Governors\` have the authority to execute governed functions that modify contract parameters without delay. These actions encompass registering/removing Operators, specifying the program and config hash, or setting the Message Cancellation Delay between L1 and L2. Currently it is governed by a Multisig with a ${discovery.getMultisigStats(
-      'ImplementationMultisig',
-    )} threshold and an EOA. The verifier address is set upon initialization of the Starknet Implementation contract.
 
-Via the proxy contracts, the \`SHARP Verifier Governors\` can upgrade the GPSStatement Verifier implementation. It is important to note that the state is also maintained in the implementation contract, rather than in the proxy itself. An upgrade to the Verifier could potentially introduce code that approves fraudulent states. Currently, there is ${
-      getSHARPVerifierUpgradeDelay() === 0
-        ? 'no'
-        : 'a ' + formatSeconds(getSHARPVerifierUpgradeDelay())
-    } delay before any upgrade takes effect.
-
-The StarkGate bridge escrows are mostly governed and upgraded by a Bridge Multisig, others by different owners. (see Permissions section)
-
-At present, the StarkNet Foundation hosts voting for STRK token holders (or their delegates) regarding protocol updates to reflect community intent, however, there is no direct authority to implement the execution of these upgrades.
-`
-    return description
-  })(),
-  permissions: [
-    {
-      name: 'Starknet Proxy Governors',
-      accounts: getProxyGovernance(discovery, 'Starknet'),
-      description:
-        'Can upgrade implementation of the system, potentially gaining access to all funds stored in the bridge. Can also upgrade implementation of the StarknetCore contract, potentially allowing fraudulent state to be posted. ' +
-        delayDescriptionFromSeconds(starknetDelaySeconds),
-    },
-    ...discovery.getMultisigPermission(
-      'ProxyMultisig',
-      'One of Proxy Governors.',
-    ),
-    {
-      name: 'Starknet Implementation Governors',
-      accounts: discovery.getPermissionedAccounts('Starknet', 'governors'),
-      description:
-        'The governors are responsible for: appointing operators, changing program hash, changing config hash, changing message cancellation delay. There is no delay on governor actions.',
-    },
-    ...getSHARPVerifierGovernors(discovery, verifierAddress),
-    {
-      name: 'Operators',
-      accounts: discovery.getPermissionedAccounts('Starknet', 'operators'),
-      description:
-        'Allowed to post state updates. When the operator is down the state cannot be updated.',
-    },
-    {
-      name: 'MakerDAO Governance',
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x0a3f6849f78076aefaDf113F5BED87720274dDC0',
+  The shared SHARPVerifier contract is governed by the ${discovery.getMultisigStats('SHARPVerifierAdminMultisig')} SHARPVerifierAdminMultisig, who can upgrade it without delay, affecting all StarkEx and SN stack chains that are using it.
+  `,
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'StarknetSecurityCouncil',
+          'Can upgrade the central Starknet constract, potentially potentially allowing fraudulent state to be posted and gaining access to all funds stored in the bridge. Can also appoint operators, change the programHash, configHash, or message cancellation delay without upgrading the contract.' +
+            delayDescriptionFromSeconds(starknetDelaySeconds),
+        ),
+        discovery.getMultisigPermission(
+          'StarknetAdminMultisig',
+          'Can upgrade the central Starknet constract, potentially potentially allowing fraudulent state to be posted and gaining access to all funds stored in the bridge.' +
+            delayDescriptionFromSeconds(starknetDelaySeconds),
+        ),
+        ...getSHARPVerifierGovernors(discovery, verifierAddress),
+        discovery.getMultisigPermission(
+          'StarkgateBridgeMultisig',
+          'Can upgrade most of the Starkgate bridge escrows including the Starkgate Multibridge. Can also configure the flowlimits of the existing Starkgate escrows or add new deployments.',
+        ),
+        discovery.getMultisigPermission(
+          'StarknetOpsMultisig',
+          'Can appoint operators, change the programHash, configHash, or message cancellation delay.',
+        ),
+        discovery.getPermissionDetails(
+          'Operators',
+          discovery.getPermissionedAccounts('Starknet', 'operators'),
+          'Allowed to post state updates. When the operator is down the state cannot be updated.',
+        ),
+        discovery.getMultisigPermission(
+          'StarknetOpsMultisig',
+          'Can appoint operators, change the programHash, configHash, or message cancellation delay.',
+        ),
+        discovery.getMultisigPermission(
+          'StarkgateSecurityAgentMultisig',
+          'Can enable withdrawal limits for tokens in some Starkgate bridge Escrows.',
+        ),
+        discovery.getPermissionDetails(
+          'StarkGate LUSD owner',
+          getProxyGovernance(discovery, ESCROW_LUSD_ADDRESS),
+          'Can upgrade implementation of the LUSD escrow, potentially gaining access to all funds stored in the bridge. ' +
+            delayDescriptionFromSeconds(escrowLUSDDelaySeconds),
+        ),
+        discovery.getPermissionDetails(
+          'StarkGate token blacklister EOA',
+          discovery.getAccessControlRolePermission(
+            'StarkgateManager',
+            'TOKEN_ADMIN',
           ),
-          type: 'Contract',
-        },
+          'Can remove and blacklist tokens from the Starkgate bridge.',
+        ),
       ],
-      description:
-        'In DAI bridge it can set max deposit per bridge and per user. In DAI escrow it can approve token transfers.',
     },
-    {
-      name: 'StarkGate ETH owner',
-      accounts: getProxyGovernance(discovery, ESCROW_ETH_ADDRESS),
-      description:
-        'Can upgrade implementation of the ETH escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowETHDelaySeconds),
-    },
-    {
-      name: 'StarkGate WBTC owner',
-      accounts: getProxyGovernance(discovery, ESCROW_WBTC_ADDRESS),
-      description:
-        'Can upgrade implementation of the WBTC escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowWBTCDelaySeconds),
-    },
-    {
-      name: 'StarkGate USDC owner',
-      accounts: getProxyGovernance(discovery, ESCROW_USDC_ADDRESS),
-      description:
-        'Can upgrade implementation of the USDC escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowUSDCDelaySeconds),
-    },
-    {
-      name: 'StarkGate USDT owner',
-      accounts: getProxyGovernance(discovery, ESCROW_USDT_ADDRESS),
-      description:
-        'Can upgrade implementation of the USDT escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowUSDTDelaySeconds),
-    },
-    {
-      name: 'StarkGate wstETH owner',
-      accounts: getProxyGovernance(discovery, ESCROW_WSTETH_ADDRESS),
-      description:
-        'Can upgrade implementation of the wstETH escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowWSTETHDelaySeconds),
-    },
-    {
-      name: 'StarkGate rETH owner',
-      accounts: getProxyGovernance(discovery, ESCROW_RETH_ADDRESS),
-      description:
-        'Can upgrade implementation of the rETH escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowRETHDelaySeconds),
-    },
-    {
-      name: 'StarkGate UNI owner',
-      accounts: getProxyGovernance(discovery, ESCROW_UNI_ADDRESS),
-      description:
-        'Can upgrade implementation of the UNI escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowUNIDelaySeconds),
-    },
-    {
-      name: 'StarkGate FRAX owner',
-      accounts: getProxyGovernance(discovery, ESCROW_FRAX_ADDRESS),
-      description:
-        'Can upgrade implementation of the FRAX escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowFRAXDelaySeconds),
-    },
-    {
-      name: 'StarkGate FXS owner',
-      accounts: getProxyGovernance(discovery, ESCROW_FXS_ADDRESS),
-      description:
-        'Can upgrade implementation of the FXS escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowFXSDelaySeconds),
-    },
-    {
-      name: 'StarkGate sfrxETH owner',
-      accounts: getProxyGovernance(discovery, ESCROW_SFRXETH_ADDRESS),
-      description:
-        'Can upgrade implementation of the sfrxETH escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowSFRXETHDelaySeconds),
-    },
-    {
-      name: 'StarkGate LUSD owner',
-      accounts: getProxyGovernance(discovery, ESCROW_LUSD_ADDRESS),
-      description:
-        'Can upgrade implementation of the LUSD escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowLUSDDelaySeconds),
-    },
-    {
-      name: 'StarkGate MultiBridge Admin',
-      accounts: getProxyGovernance(discovery, ESCROW_MULTIBRIDGE_ADDRESS),
-      description:
-        'Can upgrade implementation of the StarkGate MultiBridge escrow, potentially gaining access to all funds stored in the bridge. Is also the TokenAdmin of the StarkgateManager contract, permissioned to blacklist tokens from enrollment, pause deposits on the MultiBridge, and add existing bridges to the Registry contract. Additionally, the StarkgateManager and StarkgateRegistry contracts can be upgraded by this address.',
-    },
-    ...discovery.getMultisigPermission(
-      'BridgeMultisig',
-      'Can upgrade the following bridges: FRAX, FXS, sfrxETH, USDT, WBTC, ETH, USDT, and additional permissions on other bridges, like setting the max total balance or activate withdrawal limits.',
-    ),
-    {
-      name: 'StarkGate STRK owner',
-      accounts: discovery.getAccessControlRolePermission(
-        'STRKBridge',
-        'GOVERNANCE_ADMIN',
-      ),
-      description:
-        'Can upgrade implementation of the STRK escrow, potentially gaining access to all funds stored in the bridge. ' +
-        delayDescriptionFromSeconds(escrowSTRKDelaySeconds),
-    },
-  ],
+  },
   milestones: [
     {
-      name: 'Starknet starts using blobs',
-      link: 'https://twitter.com/Starknet/status/1767915153700290839',
+      title: 'Starknet starts using blobs',
+      url: 'https://twitter.com/Starknet/status/1767915153700290839',
       date: '2024-03-13T00:00:00Z',
       description: 'Starknet starts publishing data to blobs.',
+      type: 'general',
     },
     {
-      name: 'Starknet Provisions',
-      link: 'https://www.starknet.io/en/content/starknet-provisions-program',
+      title: 'Starknet Provisions',
+      url: 'https://www.starknet.io/en/content/starknet-provisions-program',
       date: '2024-02-14T00:00:00Z',
       description:
         'Starknet begins allocating $STRK to early contributors and users.',
+      type: 'general',
     },
     {
-      name: 'Starknet Alpha',
-      link: 'https://medium.com/starkware/starknet-alpha-now-on-mainnet-4cf35efd1669',
+      title: 'Starknet Alpha',
+      url: 'https://medium.com/starkware/starknet-alpha-now-on-mainnet-4cf35efd1669',
       date: '2021-11-29T00:00:00Z',
       description:
         'Rollup is live on mainnet, enabling general computation using ZK Rollup technology.',
+      type: 'general',
     },
     {
-      name: 'StarkGate Alpha',
-      link: 'https://medium.com/starkware/starkgate-alpha-35d01d21e3af',
+      title: 'StarkGate Alpha',
+      url: 'https://medium.com/starkware/starkgate-alpha-35d01d21e3af',
       date: '2022-05-09T00:00:00Z',
       description:
         'Bridge is live on mainnet, serving as gateway between Ethereum and Starknet.',
+      type: 'general',
     },
   ],
   badges: [
     Badge.VM.CairoVM,
     Badge.DA.EthereumBlobs,
+    Badge.Stack.SNStack,
     Badge.Infra.SHARP,
     Badge.Other.Governance,
   ],

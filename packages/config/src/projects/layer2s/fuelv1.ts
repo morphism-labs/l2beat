@@ -1,6 +1,9 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import {
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NUGGETS,
@@ -8,16 +11,19 @@ import {
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
+import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
+
+const discovery = new ProjectDiscovery('fuelv1')
 
 export const fuelv1: Layer2 = {
   type: 'layer2',
   id: ProjectId('fuelv1'),
+  capability: 'appchain',
+  addedAt: new UnixTime(1623153328), // 2021-06-08T11:55:28Z
   badges: [Badge.VM.AppChain, Badge.DA.EthereumCalldata],
   display: {
     name: 'Fuel v1',
@@ -29,7 +35,6 @@ export const fuelv1: Layer2 = {
 
     links: {
       websites: ['https://fuel.sh/'],
-      apps: [],
       documentation: ['https://docs.fuel.sh/'],
       explorers: ['https://mainnet.fuel.sh/network/'],
       repositories: [
@@ -57,20 +62,18 @@ export const fuelv1: Layer2 = {
       },
     ],
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'Transaction data',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.TRANSACTION_DATA,
+  },
+  riskView: {
     stateValidation: RISK_VIEW.STATE_FP_1R,
     dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
     exitWindow: RISK_VIEW.EXIT_WINDOW_NON_UPGRADABLE,
     sequencerFailure: RISK_VIEW.SEQUENCER_SELF_SEQUENCE(),
     proposerFailure: RISK_VIEW.PROPOSER_SELF_PROPOSE_ROOTS,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   stage: getStage(
     {
       stage0: {
@@ -80,6 +83,7 @@ export const fuelv1: Layer2 = {
         rollupNodeSourceAvailable: true,
       },
       stage1: {
+        principle: true,
         stateVerificationOnL1: true,
         fraudProofSystemAtLeast5Outsiders: true,
         usersHave7DaysToExit: null,
@@ -89,10 +93,12 @@ export const fuelv1: Layer2 = {
       stage2: {
         proofSystemOverriddenOnlyInCaseOfABug: null,
         fraudProofSystemIsPermissionless: true,
-        delayWith30DExitWindow: [
-          true,
-          'Users have at least 30d to exit as the system cannot be upgraded.',
-        ],
+        delayWith30DExitWindow: {
+          satisfied: true,
+          message:
+            'Users have at least 30d to exit as the system cannot be upgraded.',
+          mode: 'replace',
+        },
       },
     },
     {
@@ -104,8 +110,8 @@ export const fuelv1: Layer2 = {
       ...STATE_CORRECTNESS.FRAUD_PROOFS,
       references: [
         {
-          text: 'Background - Fuel documentation',
-          href: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#background',
+          title: 'Background - Fuel documentation',
+          url: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#background',
         },
       ],
     },
@@ -113,8 +119,8 @@ export const fuelv1: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CALLDATA,
       references: [
         {
-          text: 'Background - Fuel documentation',
-          href: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#background',
+          title: 'Background - Fuel documentation',
+          url: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#background',
         },
       ],
     },
@@ -122,12 +128,12 @@ export const fuelv1: Layer2 = {
       ...OPERATOR.CENTRALIZED_SEQUENCER,
       references: [
         {
-          text: 'Architecture: A High-Level View - Fuel documentation',
-          href: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#architectureahighlevelview',
+          title: 'Architecture: A High-Level View - Fuel documentation',
+          url: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#architectureahighlevelview',
         },
         {
-          text: 'Mainnet deployment parameters - Fuel documentation',
-          href: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Deployment%20Parameters.html#mainnet',
+          title: 'Mainnet deployment parameters - Fuel documentation',
+          url: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Deployment%20Parameters.html#mainnet',
         },
       ],
     },
@@ -135,18 +141,18 @@ export const fuelv1: Layer2 = {
       ...FORCE_TRANSACTIONS.PROPOSE_OWN_BLOCKS,
       references: [
         {
-          text: 'Architecture: A High-Level View - Fuel documentation',
-          href: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#architectureahighlevelview',
+          title: 'Architecture: A High-Level View - Fuel documentation',
+          url: 'https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/Fuel%20Overview.html#architectureahighlevelview',
         },
       ],
     },
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('optimistic', 'merkle proof'),
+        ...EXITS.REGULAR_WITHDRAWAL('optimistic'),
         references: [
           {
-            text: 'Withdraw.yulp#L40 - Fuel documentation',
-            href: 'https://github.com/FuelLabs/fuel-v1-contracts/blob/master/src/Withdraw.yulp#L40',
+            title: 'Withdraw.yulp#L40 - Fuel documentation',
+            url: 'https://github.com/FuelLabs/fuel-v1-contracts/blob/master/src/Withdraw.yulp#L40',
           },
         ],
       },
@@ -160,20 +166,18 @@ export const fuelv1: Layer2 = {
       'The data format details are documented in the Data Structure subsection [here](https://docs.fuel.sh/v1.1.0/Concepts/Fundamentals/System%20Description%20Primer.html).',
   },
   contracts: {
-    addresses: [
-      {
-        address: EthereumAddress('0x6880f6Fd960D1581C2730a451A22EED1081cfD72'),
-        name: 'Fuel',
-      },
-    ],
+    addresses: {
+      [discovery.chain]: [discovery.getContractDetails('Fuel')],
+    },
     risks: [],
   },
   milestones: [
     {
-      name: 'Fuel v1 is live on Mainnet',
-      link: 'https://twitter.com/fuellabs_/status/1344707195250896899',
+      title: 'Fuel v1 is live on Mainnet',
+      url: 'https://twitter.com/fuellabs_/status/1344707195250896899',
       date: '2020-12-31T00:00:00Z',
       description: 'First trustless Optimistic Rollup is live on Mainnet.',
+      type: 'general',
     },
   ],
   knowledgeNuggets: [

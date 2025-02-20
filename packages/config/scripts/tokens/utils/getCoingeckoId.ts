@@ -1,7 +1,7 @@
-import { CoinListPlatformEntry } from '@l2beat/shared'
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { CoinListPlatformEntry } from '@l2beat/shared'
+import type { EthereumAddress } from '@l2beat/shared-pure'
 
-import { ScriptLogger } from './ScriptLogger'
+import type { ScriptLogger } from './ScriptLogger'
 
 export function getCoingeckoId(
   logger: ScriptLogger,
@@ -11,7 +11,7 @@ export function getCoingeckoId(
 ) {
   logger.assert(
     platform !== undefined,
-    'Could not find coingecko platform. Run "yarn coingecko:platforms" and add it to chain config in .ts file.',
+    'Could not find coingecko platform. Run "pnpm coingecko:platforms" and add it to chain config in .ts file.',
   )
 
   const coin = coinList.find((coin) => {

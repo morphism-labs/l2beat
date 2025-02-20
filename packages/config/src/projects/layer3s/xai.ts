@@ -1,45 +1,30 @@
-import { assert, EthereumAddress, ProjectId } from '@l2beat/shared-pure'
-
+import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer3 } from '../../types'
 import { Badge } from '../badges'
+import { DaEconomicSecurityRisk } from '../da-beat/common'
+import { AnytrustDAC } from '../da-beat/templates/anytrust-template'
 import { orbitStackL3 } from '../layer2s/templates/orbitStack'
-import { Layer3 } from './types'
 
 const discovery = new ProjectDiscovery('xai', 'arbitrum')
 
-// orbitStack template currently does not support upgradeability
-const upgradeability = {
-  upgradableBy: ['ProxyAdmin (through UpgradeExecutor)'],
-  upgradeDelay: 'No delay',
-}
-const stakingUpgradeability = {
-  upgradableBy: ['StakingProxyAdmin'],
-  upgradeDelay: 'No delay',
-}
-
-assert(
-  sameArrays(
-    discovery.get$Admins('SentryReferee'),
-    discovery.get$Admins('PoolFactory'),
-    discovery.get$Admins('NodeLicenseRegistry'),
-    [discovery.getContract('StakingProxyAdmin').address],
-  ),
-  'The upgradeability changed, please review it in the .ts descriptions.',
-)
-
 export const xai: Layer3 = orbitStackL3({
+  addedAt: new UnixTime(1701958025), // 2023-12-07T14:07:05Z
   discovery,
-  hostChain: ProjectId('arbitrum'),
-  badges: [Badge.DA.DAC, Badge.L3ParentChain.Arbitrum],
+  additionalBadges: [Badge.DA.DAC, Badge.L3ParentChain.Arbitrum],
+  additionalPurposes: ['Gaming'],
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.CLOSED_PROOFS,
+    REASON_FOR_BEING_OTHER.LOW_DAC_THRESHOLD,
+  ],
   display: {
     name: 'Xai',
     slug: 'xai',
     description:
       'Xai is an Ethereum Layer-3 that leverages Arbitrum AnyTrust to enable open trade in the next generation of video games.',
-    purposes: ['Gaming'],
     links: {
       websites: ['https://xai.games/'],
-      apps: [],
       documentation: ['https://xai-foundation.gitbook.io/xai-network/'],
       explorers: ['https://explorer.xai-chain.net/'],
       repositories: ['https://github.com/OffchainLabs/nitro'],
@@ -49,13 +34,12 @@ export const xai: Layer3 = orbitStackL3({
         'https://discord.gg/xaigames',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  bridge: discovery.getContract('Bridge'),
+  bridge: discovery.getContract('ERC20Bridge'),
   rollupProxy: discovery.getContract('RollupProxy'),
   sequencerInbox: discovery.getContract('SequencerInbox'),
   associatedTokens: ['XAI'],
-  nativeToken: 'XAI',
+  gasTokens: ['XAI'],
   rpcUrl: 'https://xai-chain.net/rpc',
   nonTemplateTechnology: {
     stateCorrectness: {
@@ -71,28 +55,31 @@ export const xai: Layer3 = orbitStackL3({
       ],
       references: [
         {
-          text: 'How is fraud proven - Arbitrum documentation FAQ',
-          href: 'https://developer.offchainlabs.com/intro/#q-and-how-exactly-is-fraud-proven-sounds-complicated',
+          title: 'How is fraud proven - Arbitrum documentation FAQ',
+          url: 'https://developer.offchainlabs.com/intro/#q-and-how-exactly-is-fraud-proven-sounds-complicated',
         },
         {
-          text: 'Arbitrum Glossary: Challenge Period',
-          href: 'https://developer.arbitrum.io/intro/glossary#challenge-period',
+          title: 'Arbitrum Glossary: Challenge Period',
+          url: 'https://developer.arbitrum.io/intro/glossary#challenge-period',
         },
         {
-          text: 'RollupUser.sol - Etherscan source code, onlyValidator modifier',
-          href: `https://etherscan.io/address/0x0aE4dD666748bF0F6dB5c149Eab1D8aD27820A6A#code`,
+          title:
+            'RollupUser.sol - Etherscan source code, onlyValidator modifier',
+          url: `https://etherscan.io/address/0x0aE4dD666748bF0F6dB5c149Eab1D8aD27820A6A#code`,
         },
         {
-          text: 'Referee.sol - Etherscan source code, submitChallenge function',
-          href: 'https://arbiscan.io/address/0x254954e3f6bd7443444036bea2d8fe88fdf496c1#code#F53#L337',
+          title:
+            'Referee.sol - Etherscan source code, submitChallenge function',
+          url: 'https://arbiscan.io/address/0x254954e3f6bd7443444036bea2d8fe88fdf496c1#code#F53#L337',
         },
         {
-          text: 'Referee.sol - Etherscan source code, submitAssertionToChallenge function',
-          href: 'https://arbiscan.io/address/0x254954e3f6bd7443444036bea2d8fe88fdf496c1#code#F53#L428',
+          title:
+            'Referee.sol - Etherscan source code, submitAssertionToChallenge function',
+          url: 'https://arbiscan.io/address/0x254954e3f6bd7443444036bea2d8fe88fdf496c1#code#F53#L428',
         },
         {
-          text: 'Solutions to Delay Attacks on Rollups',
-          href: 'https://medium.com/offchainlabs/solutions-to-delay-attacks-on-rollups-434f9d05a07a',
+          title: 'Solutions to Delay Attacks on Rollups',
+          url: 'https://medium.com/offchainlabs/solutions-to-delay-attacks-on-rollups-434f9d05a07a',
         },
       ],
     },
@@ -106,76 +93,53 @@ export const xai: Layer3 = orbitStackL3({
         'Main entry point for users depositing ERC20 tokens. Upon depositing, on L2 a generic, "wrapped" token will be minted.',
     }),
   ],
-  nonTemplatePermissions: [
-    {
-      name: 'RollupOwner',
-      accounts: discovery.getAccessControlRolePermission(
-        'UpgradeExecutor',
-        'EXECUTOR_ROLE',
-      ),
-      description:
-        'Multisig that can execute upgrades via the UpgradeExecutor.',
-    },
-    {
-      name: 'Xai Deployer (StakingProxyAdmin owner)',
-      accounts: [
-        discovery.getPermissionedAccount('StakingProxyAdmin', 'owner'),
-      ],
-      description:
-        'The Xai Deployer EOA can upgrade all staking v2 related contracts (NodeLicenseRegistry, PoolFactory, SentryReferee, StakingPool) instantly and potentially steal all funds.',
-    },
-  ],
-  nonTemplateContracts: [
-    discovery.getContractDetails('L1GatewayRouter', {
-      description: 'Router managing token <--> gateway mapping.',
-      ...upgradeability,
-    }),
-    discovery.getContractDetails('SentryReferee', {
-      description:
-        'The referree contract allows to create new challenges (state root reports) from the permissioned challenger, collects assertions from sentry nodes, and distributes esXAI rewards for operating a sentry node. \
-        The referee contract is also a whitelisted address in the esXAI token contract, which allows it to initiate arbitrary esXAI token transfers. Additional staking through this contract is disabled. Stakers can continue to get staking rewards here or withdraw their assets.',
-      ...stakingUpgradeability,
-    }),
-    discovery.getContractDetails('PoolFactory', {
-      description: (() => {
-        const stakingEnabled = <boolean>(
-          discovery.getContractValue('PoolFactory', 'stakingEnabled')
-        )
-        const description = `The PoolFactory allows creating and managing staking pools for V2 staking. Users can stake esXAI (and / or Sentry Keys) in pools. This contract's address is whitelisted in the esXAI token contract, which allows it to initiate arbitrary esXAI token transfers. V2 staking through this contract is currently ${
-          stakingEnabled ? 'enabled' : 'disabled'
-        }.`
-        return description
-      })(),
-      ...stakingUpgradeability,
-    }),
-    discovery.getContractDetails('NodeLicenseRegistry', {
-      description:
-        'This is the contract where Xai Sentry Keys to run a node are minted.',
-      ...stakingUpgradeability,
-    }),
-  ],
   milestones: [
     {
-      name: 'XAI Mainnet Launch',
-      link: 'https://x.com/XAI_GAMES/status/1744815749410242568',
+      title: 'XAI Mainnet Launch',
+      url: 'https://x.com/XAI_GAMES/status/1744815749410242568',
       date: '2024-01-09T00:00:00Z',
       description: 'XAI launches on Arbitrum One.',
+      type: 'general',
     },
   ],
+  customDa: AnytrustDAC({
+    dac: {
+      knownMembers: [
+        {
+          external: false,
+          name: 'Xai',
+          href: 'https://xai-foundation.gitbook.io/xai-network/about-xai/xai-protocol/anytrust-revolutionizing-blockchain-infrastructure/data-availability-servers-das',
+        },
+        {
+          external: true,
+          name: 'Ex Populus',
+          href: 'https://xai-foundation.gitbook.io/xai-network/about-xai/xai-protocol/anytrust-revolutionizing-blockchain-infrastructure/data-availability-servers-das',
+        },
+        {
+          external: true,
+          name: 'Rug Radio',
+          href: 'https://xai-foundation.gitbook.io/xai-network/about-xai/xai-protocol/anytrust-revolutionizing-blockchain-infrastructure/data-availability-servers-das',
+        },
+        {
+          external: true,
+          name: 'LayerZero',
+          href: 'https://xai-foundation.gitbook.io/xai-network/about-xai/xai-protocol/anytrust-revolutionizing-blockchain-infrastructure/data-availability-servers-das',
+        },
+        {
+          external: true,
+          name: 'Team Secret',
+          href: 'https://xai-foundation.gitbook.io/xai-network/about-xai/xai-protocol/anytrust-revolutionizing-blockchain-infrastructure/data-availability-servers-das',
+        },
+        {
+          external: true,
+          name: 'Offchain Labs',
+          href: 'https://xai-foundation.gitbook.io/xai-network/about-xai/xai-protocol/anytrust-revolutionizing-blockchain-infrastructure/data-availability-servers-das',
+        },
+      ],
+    },
+    risks: {
+      economicSecurity: DaEconomicSecurityRisk.OffChainVerifiable,
+    },
+    discovery,
+  }),
 })
-
-function sameArrays<T>(...arrays: T[][]) {
-  const first = new Set(arrays[0] ?? [])
-  return arrays
-    .map((x) => new Set(x))
-    .every((set) => {
-      if (set.size !== first.size) return false
-      for (const x of set) {
-        if (!first.has(x)) return false
-      }
-      for (const x of first) {
-        if (!set.has(x)) return false
-      }
-      return true
-    })
-}

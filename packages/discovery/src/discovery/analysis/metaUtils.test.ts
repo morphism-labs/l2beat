@@ -1,18 +1,18 @@
-import { ContractValue } from '@l2beat/discovery-types'
+import type { ContractValue } from '@l2beat/discovery-types'
 import { EthereumAddress } from '@l2beat/shared-pure'
 import { expect } from 'earl'
-import {
+import type {
   DiscoveryContractField,
   PermissionConfiguration,
 } from '../config/RawDiscoveryConfig'
 import { EMPTY_ANALYZED_CONTRACT } from '../utils/testUtils'
-import { AnalyzedContract, ExtendedTemplate } from './AddressAnalyzer'
+import type { AnalyzedContract, ExtendedTemplate } from './AddressAnalyzer'
 import {
-  ContractMeta,
+  type ContractMeta,
   findHighestSeverity,
   getMetaFromUpgradeability,
   getTargetsMeta,
-  interpolateDescription,
+  interpolateString,
   invertMeta,
   mergeContractMeta,
   mergePermissions,
@@ -23,16 +23,15 @@ describe('metaUtils', () => {
     it('should merge two ContractMeta objects correctly', () => {
       const a: ContractMeta = {
         displayName: 'ContractA',
-        descriptions: ['description 1'],
-        roles: new Set(['Challenger', 'Guardian']),
+        description: 'description 1',
         permissions: [
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0x1234'),
           },
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0x5678'),
           },
@@ -40,19 +39,22 @@ describe('metaUtils', () => {
         categories: new Set(['Gateways&Escrows', 'Core']),
         types: new Set(['CODE_CHANGE', 'EXTERNAL']),
         severity: 'LOW',
+        references: [
+          { text: 'Source Code', href: 'link1' },
+          { text: 'Source Code', href: 'link2' },
+        ],
       }
       const b: ContractMeta = {
         displayName: undefined,
-        descriptions: ['description 2', 'description 3'],
-        roles: new Set(['Proposer', 'Challenger']),
+        description: 'description 2',
         permissions: [
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0xabcd'),
           },
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0x1234'),
           },
@@ -61,27 +63,31 @@ describe('metaUtils', () => {
         categories: new Set(['Upgrades&Governance', 'Core']),
         types: new Set(['PERMISSION', 'L2', 'EXTERNAL']),
         severity: 'MEDIUM',
+        references: [
+          { text: 'Some docs', href: 'link1' },
+          { text: 'Source Code', href: 'link2' },
+        ],
       }
 
       const result = mergeContractMeta(a, b)
 
       expect(result).toEqual({
         displayName: 'ContractA',
-        descriptions: ['description 1', 'description 2', 'description 3'],
-        roles: new Set(['Challenger', 'Guardian', 'Proposer']),
+        description: 'description 1',
+        canActIndependently: undefined,
         permissions: [
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0x1234'),
           },
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0x5678'),
           },
           {
-            type: 'configure',
+            type: 'interact',
             delay: 0,
             target: EthereumAddress.from('0xabcd'),
           },
@@ -94,6 +100,11 @@ describe('metaUtils', () => {
         ]),
         types: new Set(['CODE_CHANGE', 'EXTERNAL', 'L2', 'PERMISSION']),
         severity: 'MEDIUM',
+        references: [
+          { text: 'Source Code', href: 'link1' },
+          { text: 'Source Code', href: 'link2' },
+          { text: 'Some docs', href: 'link1' },
+        ],
       })
     })
   })
@@ -101,22 +112,152 @@ describe('metaUtils', () => {
   describe('mergePermissions', () => {
     it('should merge two permission objects correctly', () => {
       const a: PermissionConfiguration[] = [
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0x1234') },
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0x5678') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x1234') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x5678') },
         { type: 'act', delay: 0, target: EthereumAddress.from('0x5678') },
       ]
       const b: PermissionConfiguration[] = [
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0xabcd') },
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0x1234') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0xabcd') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x1234') },
         { type: 'upgrade', delay: 15, target: EthereumAddress.from('0x1234') },
       ]
 
       expect(mergePermissions(a, b)).toEqual([
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0x1234') },
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0x5678') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x1234') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x5678') },
         { type: 'act', delay: 0, target: EthereumAddress.from('0x5678') },
-        { type: 'configure', delay: 0, target: EthereumAddress.from('0xabcd') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0xabcd') },
         { type: 'upgrade', delay: 15, target: EthereumAddress.from('0x1234') },
+      ])
+    })
+
+    it('returns undefined if both arrays are empty', () => {
+      expect(mergePermissions([], [])).toEqual(undefined)
+    })
+
+    it('returns the non-empty array if the other is empty', () => {
+      const a: PermissionConfiguration[] = [
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x1234') },
+      ]
+      expect(mergePermissions(a, [])).toEqual(a)
+      expect(mergePermissions([], a)).toEqual(a)
+    })
+
+    it('keeps only entries with the highest delay', () => {
+      const a: PermissionConfiguration[] = [
+        { type: 'interact', delay: 5, target: EthereumAddress.from('0x1234') },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x5678') },
+      ]
+      const b: PermissionConfiguration[] = [
+        {
+          type: 'interact',
+          delay: 10,
+          target: EthereumAddress.from('0x1234'),
+        },
+      ]
+      expect(mergePermissions(a, b)).toEqual([
+        {
+          type: 'interact',
+          delay: 10,
+          target: EthereumAddress.from('0x1234'),
+        },
+        { type: 'interact', delay: 0, target: EthereumAddress.from('0x5678') },
+      ])
+    })
+
+    it('prefers entries with a description at the same highest delay', () => {
+      const a: PermissionConfiguration[] = [
+        {
+          type: 'upgrade',
+          delay: 10,
+          target: EthereumAddress.from('0x1111'),
+          description: 'Described upgrade',
+        },
+        {
+          type: 'upgrade',
+          delay: 10,
+          target: EthereumAddress.from('0x1111'),
+        },
+      ]
+      const b: PermissionConfiguration[] = [
+        {
+          type: 'upgrade',
+          delay: 10,
+          target: EthereumAddress.from('0x1111'),
+        },
+      ]
+      expect(mergePermissions(a, b)).toEqual([
+        {
+          type: 'upgrade',
+          delay: 10,
+          target: EthereumAddress.from('0x1111'),
+          description: 'Described upgrade',
+        },
+      ])
+    })
+
+    it('retains multiple described entries if they share the same largest delay', () => {
+      const a: PermissionConfiguration[] = [
+        {
+          type: 'interact',
+          delay: 7,
+          target: EthereumAddress.from('0x2222'),
+          description: 'Description A',
+        },
+      ]
+      const b: PermissionConfiguration[] = [
+        {
+          type: 'interact',
+          delay: 7,
+          target: EthereumAddress.from('0x2222'),
+          description: 'Description B',
+        },
+      ]
+      const result = mergePermissions(a, b)
+      expect(result ?? []).toEqualUnsorted([
+        {
+          type: 'interact',
+          delay: 7,
+          target: EthereumAddress.from('0x2222'),
+          description: 'Description A',
+        },
+        {
+          type: 'interact',
+          delay: 7,
+          target: EthereumAddress.from('0x2222'),
+          description: 'Description B',
+        },
+      ])
+    })
+
+    it('merges permissions even if they differ by condition', () => {
+      const a: PermissionConfiguration[] = [
+        {
+          type: 'interact',
+          delay: 0,
+          target: EthereumAddress.from('0x3333'),
+          condition: 'some-condition',
+        },
+      ]
+      const b: PermissionConfiguration[] = [
+        {
+          type: 'interact',
+          delay: 0,
+          target: EthereumAddress.from('0x3333'),
+        },
+      ]
+      expect(mergePermissions(a, b)).toEqual([
+        {
+          type: 'interact',
+          delay: 0,
+          target: EthereumAddress.from('0x3333'),
+          condition: 'some-condition',
+        },
+        {
+          type: 'interact',
+          delay: 0,
+          target: EthereumAddress.from('0x3333'),
+        },
       ])
     })
   })
@@ -156,9 +297,7 @@ describe('metaUtils', () => {
       const fields: { [address: string]: DiscoveryContractField } = {
         overhead: {
           target: {
-            description: 'The overhead of the contract',
-            role: 'Challenger',
-            permissions: [{ type: 'configure', delay: 0 }],
+            permissions: [{ type: 'interact', delay: 0 }],
             category: 'Core',
           },
           severity: 'LOW',
@@ -166,10 +305,14 @@ describe('metaUtils', () => {
         },
         owner: {
           target: {
-            description:
-              'The owner of the contract (some number {{ numberField }} )',
-            role: 'Challenger',
-            permissions: [{ type: 'configure', delay: 0 }],
+            permissions: [
+              {
+                type: 'interact',
+                delay: 0,
+                description:
+                  'configuring the {{ $.address }} allows to change this number: {{ numberField }}',
+              },
+            ],
             category: 'Core',
           },
           severity: 'LOW',
@@ -177,11 +320,21 @@ describe('metaUtils', () => {
         },
         resourceConfig: {
           target: {
-            description: 'The resource config of the contract {{ #address }}',
-            role: ['Guardian', 'Challenger'],
+            // description: 'The resource config of the contract {{ $.address }}',
             permissions: [
-              { type: 'upgrade', delay: 0 },
-              { type: 'configure', delay: 0 },
+              {
+                type: 'upgrade',
+                delay: 0,
+                description:
+                  'upgrading the {{ $.address }} contract gives access to all funds',
+              },
+              {
+                type: 'interact',
+                condition: 'condition C1 is met',
+                delay: 0,
+                description:
+                  'configuring the {{ $.address }} contract allows freeze funds',
+              },
             ],
             category: ['Gateways&Escrows', 'Core'],
           },
@@ -190,9 +343,8 @@ describe('metaUtils', () => {
         },
         scalar: {
           target: {
-            description: 'The scalar of the contract',
-            role: 'Challenger',
-            permissions: [{ type: 'configure', delay: 0 }],
+            // description: 'The scalar of the contract',
+            permissions: [{ type: 'interact', delay: 0 }],
             category: 'Core',
           },
           severity: 'LOW',
@@ -216,44 +368,78 @@ describe('metaUtils', () => {
 
       expect(result).toEqual({
         '0xC72aE5c7cc9a332699305E29F68Be66c73b60542': {
+          canActIndependently: undefined,
           displayName: undefined,
-          descriptions: ['The owner of the contract (some number 1122 )'],
-          roles: new Set(['Challenger']),
+          description: undefined,
           permissions: [
             { type: 'upgrade', delay: 0, target: selfAddress },
-            { type: 'configure', delay: 0, target: selfAddress },
+            {
+              type: 'interact',
+              delay: 0,
+              target: selfAddress,
+              description:
+                'configuring the 0x0000000000000000000000000000000000001234 allows to change this number: 1122',
+              condition: undefined,
+            },
           ],
           categories: new Set(['Core']),
           severity: 'LOW',
           types: new Set(['CODE_CHANGE']),
+          references: undefined,
         },
         '0xc52BC7344e24e39dF1bf026fe05C4e6E23CfBcFf': {
+          canActIndependently: undefined,
           displayName: undefined,
           categories: new Set(['Core', 'Gateways&Escrows']),
-          descriptions: [
-            'The resource config of the contract 0x0000000000000000000000000000000000001234',
-          ],
+          description: undefined,
           permissions: [
-            { type: 'upgrade', delay: 0, target: selfAddress },
-            { type: 'configure', delay: 0, target: selfAddress },
+            {
+              type: 'upgrade',
+              delay: 0,
+              target: selfAddress,
+              description:
+                'upgrading the 0x0000000000000000000000000000000000001234 contract gives access to all funds',
+              condition: undefined,
+            },
+            {
+              type: 'interact',
+              condition: 'condition C1 is met',
+              delay: 0,
+              target: selfAddress,
+              description:
+                'configuring the 0x0000000000000000000000000000000000001234 contract allows freeze funds',
+            },
           ],
-          roles: new Set(['Challenger', 'Guardian']),
           severity: 'HIGH',
           types: new Set(['EXTERNAL', 'L2']),
+          references: undefined,
         },
         '0x6F54Ca6F6EdE96662024Ffd61BFd18f3f4e34DFf': {
+          canActIndependently: undefined,
           displayName: undefined,
           categories: new Set(['Core', 'Gateways&Escrows']),
-          descriptions: [
-            'The resource config of the contract 0x0000000000000000000000000000000000001234',
-          ],
+          description: undefined,
           permissions: [
-            { type: 'upgrade', delay: 0, target: selfAddress },
-            { type: 'configure', delay: 0, target: selfAddress },
+            {
+              type: 'upgrade',
+              delay: 0,
+              target: selfAddress,
+              description:
+                'upgrading the 0x0000000000000000000000000000000000001234 contract gives access to all funds',
+              condition: undefined,
+            },
+            {
+              type: 'interact',
+              condition: 'condition C1 is met',
+              delay: 0,
+              target: selfAddress,
+              description:
+                'configuring the 0x0000000000000000000000000000000000001234 contract allows freeze funds',
+            },
           ],
-          roles: new Set(['Challenger', 'Guardian']),
           severity: 'HIGH',
           types: new Set(['EXTERNAL', 'L2']),
+          references: undefined,
         },
       })
     })
@@ -278,11 +464,10 @@ describe('metaUtils', () => {
           // for merge:
           '0xC72aE5c7cc9a332699305E29F68Be66c73b60542': {
             displayName: undefined,
-            descriptions: ['Important contract'],
-            roles: new Set(['Challenger']),
+            description: 'Important contract',
             permissions: [
               {
-                type: 'configure',
+                type: 'interact',
                 delay: 0,
                 target: EthereumAddress.from('0x1234'),
               },
@@ -294,10 +479,10 @@ describe('metaUtils', () => {
           '0xc52BC7344e24e39dF1bf026fe05C4e6E23CfBcFf': {
             displayName: undefined,
             categories: new Set(['Core', 'Gateways&Escrows']),
-            descriptions: ['The resource config of the contract'],
+            description: 'The resource config of the contract',
             permissions: [
               {
-                type: 'configure',
+                type: 'interact',
                 delay: 0,
                 target: EthereumAddress.from('0x1234'),
               },
@@ -307,7 +492,6 @@ describe('metaUtils', () => {
                 target: EthereumAddress.from('0x1234'),
               },
             ],
-            roles: new Set(['Challenger', 'Guardian']),
             severity: 'HIGH',
             types: new Set(['EXTERNAL', 'L2']),
           },
@@ -316,11 +500,10 @@ describe('metaUtils', () => {
           // for merge:
           '0xC72aE5c7cc9a332699305E29F68Be66c73b60542': {
             displayName: undefined,
-            descriptions: ['Very important contract'],
-            roles: undefined,
+            description: 'Very important contract',
             permissions: [
               {
-                type: 'configure',
+                type: 'interact',
                 delay: 0,
                 target: EthereumAddress.from('0xbeef'),
               },
@@ -332,10 +515,10 @@ describe('metaUtils', () => {
           '0x6F54Ca6F6EdE96662024Ffd61BFd18f3f4e34DFf': {
             displayName: undefined,
             categories: new Set(['Core', 'Gateways&Escrows']),
-            descriptions: ['The resource config of the contract'],
+            description: 'The resource config of the contract',
             permissions: [
               {
-                type: 'configure',
+                type: 'interact',
                 delay: 0,
                 target: EthereumAddress.from('0xbeef'),
               },
@@ -345,7 +528,6 @@ describe('metaUtils', () => {
                 target: EthereumAddress.from('0xbeef'),
               },
             ],
-            roles: new Set(['Challenger', 'Guardian']),
             severity: 'HIGH',
             types: new Set(['EXTERNAL', 'L2']),
           },
@@ -357,17 +539,17 @@ describe('metaUtils', () => {
       expect(result).toEqual({
         // merged:
         '0xC72aE5c7cc9a332699305E29F68Be66c73b60542': {
+          canActIndependently: undefined,
           displayName: undefined,
-          descriptions: ['Important contract', 'Very important contract'],
-          roles: new Set(['Challenger']),
+          description: 'Important contract',
           permissions: [
             {
-              type: 'configure',
+              type: 'interact',
               delay: 0,
               target: EthereumAddress.from('0x1234'),
             },
             {
-              type: 'configure',
+              type: 'interact',
               delay: 0,
               target: EthereumAddress.from('0xbeef'),
             },
@@ -375,14 +557,15 @@ describe('metaUtils', () => {
           categories: new Set(['Core', 'Gateways&Escrows']),
           types: new Set(['CODE_CHANGE', 'EXTERNAL', 'L2']),
           severity: 'MEDIUM',
+          references: undefined,
         },
         '0xc52BC7344e24e39dF1bf026fe05C4e6E23CfBcFf': {
+          canActIndependently: undefined,
           displayName: undefined,
-          descriptions: ['The resource config of the contract'],
-          roles: new Set(['Challenger', 'Guardian']),
+          description: 'The resource config of the contract',
           permissions: [
             {
-              type: 'configure',
+              type: 'interact',
               delay: 0,
               target: EthereumAddress.from('0x1234'),
             },
@@ -395,14 +578,15 @@ describe('metaUtils', () => {
           categories: new Set(['Core', 'Gateways&Escrows']),
           types: new Set(['EXTERNAL', 'L2']),
           severity: 'HIGH',
+          references: undefined,
         },
         '0x6F54Ca6F6EdE96662024Ffd61BFd18f3f4e34DFf': {
+          canActIndependently: undefined,
           displayName: undefined,
-          descriptions: ['The resource config of the contract'],
-          roles: new Set(['Challenger', 'Guardian']),
+          description: 'The resource config of the contract',
           permissions: [
             {
-              type: 'configure',
+              type: 'interact',
               delay: 0,
               target: EthereumAddress.from('0xbeef'),
             },
@@ -415,6 +599,7 @@ describe('metaUtils', () => {
           categories: new Set(['Core', 'Gateways&Escrows']),
           types: new Set(['EXTERNAL', 'L2']),
           severity: 'HIGH',
+          references: undefined,
         },
       })
     })
@@ -431,8 +616,7 @@ describe('metaUtils', () => {
         [admin.toString()]: {
           displayName: undefined,
           categories: undefined,
-          descriptions: undefined,
-          roles: undefined,
+          description: undefined,
           severity: undefined,
           types: undefined,
           permissions: [{ type: 'upgrade', delay: 0, target: selfAddress }],
@@ -444,7 +628,7 @@ describe('metaUtils', () => {
   describe('interpolateDescription', () => {
     it('should correctly interpolate variables in the description', () => {
       const description =
-        'Contract with address {{ #address }} and value {{ someValue }}'
+        'Contract with address {{ $.address }} and value {{ someValue }}'
       const analysis = generateFakeAnalysis(
         EthereumAddress.from('0x1234567890123456789012345678901234567890'),
         undefined,
@@ -454,7 +638,7 @@ describe('metaUtils', () => {
         },
       )
 
-      const result = interpolateDescription(description, analysis)
+      const result = interpolateString(description, analysis)
 
       expect(result).toEqual(
         'Contract with address 0x1234567890123456789012345678901234567890 and value 42',
@@ -467,8 +651,8 @@ describe('metaUtils', () => {
         EthereumAddress.from('0x1234567890123456789012345678901234567890'),
       )
 
-      expect(() => interpolateDescription(description, analysis)).toThrow(
-        'Value for variable "{{ missingValue }}" in contract description not found in contract analysis',
+      expect(() => interpolateString(description, analysis)).toThrow(
+        'Value for variable "{{ missingValue }}" in contract field not found in contract analysis',
       )
     })
   })

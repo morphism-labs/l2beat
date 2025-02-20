@@ -2,14 +2,15 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('synapse')
 
 export const synapse: Bridge = {
   type: 'bridge',
   id: ProjectId('synapse'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'Synapse',
     slug: 'synapse',
@@ -80,17 +81,14 @@ export const synapse: Bridge = {
         {
           category: 'Users can be censored if',
           text: 'nodes decide not to transfer tokens after observing an event on Ethereum.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'nodes decide to mint more tokens than there are locked on Ethereum thus preventing some existing holders from being able to bring their funds back to Ethereum.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'nodes decide to withdraw all the funds from the Ethereum Contract.',
-          isCritical: true,
         },
       ],
     },
@@ -103,7 +101,6 @@ export const synapse: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'destination token contract is maliciously upgraded or not securely implemented.',
-          isCritical: true,
         },
       ],
     },
@@ -123,57 +120,57 @@ export const synapse: Bridge = {
     destinationToken: RISK_VIEW.CANONICAL,
   },
   contracts: {
-    addresses: [
-      {
-        name: 'L1BridgeZap',
-        description:
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'L1BridgeZap',
           'Entry point for deposits. Acts as a relayer between user and escrow, enabling token swap feature.',
-        address: EthereumAddress('0x6571d6be3d8460CF5F7d6711Cd9961860029D85F'),
-      },
-      discovery.getContractDetails(
-        'SynapseBridge',
-        "Main escrow contract where all the funds are being held, the address with certain privileges can perform withdraw on user's behalf.",
-      ),
-      {
-        name: 'Liquidity Pool',
-        description:
+        ),
+        discovery.getContractDetails(
+          'SynapseBridge',
+          "Main escrow contract where all the funds are being held, the address with certain privileges can perform withdraw on user's behalf.",
+        ),
+        discovery.getContractDetails(
+          'Liquidity Pool',
           'Contract utilized as Liquidity Pool, allowing users to bridge their tokens to canonical versions on Ethereum.',
-        address: EthereumAddress('0x1116898DdA4015eD8dDefb84b6e8Bc24528Af2d8'),
-      },
-    ],
+        ),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_WITH_DELAY_RISK('3 minutes')],
   },
 
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'Bridge Multisig',
-      "Manages the bridge parameters and can upgrade its implementation, in case of malicious upgrade user's funds can be lost. Additionally it manages Liquidity Pool with the permissions to mint new tokens.",
-    ),
-    {
-      name: 'Nodes (NODEGROUP_ROLE)',
-      description:
-        'Is an executor who can call regular bridging functions like withdrawing funds and minting SynERC20 Wrapped tokens.',
-      accounts: discovery.getAccessControlRolePermission(
-        'SynapseBridge',
-        'NODEGROUP_ROLE',
-      ),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'Bridge Multisig',
+          "Manages the bridge parameters and can upgrade its implementation, in case of malicious upgrade user's funds can be lost. Additionally it manages Liquidity Pool with the permissions to mint new tokens.",
+        ),
+        discovery.getPermissionDetails(
+          'Nodes (NODEGROUP_ROLE)',
+          discovery.getAccessControlRolePermission(
+            'SynapseBridge',
+            'NODEGROUP_ROLE',
+          ),
+          'Is an executor who can call regular bridging functions like withdrawing funds and minting SynERC20 Wrapped tokens.',
+        ),
+        discovery.getPermissionDetails(
+          'Governors (GOVERNANCE_ROLE)',
+          discovery.getAccessControlRolePermission(
+            'SynapseBridge',
+            'GOVERNANCE_ROLE',
+          ),
+          'Can set bridging fees, pause and unpause the SynapseBridge contract.',
+        ),
+        discovery.getPermissionDetails(
+          'Admin (DEFAULT_ADMIN_ROLE)',
+          discovery.getAccessControlRolePermission(
+            'SynapseBridge',
+            'DEFAULT_ADMIN_ROLE',
+          ),
+          'Can call setWethAddress() on the SynapseBridge contract.',
+        ),
+      ],
     },
-    {
-      name: 'Governors (GOVERNANCE_ROLE)',
-      description:
-        'Can set bridging fees, pause and unpause the SynapseBridge contract.',
-      accounts: discovery.getAccessControlRolePermission(
-        'SynapseBridge',
-        'GOVERNANCE_ROLE',
-      ),
-    },
-    {
-      name: 'Admin (DEFAULT_ADMIN_ROLE)',
-      description: 'Can call setWethAddress() on the SynapseBridge contract.',
-      accounts: discovery.getAccessControlRolePermission(
-        'SynapseBridge',
-        'DEFAULT_ADMIN_ROLE',
-      ),
-    },
-  ],
+  },
 }

@@ -1,15 +1,6 @@
 import { z } from 'zod'
-import { EthereumAddress } from './EthereumAddress'
-import { Hash256 } from './Hash256'
-
-export type StackRole = z.infer<typeof StackRole>
-export const StackRole = z.enum([
-  'Sequencer',
-  'Proposer',
-  'Challenger',
-  'Guardian',
-  'Validator',
-])
+import type { EthereumAddress } from './EthereumAddress'
+import type { Hash256 } from './Hash256'
 
 export type StackCategory = z.infer<typeof StackCategory>
 export const StackCategory = z.enum([
@@ -38,9 +29,8 @@ export interface DiscoveryOutput {
   eoas: EoaParameters[]
   abis: Record<string, string[]>
   configHash: Hash256
-  version: number
+  sharedModules?: string[]
   usedTemplates: Record<string, Hash256>
-  shapeFilesHash: Hash256
 }
 
 export interface DiscoveryCustomType {
@@ -51,27 +41,75 @@ export interface DiscoveryCustomType {
 export interface FieldMeta {
   description?: string
   severity?: ContractFieldSeverity
+  type?: ContractValueType[] | ContractValueType
+}
+
+export type PermissionType =
+  | 'guard'
+  | 'challenge'
+  | 'propose'
+  | 'sequence'
+  | 'validate'
+  | 'operateLinea'
+  | 'fastconfirm'
+  | 'interact'
+  | 'upgrade'
+  | 'act'
+  | 'validateZkStack'
+  | 'validateBridge'
+  | 'validateBridge2'
+  | 'relay'
+  | 'aggregatePolygon'
+
+export interface ResolvedPermissionPath {
+  address: EthereumAddress
+  delay?: number
+  condition?: string
+}
+
+export interface ResolvedPermissionDetails {
+  permission: PermissionType
+  delay?: number
+  description?: string
+  condition?: string
+  via?: ResolvedPermissionPath[]
+}
+
+export type IssuedPermission = ResolvedPermissionDetails & {
+  to: EthereumAddress
+}
+export type ReceivedPermission = ResolvedPermissionDetails & {
+  from: EthereumAddress
+}
+
+export type ExternalReference = {
+  text: string
+  href: string
 }
 
 export interface Meta {
-  roles?: StackRole[]
-  assignedPermissions?: Record<string, EthereumAddress[]>
+  issuedPermissions?: IssuedPermission[]
+  receivedPermissions?: ReceivedPermission[]
+  directlyReceivedPermissions?: ReceivedPermission[]
   categories?: StackCategory[]
   types?: ContractValueType[]
-  descriptions?: string[]
+  description?: string
   severity?: ContractFieldSeverity
+  references?: ExternalReference[]
 }
 
 export type EoaParameters = {
+  name?: string
   address: EthereumAddress
 } & Meta
 
 export type ContractParameters = {
   name: string
   displayName?: string
-  descriptions?: string[]
+  description?: string
   derivedName?: string
   template?: string
+  sourceHashes?: string[]
   unverified?: true
   sinceTimestamp?: number
   address: EthereumAddress
@@ -85,7 +123,6 @@ export type ContractParameters = {
 
 export type ContractValue =
   | string
-  | EthereumAddress
   | number
   | boolean
   | ContractValue[]

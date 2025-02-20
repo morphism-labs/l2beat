@@ -1,5 +1,4 @@
 import {
-  AssetId,
   ChainId,
   CoingeckoId,
   EthereumAddress,
@@ -11,7 +10,6 @@ import { z } from 'zod'
 
 export type GeneratedToken = z.infer<typeof GeneratedToken>
 export const GeneratedToken = z.object({
-  id: stringAs((s) => AssetId(s)),
   name: z.string(),
   coingeckoId: stringAs((s) => CoingeckoId(s)),
   address: stringAs((s) => EthereumAddress(s)).optional(),
@@ -27,10 +25,15 @@ export const GeneratedToken = z.object({
   chainId: numberAs(ChainId),
   source: z.enum(['canonical', 'external', 'native']),
   supply: z.enum(['totalSupply', 'circulatingSupply', 'zero']),
+  excludeFromTotal: z.literal(true).optional(),
   bridgedUsing: z.optional(
     z.object({
-      bridge: z.string(),
-      slug: z.string().optional(),
+      bridges: z.array(
+        z.object({
+          name: z.string(),
+          slug: z.string().optional(),
+        }),
+      ),
       warning: z.string().optional(),
     }),
   ),
@@ -44,13 +47,19 @@ export const SourceEntry = z.object({
   category: z.enum(['ether', 'stablecoin', 'other']).optional(),
   source: z.enum(['canonical', 'external', 'native']).optional(),
   supply: z.enum(['totalSupply', 'circulatingSupply', 'zero']).optional(),
-  bridgedUsing: z
-    .object({
-      bridge: z.string(),
-      slug: z.string().optional(),
+  bridgedUsing: z.optional(
+    z.object({
+      bridges: z.array(
+        z.object({
+          name: z.string(),
+          slug: z.string().optional(),
+        }),
+      ),
       warning: z.string().optional(),
-    })
-    .optional(),
+    }),
+  ),
+  deploymentTimestamp: numberAs((n) => new UnixTime(n)).optional(),
+  excludeFromTotal: z.literal(true).optional(),
 })
 
 export type Source = z.infer<typeof Source>

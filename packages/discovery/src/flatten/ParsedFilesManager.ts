@@ -1,9 +1,9 @@
 import * as posix from 'path'
-import { assert } from '@l2beat/backend-tools'
+import { assert } from '@l2beat/shared-pure'
 import type * as AST from '@mradomski/fast-solidity-parser'
 import { parse } from '@mradomski/fast-solidity-parser'
 import { getASTIdentifiers } from './getASTIdentifiers'
-import { FlattenOptions } from './types'
+import type { FlattenOptions } from './types'
 
 type ParseResult = ReturnType<typeof parse>
 
@@ -167,14 +167,21 @@ export class ParsedFilesManager {
     const declarations = declarationNodes.map((d) => {
       assert(d.range !== undefined, 'Invalid contract definition')
 
+      const inheritsFrom = []
+      if (d.type === 'ContractDefinition') {
+        inheritsFrom.push(
+          ...d.baseContracts.map((c) => {
+            // biome-ignore lint/style/noNonNullAssertion: we know it's there
+            return c.baseName.namePath.split('.').at(-1)!
+          }),
+        )
+      }
+
       return {
         ast: d,
         name: d.name ?? '',
         type: getDeclarationType(d),
-        inheritsFrom:
-          d.type === 'ContractDefinition'
-            ? d.baseContracts.map((c) => c.baseName.namePath)
-            : [],
+        inheritsFrom,
         dynamicReferences: [],
         byteRange: {
           start: d.range[0],
@@ -202,12 +209,8 @@ export class ParsedFilesManager {
         'Invalid import directive',
       )
 
-      const remappedPath = resolveImportRemappings(
-        i.path,
-        remappings,
-        file.normalizedPath,
-      )
-      const importedFile = this.resolveImportPath(file, remappedPath)
+      const resolvedPath = this.resolveImportPath(i.path, file, remappings)
+      const importedFile = this.resolveImport(file, resolvedPath)
 
       let alreadyImported = alreadyImportedObjects.get(
         importedFile.normalizedPath,
@@ -365,7 +368,7 @@ export class ParsedFilesManager {
     if (matchingImport !== undefined) {
       return this.tryFindDeclaration(
         matchingImport.originalName,
-        this.resolveImportPath(file, matchingImport.absolutePath),
+        this.resolveImport(file, matchingImport.absolutePath),
       )
     }
 
@@ -382,6 +385,37 @@ export class ParsedFilesManager {
     )
 
     return matchingFile
+  }
+
+  findFileRootDeclaring(declarationName: string): ParsedFile {
+    const matchingFile = findOne(this.files, (f) =>
+      f.topLevelDeclarations.some(
+        (c) =>
+          c.name === declarationName &&
+          (c.type === 'library' || c.type === 'contract'),
+      ),
+    )
+    assert(
+      matchingFile !== undefined,
+      `Failed to find file declaring ${declarationName}`,
+    )
+
+    return matchingFile
+  }
+
+  findRootDeclaration(declarationName: string): DeclarationFilePair {
+    const file = this.findFileRootDeclaring(declarationName)
+
+    const matchingDeclaration = findOne(
+      file.topLevelDeclarations,
+      (c) => c.name === declarationName,
+    )
+    assert(matchingDeclaration !== undefined, 'Declaration not found')
+
+    return {
+      declaration: matchingDeclaration,
+      file,
+    }
   }
 
   findDeclaration(
@@ -403,22 +437,30 @@ export class ParsedFilesManager {
   }
 
   private resolveImportPath(
+    path: string,
     fromFile: ParsedFile,
-    importPath: string,
-  ): ParsedFile {
-    const resolvedPath =
-      importPath.startsWith('./') || importPath.startsWith('../')
-        ? posix.join(posix.dirname(fromFile.normalizedPath), importPath)
-        : importPath
+    remappings: Remapping[],
+  ): string {
+    const directPath = solcAbsolutePath(path, fromFile.normalizedPath)
+    const remappedPath = resolveImportRemappings(
+      directPath,
+      remappings,
+      fromFile.normalizedPath,
+    )
 
-    const normalizedPath = posix.normalize(resolvedPath)
+    const normalizedPath = posix.normalize(remappedPath)
+    return normalizedPath
+  }
+
+  private resolveImport(fromFile: ParsedFile, importPath: string): ParsedFile {
     const matchingFile = findOne(
       this.files,
-      (f) => f.normalizedPath === normalizedPath,
+      (f) => f.normalizedPath === importPath,
     )
+
     assert(
       matchingFile !== undefined,
-      `File [${fromFile.normalizedPath}][${resolvedPath}] not found`,
+      `File [${fromFile.normalizedPath}][${importPath}] not found`,
     )
 
     return matchingFile
@@ -493,11 +535,10 @@ function solcAbsolutePath(path: string, context: string): string {
 }
 
 function resolveImportRemappings(
-  rawPath: string,
+  path: string,
   remappings: Remapping[],
   context: string,
 ): string {
-  const path = solcAbsolutePath(rawPath, context)
   let longestPrefix = 0
   let longestContext = 0
   let longest: Remapping | undefined = undefined

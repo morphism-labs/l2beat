@@ -2,7 +2,7 @@ import { ChainId, Hash256, UnixTime } from '@l2beat/shared-pure'
 import { expect } from 'earl'
 
 import { describeDatabase } from '../../test/database'
-import { UpdateMonitorRecord } from './entity'
+import type { UpdateMonitorRecord } from './entity'
 import { UpdateMonitorRepository } from './repository'
 
 const CONFIG_HASH = Hash256.random()
@@ -48,12 +48,9 @@ describeDatabase(UpdateMonitorRepository.name, (db) => {
         contracts: [],
         eoas: [],
         abis: {},
-        version: 0,
         usedTemplates: {},
-        shapeFilesHash: Hash256.random(),
       },
       configHash: CONFIG_HASH,
-      version: 0,
     }
     await repository.upsert(discovery)
 
@@ -79,12 +76,9 @@ function record(params?: Partial<UpdateMonitorRecord>): UpdateMonitorRecord {
       contracts: [],
       eoas: [],
       abis: {},
-      version: 0,
       usedTemplates: {},
-      shapeFilesHash: Hash256.random(),
     },
     configHash: CONFIG_HASH,
-    version: 0,
     ...params,
   }
 }

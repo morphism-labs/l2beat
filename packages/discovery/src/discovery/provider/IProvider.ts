@@ -1,9 +1,14 @@
-import { BlobClient, BlobsInBlock } from '@l2beat/shared'
-import { Bytes, EthereumAddress, Hash256, UnixTime } from '@l2beat/shared-pure'
-import { providers, utils } from 'ethers'
-import { IEtherscanClient } from '../../utils/IEtherscanClient'
-import { ContractSource } from '../../utils/IEtherscanClient'
-import { DebugTransactionCallResponse } from './DebugTransactionTrace'
+import type { BlobClient, BlobsInBlock } from '@l2beat/shared'
+import type {
+  Bytes,
+  EthereumAddress,
+  Hash256,
+  UnixTime,
+} from '@l2beat/shared-pure'
+import type { providers, utils } from 'ethers'
+import type { IEtherscanClient } from '../../utils/IEtherscanClient'
+import type { ContractSource } from '../../utils/IEtherscanClient'
+import type { DebugTransactionCallResponse } from './DebugTransactionTrace'
 
 export interface ContractDeployment {
   deployer: EthereumAddress
@@ -69,6 +74,7 @@ export interface IProvider {
     // biome-ignore lint/suspicious/noExplicitAny: TODO: LogDescription
   ): Promise<{ log: providers.Log; event: any }[]>
 
+  getBlock(blockNumber: number): Promise<providers.Block | undefined>
   getTransaction(
     transactionHash: Hash256,
   ): Promise<providers.TransactionResponse | undefined>

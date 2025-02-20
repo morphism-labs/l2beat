@@ -1,9 +1,8 @@
 import { EthereumAddress, Hash256 } from '@l2beat/shared-pure'
 import { expect, mockFn, mockObject } from 'earl'
-import { BigNumber, ethers, providers } from 'ethers'
+import { BigNumber, ethers, type providers } from 'ethers'
 
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
 import {
   ConstructorArgsHandler,
   decodeConstructorArgs,
@@ -23,7 +22,6 @@ describe(ConstructorArgsHandler.name, () => {
         'constructorArgs',
         { type: 'constructorArgs' },
         sampleAbi,
-        DiscoveryLogger.SILENT,
       )
 
       const contractAddress = EthereumAddress.random()
@@ -56,7 +54,6 @@ describe(ConstructorArgsHandler.name, () => {
         'constructorArgs',
         { type: 'constructorArgs', nameArgs: true },
         sampleAbi,
-        DiscoveryLogger.SILENT,
       )
 
       const contractAddress = EthereumAddress.random()
@@ -111,7 +108,6 @@ describe(ConstructorArgsHandler.name, () => {
         'constructorArgs',
         { type: 'constructorArgs' },
         sampleAbi,
-        DiscoveryLogger.SILENT,
       )
 
       const contractAddress = EthereumAddress.random()

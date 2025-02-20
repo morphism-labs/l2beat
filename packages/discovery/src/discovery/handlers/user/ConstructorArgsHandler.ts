@@ -1,12 +1,10 @@
-import { assert } from '@l2beat/backend-tools'
-import { ContractValue } from '@l2beat/discovery-types'
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { ContractValue } from '@l2beat/discovery-types'
+import { assert, type EthereumAddress } from '@l2beat/shared-pure'
 import { ethers } from 'ethers'
 import { z } from 'zod'
 
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
-import { Handler, HandlerResult } from '../Handler'
+import type { IProvider } from '../../provider/IProvider'
+import type { Handler, HandlerResult } from '../Handler'
 
 export type ConstructorArgsDefinition = z.infer<
   typeof ConstructorArgsDefinition
@@ -24,7 +22,6 @@ export class ConstructorArgsHandler implements Handler {
     readonly field: string,
     private readonly definition: ConstructorArgsDefinition,
     abi: string[],
-    readonly logger: DiscoveryLogger,
   ) {
     assert(
       field === 'constructorArgs',
@@ -74,9 +71,6 @@ export class ConstructorArgsHandler implements Handler {
 
       return serializeResult(decodedConstructorArguments)
     } catch {
-      this.logger.log(
-        'Could not get constructor arguments with heuristic approach. Trying with block explorer.',
-      )
       const decodedConstructorArguments = await this.getWithBlockExplorer(
         provider,
         address,

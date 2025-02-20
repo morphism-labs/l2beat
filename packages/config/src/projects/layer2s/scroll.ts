@@ -7,6 +7,9 @@ import {
 } from '@l2beat/shared-pure'
 
 import {
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NEW_CRYPTOGRAPHY,
@@ -15,13 +18,14 @@ import {
   STATE_CORRECTNESS,
   STATE_ZKP_SN,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
+import { ESCROW } from '../../common'
+import { formatExecutionDelay } from '../../common/formatDelays'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
+import { PROOFS } from '../zk-catalog/common/proofSystems'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('scroll')
 
@@ -29,18 +33,21 @@ const timelockSlowDelay = discovery.getContractValue<number>(
   'TimelockSlow',
   'getMinDelay',
 )
-const timelockMidDelay = discovery.getContractValue<number>(
-  'TimelockMid',
-  'getMinDelay',
-)
 const timelockFastDelay = discovery.getContractValue<number>(
   'TimelockFast',
   'getMinDelay',
 )
+const timelockSCDelay = discovery.getContractValue<number>(
+  'TimelockSC',
+  'getMinDelay',
+)
+const timelockEmergencyDelay = discovery.getContractValue<number>(
+  'TimelockEmergency',
+  'getMinDelay',
+)
 
-const upgradesScrollMultisig = {
-  upgradableBy: ['ScrollMultisig'],
-  upgradeDelay: 'No delay',
+const upgradesSC = {
+  upgradableBy: [{ name: 'SecurityCouncil', delay: 'no' }],
 }
 
 const isEnforcedTxGatewayPaused = discovery.getContractValue<boolean>(
@@ -49,10 +56,13 @@ const isEnforcedTxGatewayPaused = discovery.getContractValue<boolean>(
 )
 
 const upgradeDelay = 0
+const finalizationPeriod = 0
 
 export const scroll: Layer2 = {
   type: 'layer2',
   id: ProjectId('scroll'),
+  capability: 'universal',
+  addedAt: new UnixTime(1679651674), // 2023-03-24T09:54:34Z
   badges: [Badge.VM.EVM, Badge.DA.EthereumBlobs],
   display: {
     name: 'Scroll',
@@ -90,7 +100,6 @@ export const scroll: Layer2 = {
       ],
       rollupCodes: 'https://rollup.codes/scroll',
     },
-    activityDataSource: 'Blockchain RPC',
     liveness: {
       warnings: {
         batchSubmissions:
@@ -107,8 +116,7 @@ export const scroll: Layer2 = {
             'Transaction data batches that have not yet been proven can be reverted.',
         },
       },
-
-      finalizationPeriod: 0,
+      finalizationPeriod,
     },
   },
   stage: getStage({
@@ -119,6 +127,7 @@ export const scroll: Layer2 = {
       rollupNodeSourceAvailable: false,
     },
     stage1: {
+      principle: false,
       stateVerificationOnL1: true,
       fraudProofSystemAtLeast5Outsiders: null,
       usersHave7DaysToExit: false,
@@ -134,7 +143,7 @@ export const scroll: Layer2 = {
   chainConfig: {
     name: 'scroll',
     chainId: 534352,
-    explorerUrl: 'https://scrollscan.com/',
+    explorerUrl: 'https://scrollscan.com',
     explorerApi: {
       url: 'https://api.scrollscan.com/api',
       type: 'etherscan',
@@ -151,38 +160,50 @@ export const scroll: Layer2 = {
     coingeckoPlatform: 'scroll',
   },
   config: {
+    associatedTokens: ['SCR'],
     escrows: [
       discovery.getEscrowDetails({
         address: EthereumAddress('0xD8A791fE2bE73eb6E6cF1eb0cb3F36adC9B3F8f9'),
         tokens: '*',
-        ...upgradesScrollMultisig,
+        excludedTokens: ['rsETH'],
+        ...upgradesSC,
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0x6774Bcbd5ceCeF1336b5300fb5186a12DDD8b367'),
         tokens: ['ETH'],
-        ...upgradesScrollMultisig,
+        ...upgradesSC,
       }),
       discovery.getEscrowDetails({
-        address: EthereumAddress('0xb2b10a289A229415a124EFDeF310C10cb004B6ff'),
+        address: EthereumAddress('0xb2b10a289A229415a124EFDeF310C10cb004B6ff'), // custom gateway
         tokens: '*',
-        ...upgradesScrollMultisig,
+        ...ESCROW.CANONICAL_EXTERNAL,
+        ...upgradesSC,
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0xf1AF3b23DE0A5Ca3CAb7261cb0061C0D779A5c7B'),
         tokens: ['USDC'],
-        ...upgradesScrollMultisig,
+        ...ESCROW.CANONICAL_EXTERNAL,
+        ...upgradesSC,
+      }),
+      discovery.getEscrowDetails({
+        address: EthereumAddress('0x67260A8B73C5B77B55c1805218A42A7A6F98F515'),
+        tokens: ['DAI'],
+        ...ESCROW.CANONICAL_EXTERNAL,
+        ...upgradesSC,
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0x6625C6332c9F91F2D27c304E729B86db87A3f504'),
         tokens: ['wstETH'],
-        upgradableBy: ['Lido (Lido Agent)'],
-        upgradeDelay: 'No delay',
+        ...ESCROW.CANONICAL_EXTERNAL,
+        description:
+          'Custom token escrow with third-party governance, using the canonical bridge only for messaging.',
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0xA033Ff09f2da45f0e9ae495f525363722Df42b2a'),
         tokens: ['pufETH'],
-        upgradableBy: ['PufferFinanceOpsMultisig'],
-        upgradeDelay: 'No delay',
+        ...ESCROW.CANONICAL_EXTERNAL,
+        description:
+          'Custom token escrow with third-party governance, using the canonical bridge only for messaging.',
       }),
     ],
     transactionApi: {
@@ -191,6 +212,18 @@ export const scroll: Layer2 = {
       defaultCallsPerMinute: 120,
       startBlock: 1,
     },
+    daTracking: [
+      {
+        type: 'ethereum',
+        daLayer: ProjectId('ethereum'),
+        sinceBlock: 0, // Edge Case: config added @ DA Module start
+        inbox: '0xa13BAF47339d63B743e7Da8741db5456DAc1E556',
+        sequencers: [
+          '0x054a47B9E2a22aF6c0CE55020238C8FEcd7d334B',
+          '0xE514A8aE91d164C6Fb48a7DE336e10C34AF4e858',
+        ],
+      },
+    ],
     trackedTxs: [
       {
         uses: [
@@ -212,6 +245,7 @@ export const scroll: Layer2 = {
           functionSignature:
             'function finalizeBatchWithProof(bytes _batchHeader,bytes32 _prevStateRoot,bytes32 _postStateRoot,bytes32 _withdrawRoot,bytes _aggrProof)',
           sinceTimestamp: new UnixTime(1696782323),
+          untilTimestamp: new UnixTime(1724227415),
         },
       },
       {
@@ -238,6 +272,22 @@ export const scroll: Layer2 = {
       },
       {
         uses: [
+          { type: 'liveness', subtype: 'stateUpdates' },
+          { type: 'l2costs', subtype: 'stateUpdates' },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xa13BAF47339d63B743e7Da8741db5456DAc1E556',
+          ),
+          selector: '0x4f099e3d',
+          functionSignature:
+            'function finalizeBundleWithProof(bytes,bytes32,bytes32,bytes)',
+          sinceTimestamp: new UnixTime(1724227415),
+        },
+      },
+      {
+        uses: [
           { type: 'liveness', subtype: 'batchSubmissions' },
           { type: 'l2costs', subtype: 'batchSubmissions' },
         ],
@@ -250,6 +300,23 @@ export const scroll: Layer2 = {
           functionSignature:
             'function commitBatch(uint8 _version,bytes _parentBatchHeader,bytes[] _chunks,bytes _skippedL1MessageBitmap)',
           sinceTimestamp: new UnixTime(1696782323),
+          untilTimestamp: new UnixTime(1724227247),
+        },
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'batchSubmissions' },
+          { type: 'l2costs', subtype: 'batchSubmissions' },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xa13BAF47339d63B743e7Da8741db5456DAc1E556',
+          ),
+          selector: '0x86b053a9',
+          functionSignature:
+            'function commitBatchWithBlobProof(uint8,bytes,bytes[],bytes,bytes)',
+          sinceTimestamp: new UnixTime(1724227415),
         },
       },
     ],
@@ -267,86 +334,30 @@ export const scroll: Layer2 = {
       stateUpdate: 'disabled',
     },
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (blobs or calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'Transaction data (compressed)',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_BLOBS_OR_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.TRANSACTION_DATA_COMPRESSED,
+  },
+  riskView: {
     stateValidation: {
       ...STATE_ZKP_SN,
-      sources: [
-        {
-          contract: 'ScrollChain',
-          references: [
-            'https://etherscan.io/address/0x4F250B05262240C787a1eE222687C6eC395C628A#code',
-          ],
-        },
-      ],
+      secondLine: formatExecutionDelay(finalizationPeriod),
     },
-    dataAvailability: {
-      ...RISK_VIEW.DATA_ON_CHAIN,
-      sources: [
-        {
-          contract: 'ScrollChain',
-          references: [
-            'https://etherscan.io/address/0x4F250B05262240C787a1eE222687C6eC395C628A#code',
-          ],
-        },
-      ],
-    },
-    exitWindow: {
-      ...RISK_VIEW.EXIT_WINDOW(upgradeDelay, 0),
-      sources: [
-        {
-          contract: 'ScrollChain',
-          references: [
-            'https://etherscan.io/address/0xa13BAF47339d63B743e7Da8741db5456DAc1E556#code#F1#L154',
-          ],
-        },
-      ],
-    },
-    sequencerFailure: {
-      ...RISK_VIEW.SEQUENCER_NO_MECHANISM(),
-      sources: [
-        {
-          contract: 'L1MessageQueue',
-          references: [
-            'https://etherscan.io/address/0xeBaed7A81c298B24EE6d59c22698A951dc448E01#code',
-          ],
-        },
-        {
-          contract: 'EnforcedTxGateway',
-          references: [
-            'https://etherscan.io/address/0x642af405bF64660665B37977449C9C536B806318#code',
-          ],
-        },
-      ],
-    },
-    proposerFailure: {
-      ...RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
-      sources: [
-        {
-          contract: 'ScrollChain',
-          references: [
-            'https://etherscan.io/address/0x4F250B05262240C787a1eE222687C6eC395C628A#code',
-          ],
-        },
-      ],
-    },
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-  }),
+    dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
+    exitWindow: RISK_VIEW.EXIT_WINDOW(upgradeDelay, 0),
+    sequencerFailure: RISK_VIEW.SEQUENCER_NO_MECHANISM(),
+    proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
+  },
   technology: {
-    newCryptography: {
-      ...NEW_CRYPTOGRAPHY.ZK_SNARKS,
-    },
+    newCryptography: NEW_CRYPTOGRAPHY.ZK_SNARKS,
     stateCorrectness: {
       ...STATE_CORRECTNESS.VALIDITY_PROOFS,
       references: [
         {
-          text: 'ScrollChain.sol - Etherscan source code, verifyAggregateProof() and verifyAggregateProof4844() calls',
-          href: 'https://etherscan.io/address/0x4F250B05262240C787a1eE222687C6eC395C628A#code',
+          title:
+            'ScrollChain.sol - Etherscan source code, verifyAggregateProof() and verifyBundleProof() calls',
+          url: 'https://etherscan.io/address/0x9bB163401E8C72573854c4Cd968aFA7A7b02D25f#code',
         },
       ],
     },
@@ -354,8 +365,9 @@ export const scroll: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_BLOB_OR_CALLDATA,
       references: [
         {
-          text: 'ScrollChain.sol - Etherscan source, code commitBatch() function',
-          href: 'https://etherscan.io/address/0x4F250B05262240C787a1eE222687C6eC395C628A#code',
+          title:
+            'ScrollChain.sol - Etherscan source code commitBatch() and commitBatchWithBlobProof() functions',
+          url: 'https://etherscan.io/address/0x9bB163401E8C72573854c4Cd968aFA7A7b02D25f#code',
         },
       ],
     },
@@ -363,8 +375,9 @@ export const scroll: Layer2 = {
       ...OPERATOR.CENTRALIZED_OPERATOR,
       references: [
         {
-          text: 'ScrollChain.sol - Etherscan source code, finalizeBatchWithProof() function modifier',
-          href: 'https://etherscan.io/address/0x4F250B05262240C787a1eE222687C6eC395C628A#code',
+          title:
+            'ScrollChain.sol - Etherscan source code, finalizeBundleWithProof() function modifier',
+          url: 'https://etherscan.io/address/0x9bB163401E8C72573854c4Cd968aFA7A7b02D25f#code',
         },
       ],
     },
@@ -372,19 +385,24 @@ export const scroll: Layer2 = {
       ...FORCE_TRANSACTIONS.SEQUENCER_NO_MECHANISM,
       references: [
         {
-          text: 'EnforcedTxGateway.sol - Etherscan source code, EnforcedTxGateway is paused',
-          href: 'https://etherscan.io/address/0x642af405bF64660665B37977449C9C536B806318#code',
+          title: 'EnforcedTxGateway.sol - Etherscan source code',
+          url: 'https://etherscan.io/address/0x642af405bF64660665B37977449C9C536B806318#code',
+        },
+        {
+          title: 'EnforcedTxGateway is paused - Etherscan proxy contract',
+          url: 'https://etherscan.io/address/0x72CAcBcfDe2d1e19122F8A36a4d6676cd39d7A5d#readProxyContract#F7',
         },
       ],
     },
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('zk', 'no proof'),
+        ...EXITS.REGULAR_MESSAGING('zk'),
         risks: [EXITS.OPERATOR_CENSORS_WITHDRAWAL],
         references: [
           {
-            text: 'L1ETHGateway.sol - Etherscan source code, finalizeWithdrawETH function',
-            href: 'https://etherscan.io/address/0x1fcbE079c4Bbab37406daB7Dfd35AcAe37D5C55d#code',
+            title:
+              'L1ETHGateway.sol - Etherscan source code, finalizeWithdrawETH function',
+            url: 'https://etherscan.io/address/0x546E0bF31FB6e7babD493452e4e6999191367B42#code',
           },
         ],
       },
@@ -398,7 +416,7 @@ export const scroll: Layer2 = {
     genesisState:
       'The genesis file can be found [here](https://scrollzkp.notion.site/genesis-json-f89ca24b123f462f98c8844d17bdbb74), which contains two prefunded addresses and five predeployed contracts.',
     dataFormat:
-      'Blocks are grouped into chunks and chunks are grouped into batches. Chunk encoding format can be found [here](https://github.com/scroll-tech/scroll/blob/develop/contracts/src/libraries/codec/ChunkCodec.sol#L5), and batch encoding format can be found [here](https://github.com/scroll-tech/scroll/blob/develop/contracts/src/libraries/codec/BatchHeaderV0Codec.sol#L7).',
+      'Blocks are grouped into chunks, chunks are grouped into batches, and batches are grouped into bundles. Chunk encoding format can be found [here](https://github.com/scroll-tech/scroll-contracts/blob/main/src/libraries/codec/ChunkCodecV0.sol#L5), and batch encoding format can be found [here](https://github.com/scroll-tech/scroll-contracts/blob/main/src/libraries/codec/BatchHeaderV0Codec.sol#L7).',
   },
   stateValidation: {
     description:
@@ -421,6 +439,7 @@ export const scroll: Layer2 = {
       },
     ],
     proofVerification: {
+      shortDescription: 'Scroll is a ZK-EVM rollup on Ethereum.',
       aggregation: true,
       requiredTools: [
         {
@@ -431,9 +450,9 @@ export const scroll: Layer2 = {
       ],
       verifiers: [
         {
-          name: 'ScrollVerifierV0',
+          name: 'PlonkVerifierV0',
           description:
-            'Halo2 + KZG verifier using calldata for DA. Corresponds to version v0.9.5 of the circuits.',
+            'Scroll verifier using calldata for DA. Corresponds to version v0.9.5 of the circuits.',
           verified: 'no',
           contractAddress: EthereumAddress(
             '0x4B8Aa8A96078689384DAb49691E9bA51F9d2F9E1',
@@ -441,34 +460,21 @@ export const scroll: Layer2 = {
           chainId: ChainId.ETHEREUM,
           subVerifiers: [
             {
-              name: 'Final circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
-            },
-            {
               name: 'Aggregation circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
               link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.9.5/aggregator',
             },
             {
               name: 'Main circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
               link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.9.5/zkevm-circuits',
             },
           ],
         },
         {
-          name: 'ScrollVerifierV1',
+          name: 'PlonkVerifierV1',
           description:
-            'Halo2 + KZG verifier using blobs for DA. Corresponds to version v0.10.3 of the circuits.',
+            'Scroll verifier using blobs for DA. Corresponds to version v0.10.3 of the circuits.',
           verified: 'no',
           contractAddress: EthereumAddress(
             '0x2293cd12e8564e8219d314b075867c2f66ac6941',
@@ -476,34 +482,21 @@ export const scroll: Layer2 = {
           chainId: ChainId.ETHEREUM,
           subVerifiers: [
             {
-              name: 'Final Circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
-            },
-            {
               name: 'Aggregation circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
-              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.10.3/zkevm-circuits',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
+              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.10.3/aggregator',
             },
             {
               name: 'Main circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
               link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.10.3/zkevm-circuits',
             },
           ],
         },
         {
-          name: 'ScrollVerifierV2',
+          name: 'PlonkVerifierV1-1',
           description:
-            'Second generation (Curie Upgrade) Halo2 + KZG verifier using blobs for DA. Corresponds to version v0.11.4 of the circuits.',
+            'Scroll verifier using blobs for DA. Corresponds to version v0.11.4 of the circuits (Curie upgrade).',
           verified: 'no',
           contractAddress: EthereumAddress(
             '0x03a72B00D036C479105fF98A1953b15d9c510110',
@@ -511,27 +504,58 @@ export const scroll: Layer2 = {
           chainId: ChainId.ETHEREUM,
           subVerifiers: [
             {
-              name: 'Final circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
-            },
-            {
               name: 'Aggregation circuit',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
-              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.11.4/zkevm-circuits',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
+              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.11.4/aggregator',
             },
             {
               name: 'Main verifier',
-              proofSystem: 'Halo2',
-              mainArithmetization: 'Plonk',
-              mainPCS: 'KZG',
-              trustedSetup: 'Powers of Tau 26',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
               link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.11.4/zkevm-circuits',
+            },
+          ],
+        },
+        {
+          name: 'PlonkVerifierV2',
+          description:
+            'Scroll verifier proving bundles (group of batches). Corresponds to version v0.12.0 of the circuits (Darwin upgrade).',
+          verified: 'no',
+          contractAddress: EthereumAddress(
+            '0x8759E83b6570A0bA46c3CE7eB359F354F816c9a9',
+          ),
+          chainId: ChainId.ETHEREUM,
+          subVerifiers: [
+            {
+              name: 'Aggregation circuit',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
+              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.12.0/aggregator',
+            },
+            {
+              name: 'Main verifier',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
+              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.12.0/zkevm-circuits',
+            },
+          ],
+        },
+        {
+          name: 'PlonkVerifierV2-1',
+          description:
+            'Scroll verifier proving bundles (group of batches). Corresponds to version v0.13.0 of the circuits (Darwin v2 upgrade).',
+          verified: 'no',
+          contractAddress: EthereumAddress(
+            '0x8c1b52757b5c571ADcB5572E992679d4D48e30f7',
+          ),
+          chainId: ChainId.ETHEREUM,
+          subVerifiers: [
+            {
+              name: 'Aggregation circuit',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
+              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.13.0/aggregator',
+            },
+            {
+              name: 'Main verifier',
+              ...PROOFS.HALO2KZG('Powers of Tau 26'),
+              link: 'https://github.com/scroll-tech/zkevm-circuits/tree/v0.13.0/zkevm-circuits',
             },
           ],
         },
@@ -539,195 +563,232 @@ export const scroll: Layer2 = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('ScrollChain', {
-        description:
-          'The main contract of the Scroll chain. Allows to post transaction data and state roots, along with proofs. Sequencing and proposing are behind a whitelist. L1 -> L2 message processing on L2 is not enforced.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1ScrollMessenger', {
-        description:
-          'Contract used to send L1 -> L2 and relay messages from L2. It allows to replay failed messages and to drop skipped messages. L1 -> L2 messages sent using this contract pay for L2 gas on L1 and will have the aliased address of this contract as the sender.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1MessageQueue', {
-        description:
-          'Contains the array of queued L1 -> L2 messages, either appended using the L1ScrollMessenger or the EnforcedTxGateway. The latter contract, which would allow users to send L2 messages from L1 with their own address as the sender, is not enabled yet.',
-      }),
-      discovery.getContractDetails('Whitelist', {
-        description:
-          'Contract implementing a generic whitelist. Currently used to define the actor that can relay the L2 basefee on L1.',
-      }),
-      discovery.getContractDetails('ScrollOwner', {
-        description:
-          'Owner of all contracts in the system. It implements an extension of AccessControl that manages roles and functions allowed to be called by each role.',
-      }),
-      discovery.getContractDetails('TimelockSlow', {
-        description: `${formatSeconds(
-          timelockSlowDelay,
-        )} timelock. Admin of the ScrollOwner contract, meaning it can assign and revoke roles. The ScrollMultisig can propose and cancel transactions, and the ExecutorMultisig can execute them.`,
-      }),
-      discovery.getContractDetails('TimelockMid', {
-        description: `${formatSeconds(
-          timelockMidDelay,
-        )} timelock. Can manage the USDC gateway bridge. The ScrollMultisig can propose and cancel transactions, and the ExecutorMultisig can execute them.`,
-      }),
-      discovery.getContractDetails('TimelockFast', {
-        description: `${formatSeconds(
-          timelockFastDelay,
-        )} timelock. Can add new sequencers and provers, update the gas oracle and permissions to update its values, the max gas limit, and gateways token mappings. The ScrollMultisig can propose and cancel transactions, and the ExecutorMultisig can execute them.`,
-      }),
-      discovery.getContractDetails('MultipleVersionRollupVerifier', {
-        description:
-          'Contract used to update the verifier and keep track of current and old versions.',
-      }),
-      discovery.getContractDetails('ZkEvmVerifierV0', {
-        description:
-          'Current verifier using calldata for DA, used to prepare data for the PlonkVerifierV0.',
-      }),
-      discovery.getContractDetails('PlonkVerifierV0', {
-        description:
-          'Plonk verifier used to verify ZK proofs using calldata for DA.',
-      }),
-      discovery.getContractDetails('ZkEvmVerifierV1', {
-        description:
-          'Verifier using blobs for DA, used to prepare data for the PlonkVerifierV1.',
-      }),
-      discovery.getContractDetails('PlonkVerifierV1', {
-        description:
-          'Plonk verifier used to verify ZK proofs using blobs for DA.',
-      }),
-      discovery.getContractDetails('ZkEvmVerifierV1-1', {
-        description:
-          'Current verifier (post-Curie upgrade) using blobs for DA, used to prepare data for the PlonkVerifierV2.',
-      }),
-      discovery.getContractDetails('PlonkVerifierV2', {
-        description:
-          'Plonk verifier used to verify ZK proofs using blobs for DA.',
-      }),
-      discovery.getContractDetails('L1ETHGateway', {
-        description: 'Contract used to bridge ETH from L1 to L2.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1WETHGateway', {
-        description: 'Contract used to bridge WETH from L1 to L2.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1BatchBridgeGateway', {
-        description:
-          'Contract used to efficiently bridge ETH (in batches) from L1 to L2.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1StandardERC20Gateway', {
-        description:
-          'Contract used to bridge ERC20 tokens from L1 to L2. It uses a fixed token list.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1CustomERC20Gateway', {
-        description:
-          'Contract used to bridge ERC20 tokens from L1 to L2. It allows to change the token mappings.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1USDCGateway', {
-        description: 'Contract used to bridge USDC tokens from L1 to L2.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1ERC721Gateway', {
-        description: 'Contract used to bridge ERC721 tokens from L1 to L2.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1ERC1155Gateway', {
-        description: 'Contract used to bridge ERC1155 tokens from L1 to L2.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('L1GatewayRouter', {
-        description:
-          'Main entry point for depositing ETH and ERC20 tokens, which are then forwarded to the correct gateway.',
-        ...upgradesScrollMultisig,
-      }),
-      discovery.getContractDetails('FeeVaultMultisig', {
-        description:
-          'Multisig used to store fees collected from gateways to pay for L1 -> L2 message execution.',
-      }),
-      discovery.getContractDetails('EnforcedTxGateway', {
-        description:
-          'Contracts to force L1 -> L2 messages with the proper sender.',
-        ...upgradesScrollMultisig,
-        pausable: {
-          paused: isEnforcedTxGatewayPaused,
-          pausableBy: ['ScrollOwner'],
-        },
-      }),
-      discovery.getContractDetails('OLD_L2GasPriceOracle', {
-        description:
-          'Deprecated: the functionality of this contract has been moved to the L1MessageQueue contract. It was used to relay the L2 basefee on L1 in a trusted way using a whitelist. It was also used to store and update values related to intrinsic gas cost calculations.',
-        ...upgradesScrollMultisig,
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('ScrollChain', {
+          description:
+            'The main contract of the Scroll chain. Allows to post transaction data and state roots, along with proofs. Sequencing and proposing are behind a whitelist. L1 -> L2 message processing on L2 is not enforced.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1ScrollMessenger', {
+          description:
+            'Contract used to send L1 -> L2 and relay messages from L2. It allows to replay failed messages and to drop skipped messages. L1 -> L2 messages sent using this contract pay for L2 gas on L1 and will have the aliased address of this contract as the sender.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1MessageQueue', {
+          description:
+            'Contains the array of queued L1 -> L2 messages, either appended using the L1ScrollMessenger or the EnforcedTxGateway. The latter contract, which would allow users to send L2 messages from L1 with their own address as the sender, is not enabled yet.',
+        }),
+        discovery.getContractDetails('Whitelist', {
+          description:
+            'Contract implementing a generic whitelist. Currently used to define the actor that can relay the L2 basefee on L1.',
+        }),
+        discovery.getContractDetails('ScrollOwner', {
+          description:
+            'Owner of all contracts in the system. It implements an extension of AccessControl that manages roles and functions allowed to be called by each role.',
+        }),
+        discovery.getContractDetails('TimelockSlow', {
+          description: `${formatSeconds(
+            timelockSlowDelay,
+          )} timelock. Admin of the ScrollOwner contract, meaning it can assign and revoke roles. The SecurityCouncil can propose, cancel and execute transactions, and the ExecutorMultisig can execute them.`,
+        }),
+        discovery.getContractDetails('TimelockFast', {
+          description: `${formatSeconds(
+            timelockFastDelay,
+          )} timelock. Can add new sequencers and provers, update the gas oracle and permissions to update its values, the max gas limit, and gateways token mappings. The ScrollOpsMultisig can propose and cancel transactions, and the ScrollExecutorMultisig can execute them. Currently also has the Admin role in the ScrollOwner contract and can thus manage all roles including the ones that can upgrade all system contracts.`,
+        }),
+        discovery.getContractDetails('TimelockSC', {
+          description: `${formatSeconds(
+            timelockSCDelay,
+          )} timelock. Can upgrade all core system contracts via the ProxyAdmin. The SecurityCouncil can propose, cancel and execute transactions, and the ScrollExecutorMultisig can execute them.`,
+        }),
+        discovery.getContractDetails('TimelockEmergency', {
+          description: `${formatSeconds(
+            timelockEmergencyDelay,
+          )} timelock. Can pause system contracts, revert batches and remove sequencers. The ScrollEmergencyMultisig can propose and cancel transactions, and the ScrollExecutorMultisig can execute them.`,
+        }),
+        discovery.getContractDetails('MultipleVersionRollupVerifier', {
+          description:
+            'Contract used to update the verifier and keep track of current and old versions.',
+        }),
+        discovery.getContractDetails('ZkEvmVerifierV0', {
+          description:
+            'Current verifier using calldata for DA, used to prepare data for the PlonkVerifierV0.',
+        }),
+        discovery.getContractDetails('PlonkVerifierV0', {
+          description:
+            'Plonk verifier used to verify ZK proofs using calldata for DA.',
+        }),
+        discovery.getContractDetails('ZkEvmVerifierV1', {
+          description:
+            'Verifier using blobs for DA, used to prepare data for the PlonkVerifierV1.',
+        }),
+        discovery.getContractDetails('PlonkVerifierV1', {
+          description:
+            'Plonk verifier used to verify ZK proofs using blobs for DA.',
+        }),
+        discovery.getContractDetails('ZkEvmVerifierV1-1', {
+          description:
+            'Verifier using blobs for DA, used to prepare data for the PlonkVerifierV1-1. Added in the Curie upgrade.',
+        }),
+        discovery.getContractDetails('PlonkVerifierV1-1', {
+          description:
+            'Plonk verifier used to verify ZK proofs using blobs for DA.',
+        }),
+        discovery.getContractDetails('ZkEvmVerifierV2', {
+          description:
+            'Verifier proving bundles (group of batches), used to prepare data for the PlonkVerifierV2. Added in the Darwin upgrade.',
+        }),
+        discovery.getContractDetails('PlonkVerifierV2', {
+          description: 'Plonk verifier used to verify ZK proofs for bundles.',
+        }),
+        discovery.getContractDetails('ZkEvmVerifierV2-1', {
+          description:
+            'Verifier proving bundles (group of batches), used to prepare data for the PlonkVerifierV2-1. Added in the Darwin v2 upgrade.',
+        }),
+        discovery.getContractDetails('PlonkVerifierV2-1', {
+          description: 'Plonk verifier used to verify ZK proofs for bundles.',
+        }),
+        discovery.getContractDetails('L1ETHGateway', {
+          description: 'Deprecated: Contract used to bridge ETH from L1 to L2.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1WETHGateway', {
+          description: 'Contract used to bridge WETH from L1 to L2.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1BatchBridgeGateway', {
+          description:
+            'Contract used to efficiently bridge ETH (in batches) from L1 to L2.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1StandardERC20Gateway', {
+          description:
+            'Contract used to bridge ERC20 tokens from L1 to L2. It uses a fixed token list.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1CustomERC20Gateway', {
+          description:
+            'Contract used to bridge ERC20 tokens from L1 to L2. It allows to change the token mappings.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1USDCGateway', {
+          description: 'Contract used to bridge USDC tokens from L1 to L2.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1ERC721Gateway', {
+          description: 'Contract used to bridge ERC721 tokens from L1 to L2.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1ERC1155Gateway', {
+          description: 'Contract used to bridge ERC1155 tokens from L1 to L2.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('L1GatewayRouter', {
+          description:
+            'Main entry point for depositing ETH and ERC20 tokens, which are then forwarded to the correct gateway.',
+          ...upgradesSC,
+        }),
+        discovery.getContractDetails('ScrollFeeVaultMultisig', {
+          description:
+            'Multisig used to store fees collected from gateways to pay for L1 -> L2 message execution.',
+        }),
+        discovery.getContractDetails('EnforcedTxGateway', {
+          description:
+            'Contracts to force L1 -> L2 messages with the proper sender.',
+          ...upgradesSC,
+          pausable: {
+            paused: isEnforcedTxGatewayPaused,
+            pausableBy: ['ScrollOwner'],
+          },
+        }),
+        discovery.getContractDetails('OLD_L2GasPriceOracle', {
+          description:
+            'Deprecated: the functionality of this contract has been moved to the L1MessageQueue contract. It was used to relay the L2 basefee on L1 in a trusted way using a whitelist. It was also used to store and update values related to intrinsic gas cost calculations.',
+          ...upgradesSC,
+        }),
+      ],
+    },
     risks: [],
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'ScrollMultisig',
-      'Currently also designated as the Security Council. Can upgrade proxies and the verifier without delay and propose transactions within Timelocks. It can also revert non finalized batches, remove sequencers and provers and pause contracts.',
-    ),
-    ...discovery.getMultisigPermission(
-      'ExecutorMultisig',
-      'Can execute timelock transactions.',
-    ),
-    ...discovery.getMultisigPermission(
-      'EmergencyMultisig',
-      'Can revert batches, remove sequencers and provers, and pause contracts.',
-    ),
-    ...discovery.getMultisigPermission(
-      'PufferFinanceOpsMultisig',
-      'Can upgrade the pufETH custom escrow.',
-    ),
-    {
-      name: 'Lido (Lido Agent)',
-      accounts: [
-        discovery.getPermissionedAccount('wstETHescrowLidoProxyAdmin', 'owner'),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'ScrollOpsMultisig',
+          'Can propose transactions via the TimelockFast, which currently can manage all roles in the ScrollOwner and thus get access to full upgrade and system functions. The ScrollExecutorMultisig needs to execute these proposals once ready.',
+        ),
+        discovery.getMultisigPermission(
+          'SecurityCouncil',
+          'Can upgrade all system contracts via the TimelockSC and the ProxyAdmin and manage all critical roles in the ScrollOwner via the TimelockSlow. The ScrollExecutorMultisig can execute these proposals, but the SC is also permissioned to execute them.',
+        ),
+        discovery.getMultisigPermission(
+          'ScrollExecutorMultisig',
+          'Can execute timelock transactions in all four timelocks.',
+        ),
+        discovery.getMultisigPermission(
+          'ScrollEmergencyMultisig',
+          'Can revert batches, remove sequencers and provers, and pause contracts via the TimelockEmergency. The ScrollExecutorMultisig needs to execute these proposals.',
+        ),
+        discovery.getPermissionDetails(
+          'Sequencers',
+          discovery.getPermissionedAccounts('ScrollChain', 'sequencers'),
+          'Actors allowed to commit transaction batches.',
+        ),
+        discovery.getPermissionDetails(
+          'Proposers',
+          discovery.getPermissionedAccounts('ScrollChain', 'provers'),
+          'Actors allowed to prove transaction batches and publish state root updates.',
+        ),
       ],
-      description: 'Can upgrade the wstETH custom escrow.',
     },
-    {
-      name: 'Sequencers',
-      accounts: discovery.getPermissionedAccounts('ScrollChain', 'sequencers'),
-      description: 'Actors allowed to commit transaction batches.',
-    },
-    {
-      name: 'Proposers',
-      accounts: discovery.getPermissionedAccounts('ScrollChain', 'provers'),
-      description:
-        'Actors allowed to prove transaction batches and publish state root updates.',
-    },
-  ],
+  },
   milestones: [
     {
-      name: 'Curie upgrade',
-      link: 'https://scroll.io/blog/compressing-the-gas-scrolls-curie-upgrade',
+      title: 'Batches reverted',
+      url: 'https://status.scroll.io/incidents/44k6s4qg6kcs',
+      date: '2024-07-05T00:00:00Z',
+      description:
+        'To fix a bug in the compression for batches 55 previously committed batches are reverted.',
+      type: 'incident',
+    },
+    {
+      title: 'Darwin upgrade',
+      url: 'https://scroll.io/blog/proof-recursion-scrolls-darwin-upgrade',
+      date: '2024-08-21T00:00:00.00Z',
+      description:
+        'Introduces a reduction in gas fees through bundling multiple batches into a single validity proof.',
+      type: 'general',
+    },
+    {
+      title: 'Curie upgrade',
+      url: 'https://scroll.io/blog/compressing-the-gas-scrolls-curie-upgrade',
       date: '2024-07-03T00:00:00.00Z',
       description:
         'Introduces data compression, new opcodes, dynamic block time, and new transaction types.',
+      type: 'general',
     },
     {
-      name: 'Bernoulli upgrade',
-      link: 'https://scroll.io/blog/blobs-are-here-scrolls-bernoulli-upgrade',
+      title: 'Bernoulli upgrade',
+      url: 'https://scroll.io/blog/blobs-are-here-scrolls-bernoulli-upgrade',
       date: '2024-04-29T00:00:00.00Z',
       description:
         'Introduces EIP-4844 data blobs for L1 data availability, and the SHA2-256 precompile on L2.',
+      type: 'general',
     },
     {
-      name: 'Scroll official launch',
-      link: 'https://x.com/Scroll_ZKP/status/1714286874020528554',
+      title: 'Scroll official launch',
+      url: 'https://x.com/Scroll_ZKP/status/1714286874020528554',
       date: '2023-10-17T00:00:00.00Z',
       description: 'Scroll announces its official launch.',
+      type: 'general',
     },
     {
-      name: 'Scroll Alpha testnet launch',
-      link: 'https://scroll.io/blog/alphaTestnet',
+      title: 'Scroll Alpha testnet launch',
+      url: 'https://scroll.io/blog/alphaTestnet',
       date: '2023-02-27T00:00:00.00Z',
       description: 'Scroll launches its Alpha testnet on Goerli.',
+      type: 'general',
     },
   ],
 }

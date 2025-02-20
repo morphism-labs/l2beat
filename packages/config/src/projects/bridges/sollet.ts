@@ -1,14 +1,15 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('sollet')
 
 export const sollet: Bridge = {
   type: 'bridge',
   id: ProjectId('sollet'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   isArchived: true,
   display: {
     name: 'Sollet',
@@ -45,15 +46,14 @@ export const sollet: Bridge = {
         'Sollet Bridge becomes deprecated on Oct 31, 2022. Users are encouraged to use Wormhole instead. Bridge contract supports withdrawals of assets locked on Ethereum but requests need to be signed by the contract owner (EOA account).',
       references: [
         {
-          text: 'Deprecating Sollet Bridge',
-          href: 'https://projectserum.medium.com/deprecating-sollet-bridge-5a092fbd5dda',
+          title: 'Deprecating Sollet Bridge',
+          url: 'https://projectserum.medium.com/deprecating-sollet-bridge-5a092fbd5dda',
         },
       ],
       risks: [
         {
           category: 'Users can be censored if',
           text: "contract owner doesn't sign withdrawal requests.",
-          isCritical: true,
         },
         {
           category: 'Funds can be frozen if',
@@ -62,7 +62,6 @@ export const sollet: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'contract owner withdraws funds belonging to depositors.',
-          isCritical: true,
         },
       ],
     },
@@ -82,16 +81,22 @@ export const sollet: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('SplTokenSwap', 'Sollet Bridge Contract.'),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('SplTokenSwap', 'Sollet Bridge Contract.'),
+      ],
+    },
     risks: [],
   },
-  permissions: [
-    {
-      accounts: [discovery.getPermissionedAccount('SplTokenSwap', 'owner')],
-      name: 'Sollet Bridge Owner (EOA)',
-      description: 'Can withdraw funds from the bridge',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Sollet Bridge Owner (EOA)',
+          discovery.getPermissionedAccounts('SplTokenSwap', 'owner'),
+          'Can withdraw funds from the bridge',
+        ),
+      ],
     },
-  ],
+  },
 }

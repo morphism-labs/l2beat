@@ -1,11 +1,14 @@
-import { assert } from '@l2beat/backend-tools'
-import { Database, ValueRecord } from '@l2beat/database'
-import { AmountConfigEntry, ProjectId, UnixTime } from '@l2beat/shared-pure'
+import type { AmountId, PriceId } from '@l2beat/backend-shared'
+import type { Database, ValueRecord } from '@l2beat/database'
+import {
+  assert,
+  type AmountConfigEntry,
+  type AssetId,
+  type ProjectId,
+  UnixTime,
+} from '@l2beat/shared-pure'
 import { groupBy } from 'lodash'
 import { calculateValue } from '../utils/calculateValue'
-import { AmountId } from '../utils/createAmountId'
-import { AssetId, createAssetId } from '../utils/createAssetId'
-import { PriceId } from '../utils/createPriceId'
 
 interface Values {
   canonical: bigint
@@ -48,7 +51,11 @@ export class ValueService {
     const filteredAmounts = amounts.filter((x) => {
       const amountConfig = amountConfigs.get(x.configId)
       assert(amountConfig, 'Config not found')
-      return amountConfig.sinceTimestamp.lte(x.timestamp)
+
+      const until = amountConfig.untilTimestamp
+        ? amountConfig.untilTimestamp.gt(x.timestamp)
+        : true
+      return amountConfig.sinceTimestamp.lte(x.timestamp) && until
     })
     const amountsByTimestamp = groupBy(
       filteredAmounts.map((x) => ({ ...x, timestamp: x.timestamp.toNumber() })),
@@ -81,11 +88,12 @@ export class ValueService {
 
       for (const amount of amountsAtTimestamp) {
         const amountConfig = amountConfigs.get(amount.configId)
-        assert(amountConfig, 'Config not found')
+        assert(amountConfig, `Config not found for ${amount.configId}`)
 
-        const priceId = priceConfigIds.get(createAssetId(amountConfig))
+        const priceId = priceConfigIds.get(amountConfig.assetId)
         const price = pricesAtTimestamp.find((x) => x.configId === priceId)
-        assert(price, 'Price not found')
+
+        assert(price, `Price not found for ${priceId} at ${timestamp}`)
 
         const value = calculateValue({
           amount: amount.amount,

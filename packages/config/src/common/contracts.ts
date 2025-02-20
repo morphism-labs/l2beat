@@ -1,8 +1,5 @@
 import { EthereumAddress, formatSeconds } from '@l2beat/shared-pure'
-
-import { ScalingProjectContracts } from './ScalingProjectContracts'
-import { ScalingProjectRisk } from './ScalingProjectRisk'
-import { DANGER_DELAY_THRESHOLD_SECONDS } from './constants'
+import type { ProjectContracts, ScalingProjectRisk } from '../types'
 
 const UNVERIFIED_DESCRIPTION =
   'The source code of this contract is not verified on Etherscan.'
@@ -12,9 +9,6 @@ const UNVERIFIED_DESCRIPTION_SOME =
 
 const UNVERIFIED_DESCRIPTION_ALL =
   'The source code of these contracts is not verified on Etherscan.'
-
-const UNVERIFIED_IMPLEMENTATIONS_DESCRIPTION =
-  'The source code of some implementations is not verified on Etherscan.'
 
 const UNVERIFIED_RISK: ScalingProjectRisk = {
   category: 'Funds can be stolen if',
@@ -35,13 +29,18 @@ function UPGRADE_WITH_DELAY_RISK(delay: string): ScalingProjectRisk {
   }
 }
 
-function UPGRADE_WITH_DELAY_RISK_WITH_SC(delay: string): ScalingProjectRisk {
+function UPGRADE_WITH_DELAY_RISK_WITH_EXCEPTION(
+  delay: string,
+  who: string,
+): ScalingProjectRisk {
   return {
     category: 'Funds can be stolen if',
-    text: `a contract receives a malicious code upgrade. There is a ${delay} days delay on code upgrades unless upgrade is initiated by the \
-    Security Council in which case there is no delay.`,
+    text: `a contract receives a malicious code upgrade. There is a ${delay} delay on code upgrades unless upgrade is initiated by the \
+    ${who} in which case there is no delay.`,
   }
 }
+
+const DANGER_DELAY_THRESHOLD_SECONDS = 60 * 60 * 12
 
 function UPGRADE_WITH_DELAY_SECONDS_RISK(
   delaySeconds: number,
@@ -53,8 +52,8 @@ function UPGRADE_WITH_DELAY_SECONDS_RISK(
   return UPGRADE_WITH_DELAY_RISK(delay)
 }
 
-const EMPTY: ScalingProjectContracts = {
-  addresses: [],
+const EMPTY: ProjectContracts = {
+  addresses: {},
   risks: [],
 }
 
@@ -64,7 +63,7 @@ const ARBITRUM_OLD_BRIDGE = EthereumAddress(
 
 const UNDER_REVIEW = {
   isUnderReview: true,
-  addresses: [],
+  addresses: {},
   risks: [],
 }
 
@@ -74,11 +73,10 @@ export const CONTRACTS = {
   UNVERIFIED_DESCRIPTION,
   UNVERIFIED_DESCRIPTION_SOME,
   UNVERIFIED_DESCRIPTION_ALL,
-  UNVERIFIED_IMPLEMENTATIONS_DESCRIPTION,
   UNVERIFIED_RISK,
   UPGRADE_NO_DELAY_RISK,
   UPGRADE_WITH_DELAY_RISK,
   UPGRADE_WITH_DELAY_SECONDS_RISK,
-  UPGRADE_WITH_DELAY_RISK_WITH_SC,
+  UPGRADE_WITH_DELAY_RISK_WITH_EXCEPTION,
   ARBITRUM_OLD_BRIDGE,
 }

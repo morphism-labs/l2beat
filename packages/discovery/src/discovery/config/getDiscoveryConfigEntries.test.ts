@@ -1,7 +1,10 @@
 import { EthereumAddress } from '@l2beat/shared-pure'
 import { expect } from 'earl'
 
-import { RawDiscoveryConfig } from '../config/RawDiscoveryConfig'
+import {
+  DiscoveryContract,
+  type RawDiscoveryConfig,
+} from '../config/RawDiscoveryConfig'
 import { getDiscoveryConfigEntries } from './getDiscoveryConfigEntries'
 
 const ADDRESS_A = EthereumAddress('0xc186fA914353c44b2E33eBE05f21846F1048bEda')
@@ -17,7 +20,7 @@ describe(getDiscoveryConfigEntries.name, () => {
       maxDepth: 1,
       maxAddresses: 1,
       overrides: {
-        [ADDRESS_B.toString()]: {
+        [ADDRESS_B.toString()]: DiscoveryContract.parse({
           ignoreInWatchMode: ['b', 'a'],
           ignoreMethods: ['d', 'c'],
           ignoreDiscovery: false,
@@ -38,14 +41,14 @@ describe(getDiscoveryConfigEntries.name, () => {
               },
             },
           },
-        },
-        [ADDRESS_C.toString()]: {
+        }),
+        [ADDRESS_C.toString()]: DiscoveryContract.parse({
           ignoreInWatchMode: ['a', 'b'],
           ignoreMethods: ['c', 'd'],
           ignoreDiscovery: false,
           proxyType: 'call implementation proxy',
           fields: {},
-        },
+        }),
       },
     }
 
@@ -65,7 +68,11 @@ describe(getDiscoveryConfigEntries.name, () => {
           // sort array values
           ignoreInWatchMode: ['a', 'b'],
           ignoreMethods: ['c', 'd'],
+          ignoreRelatives: [],
+          manualSourcePaths: {},
+          methods: {},
           proxyType: 'call implementation proxy',
+          types: {},
         },
         [ADDRESS_B.toString()]: {
           fields: {
@@ -88,7 +95,11 @@ describe(getDiscoveryConfigEntries.name, () => {
           ignoreDiscovery: false,
           ignoreInWatchMode: ['a', 'b'],
           ignoreMethods: ['c', 'd'],
+          ignoreRelatives: [],
+          manualSourcePaths: {},
+          methods: {},
           proxyType: 'call implementation proxy',
+          types: {},
         },
       },
     }

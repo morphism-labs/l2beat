@@ -1,23 +1,19 @@
-import {
-  CoingeckoId,
-  CoingeckoPriceConfigEntry,
-  UnixTime,
-} from '@l2beat/shared-pure'
+import { INDEXER_NAMES } from '@l2beat/backend-shared'
+import { type CoingeckoPriceConfigEntry, UnixTime } from '@l2beat/shared-pure'
 import { Indexer } from '@l2beat/uif'
 import { ManagedMultiIndexer } from '../../../tools/uif/multi/ManagedMultiIndexer'
-import {
+import type {
   Configuration,
   RemovalConfiguration,
 } from '../../../tools/uif/multi/types'
-import { PriceIndexerDeps } from './types'
+import type { PriceIndexerDeps } from './types'
 
-const NAME = 'price_indexer'
 export class PriceIndexer extends ManagedMultiIndexer<CoingeckoPriceConfigEntry> {
   constructor(private readonly $: PriceIndexerDeps) {
     super({
       ...$,
-      name: NAME,
-      tag: $.coingeckoId.toString(),
+      name: INDEXER_NAMES.PRICE,
+      tags: { tag: $.coingeckoId.toString() },
       updateRetryStrategy: Indexer.getInfiniteRetryStrategy(),
     })
   }
@@ -27,9 +23,9 @@ export class PriceIndexer extends ManagedMultiIndexer<CoingeckoPriceConfigEntry>
     to: number,
     configurations: Configuration<CoingeckoPriceConfigEntry>[],
   ) {
-    const adjustedTo = this.$.priceService.getAdjustedTo(from, to)
+    const adjustedTo = this.$.priceService.calculateAdjustedTo(from, to)
 
-    const prices = await this.$.priceService.fetchPrices(
+    const prices = await this.$.priceService.getPrices(
       new UnixTime(from),
       adjustedTo,
       this.$.coingeckoId,
@@ -77,9 +73,5 @@ export class PriceIndexer extends ManagedMultiIndexer<CoingeckoPriceConfigEntry>
         })
       }
     }
-  }
-
-  static getId(coingeckoId: CoingeckoId) {
-    return Indexer.createId(NAME, coingeckoId.toString())
   }
 }

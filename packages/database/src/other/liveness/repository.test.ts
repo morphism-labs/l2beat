@@ -3,7 +3,7 @@ import { expect } from 'earl'
 
 import { createTrackedTxId } from '@l2beat/shared'
 import { describeDatabase } from '../../test/database'
-import { LivenessRecord } from './entity'
+import type { LivenessRecord } from './entity'
 import { LivenessRepository } from './repository'
 
 describeDatabase(LivenessRepository.name, (db) => {
@@ -24,7 +24,7 @@ describeDatabase(LivenessRepository.name, (db) => {
     {
       timestamp: START.add(-2, 'hours'),
       blockNumber: 12340,
-      txHash: '0x1234567890abcdef',
+      txHash: '0xabcdef1234567890',
       configurationId: txIdA,
     },
     {
@@ -127,20 +127,18 @@ describeDatabase(LivenessRepository.name, (db) => {
     })
   })
 
-  describe(
-    LivenessRepository.prototype.getByConfigurationIdWithinTimeRange.name,
-    () => {
-      it('should return rows within given time range', async () => {
-        const results = await repository.getByConfigurationIdWithinTimeRange(
-          [txIdA, txIdB],
-          START.add(-2, 'hours'),
-          START.add(0, 'hours'),
-        )
+  describe(LivenessRepository.prototype.getByConfigurationIdWithinTimeRange
+    .name, () => {
+    it('should return rows within given time range', async () => {
+      const results = await repository.getByConfigurationIdWithinTimeRange(
+        [txIdA, txIdB],
+        START.add(-2, 'hours'),
+        START.add(0, 'hours'),
+      )
 
-        expect(results).toEqual([DATA[0]!, DATA[1]!])
-      })
-    },
-  )
+      expect(results).toEqual([DATA[0]!, DATA[1]!])
+    })
+  })
 
   describe(LivenessRepository.prototype.deleteAll.name, () => {
     it('should delete all rows', async () => {
@@ -160,7 +158,7 @@ describeDatabase(LivenessRepository.name, (db) => {
         {
           timestamp: START,
           blockNumber: 12345,
-          txHash: '0x1234567890abcdef',
+          txHash: '0xabcdef1234567891',
           configurationId: txIdA,
         },
         {

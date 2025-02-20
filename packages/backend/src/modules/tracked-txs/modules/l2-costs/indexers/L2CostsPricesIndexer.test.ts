@@ -1,13 +1,13 @@
 import { Logger } from '@l2beat/backend-tools'
-import { Database } from '@l2beat/database'
+import type { Database } from '@l2beat/database'
 import { CoingeckoQueryService } from '@l2beat/shared'
 import { UnixTime } from '@l2beat/shared-pure'
 import { expect, mockFn, mockObject } from 'earl'
-import { IndexerService } from '../../../../../tools/uif/IndexerService'
+import type { IndexerService } from '../../../../../tools/uif/IndexerService'
 import {
   ETHEREUM_COINGECKO_ID,
   L2CostsPricesIndexer,
-  L2CostsPricesIndexerDeps,
+  type L2CostsPricesIndexerDeps,
 } from './L2CostsPricesIndexer'
 
 const NOW = new UnixTime(1714662000)
@@ -50,7 +50,7 @@ describe(L2CostsPricesIndexer.name, () => {
       })
 
       const indexer = createIndexer({
-        tag: 'update-nothing-to-save',
+        tags: { tag: 'update-nothing-to-save' },
         db: mockObject<Database>({
           l2CostPrice: repository,
         }),
@@ -84,7 +84,7 @@ describe(L2CostsPricesIndexer.name, () => {
       })
 
       const indexer = createIndexer({
-        tag: 'update-max-rane',
+        tags: { tag: 'update-max-rane' },
         db: mockObject<Database>({
           l2CostPrice: repository,
         }),
@@ -113,7 +113,7 @@ describe(L2CostsPricesIndexer.name, () => {
       })
 
       const indexer = createIndexer({
-        tag: 'fetchPrices',
+        tags: { tag: 'fetchPrices' },
         coingeckoQueryService: coingeckoQueryServiceMock,
       })
 
@@ -121,7 +121,7 @@ describe(L2CostsPricesIndexer.name, () => {
 
       expect(
         coingeckoQueryServiceMock.getUsdPriceHistoryHourly,
-      ).toHaveBeenCalledWith(ETHEREUM_COINGECKO_ID, from, to, undefined)
+      ).toHaveBeenCalledWith(ETHEREUM_COINGECKO_ID, from, to)
 
       expect(result).toEqual([
         {
@@ -139,7 +139,7 @@ describe(L2CostsPricesIndexer.name, () => {
       })
 
       const indexer = createIndexer({
-        tag: 'invalidate',
+        tags: { tag: 'invalidate' },
         db: mockObject<Database>({
           l2CostPrice: repository,
         }),

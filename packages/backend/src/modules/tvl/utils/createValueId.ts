@@ -1,7 +1,6 @@
 import { createHash } from 'crypto'
-import { AmountConfigEntry, PriceConfigEntry } from '@l2beat/shared-pure'
-import { createAmountId } from './createAmountId'
-import { createPriceId } from './createPriceId'
+import { createAmountId, createPriceId } from '@l2beat/backend-shared'
+import type { AmountConfigEntry, PriceConfigEntry } from '@l2beat/shared-pure'
 
 export type ValueId = string
 

@@ -1,4 +1,4 @@
-import { Bytes, EthereumAddress } from '@l2beat/shared-pure'
+import type { Bytes, EthereumAddress } from '@l2beat/shared-pure'
 
 export interface MulticallConfigEntry {
   sinceBlock: number
@@ -17,28 +17,4 @@ export interface MulticallRequest {
 export interface MulticallResponse {
   success: boolean
   data: Bytes
-}
-
-export interface ERC20MulticallCodec {
-  balance: {
-    encode: (
-      holder: EthereumAddress,
-      token: EthereumAddress,
-    ) => MulticallRequest
-    decode: (response: Bytes) => bigint
-  }
-  totalSupply: {
-    encode: (tokenAddress: EthereumAddress) => MulticallRequest
-    decode: (response: Bytes) => bigint
-  }
-}
-
-export interface NativeAssetMulticallCodec {
-  balance: {
-    encode: (
-      multicall: EthereumAddress,
-      address: EthereumAddress,
-    ) => MulticallRequest
-    decode: (response: Bytes) => bigint
-  }
 }

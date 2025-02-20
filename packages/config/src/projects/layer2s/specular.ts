@@ -1,8 +1,11 @@
+import { UnixTime } from '@l2beat/shared-pure'
+import type { Layer2 } from '../../types'
 import { upcomingL2 } from './templates/upcoming'
-import { Layer2 } from './types'
 
 export const specular: Layer2 = upcomingL2({
   id: 'specular',
+  capability: 'universal',
+  addedAt: new UnixTime(1704292936), // 2024-01-03T14:42:16Z
   display: {
     name: 'Specular',
     slug: 'specular',
@@ -12,10 +15,9 @@ export const specular: Layer2 = upcomingL2({
     category: 'Optimistic Rollup',
     links: {
       websites: ['https://specular.network/'],
-      apps: [],
       documentation: ['https://docs.specular.network/overview/welcome'],
       explorers: ['https://explorer.specular.network/'],
-      repositories: ['https://github.com/SpecularL2/'],
+      repositories: ['https://github.com/fabriqnetwork/specular'],
       socialMedia: ['https://twitter.com/SpecularL2'],
     },
   },

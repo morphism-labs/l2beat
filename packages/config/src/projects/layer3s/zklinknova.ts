@@ -6,18 +6,20 @@ import {
 } from '@l2beat/shared-pure'
 import {
   CONTRACTS,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NEW_CRYPTOGRAPHY,
   OPERATOR,
   RISK_VIEW,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer3 } from '../../types'
 import { Badge } from '../badges'
-import { Layer3 } from './types'
 
 const optimismDiscovery = new ProjectDiscovery('zklinknova', 'optimism')
 const arbitrumDiscovery = new ProjectDiscovery('zklinknova', 'arbitrum')
@@ -32,53 +34,43 @@ const ethereumDiscovery = new ProjectDiscovery('zklinknova')
 const lineaDiscovery = new ProjectDiscovery('zklinknova', 'linea')
 
 const optimismUpgradability = {
-  upgradableBy: ['OptimismOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'OptimismOwner', delay: 'no' }],
 }
 
 const arbitrumUpgradability = {
-  upgradableBy: ['ArbitrumOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'ArbitrumOwner', delay: 'no' }],
 }
 
 const baseUpgradability = {
-  upgradableBy: ['BaseOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'BaseOwner', delay: 'no' }],
 }
 
 const mantapacificUpgradability = {
-  upgradableBy: ['MantaOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'MantaOwner', delay: 'no' }],
 }
 
 const mantleUpgradability = {
-  upgradableBy: ['MantleOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'MantleOwner', delay: 'no' }],
 }
 
 const scrollUpgradability = {
-  upgradableBy: ['ScrollOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'ScrollOwner', delay: 'no' }],
 }
 
 const blastUpgradability = {
-  upgradableBy: ['BlastOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'BlastOwner', delay: 'no' }],
 }
 
 const zksync2Upgradability = {
-  upgradableBy: ['EraOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'EraOwner', delay: 'no' }],
 }
 
 const ethereumUpgradability = {
-  upgradableBy: ['zkLinkOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'EthereumOwner', delay: 'no' }],
 }
 
 const lineaUpgradability = {
-  upgradableBy: ['LineaOwner'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'LineaOwner', delay: 'no' }],
 }
 
 const executionDelaySeconds = lineaDiscovery.getContractValue<number>(
@@ -94,16 +86,18 @@ const upgradeDelaySeconds = lineaDiscovery.getContractValue<number>(
 export const zklinknova: Layer3 = {
   type: 'layer3',
   id: ProjectId('zklinknova'),
+  capability: 'universal',
+  addedAt: new UnixTime(1705330478), // 2024-01-15T14:54:38Z
   hostChain: ProjectId('linea'),
   badges: [Badge.VM.EVM, Badge.DA.DAC, Badge.L3ParentChain.Linea],
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.NO_DA_ORACLE],
   display: {
     name: 'zkLink Nova',
     slug: 'zklinknova',
     description:
       'zkLink Nova is a Layer 3 zkEVM Validium network leveraging ZK Stack that allows for scattered assets across Ethereum Layer 2s to be aggregated for interoperable trade and transactions.',
-    purposes: ['Universal'],
+    purposes: ['Universal', 'Interoperability'],
     category: 'Validium',
-    provider: 'zkLink Nexus',
     links: {
       websites: ['https://zklink.io', 'https://zk.link'],
       apps: [
@@ -121,7 +115,6 @@ export const zklinknova: Layer3 = {
         'https://t.me/zkLinkorg',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
   chainConfig: {
     name: 'zklinknova',
@@ -149,8 +142,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1711092485),
         tokens: ['ETH'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Optimism',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Optimism',
+            },
+          ],
         },
       },
       {
@@ -160,8 +157,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1711095511),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Optimism',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Optimism',
+            },
+          ],
         },
       },
       {
@@ -184,8 +185,12 @@ export const zklinknova: Layer3 = {
         address: EthereumAddress('0x5fD9F73286b7E8683Bab45019C94553b93e015Cf'),
         sinceTimestamp: new UnixTime(1709278799),
         tokens: ['ETH'],
-        bridge: {
-          name: 'zkLink Nova Bridge from Ethereum',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Ethereum',
+            },
+          ],
         },
       },
       {
@@ -194,8 +199,12 @@ export const zklinknova: Layer3 = {
         address: EthereumAddress('0xAd16eDCF7DEB7e90096A259c81269d811544B6B6'),
         sinceTimestamp: new UnixTime(1709295323),
         tokens: '*',
-        bridge: {
-          name: 'zkLink Nova Bridge from Ethereum',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Ethereum',
+            },
+          ],
         },
         premintedTokens: ['ZKL'],
       },
@@ -206,8 +215,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709279099),
         tokens: ['ETH'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Mantapacific',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Mantapacific',
+            },
+          ],
         },
       },
       {
@@ -217,8 +230,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709295839),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Mantapacific',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Mantapacific',
+            },
+          ],
         },
       },
       {
@@ -228,8 +245,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709279309),
         tokens: ['MNT'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Mantle',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Mantle',
+            },
+          ],
         },
       },
       {
@@ -239,8 +260,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709296907),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Mantle',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Mantle',
+            },
+          ],
         },
       },
       {
@@ -250,8 +275,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709280600),
         tokens: ['ETH'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from ZKsync Era',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from ZKsync Era',
+            },
+          ],
         },
       },
       {
@@ -261,8 +290,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709297040),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from ZKsync Era',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from ZKsync Era',
+            },
+          ],
         },
       },
       {
@@ -272,8 +305,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709280428),
         tokens: ['ETH'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Arbitrum',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Arbitrum',
+            },
+          ],
         },
       },
       {
@@ -283,8 +320,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1709296973),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Arbitrum',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Arbitrum',
+            },
+          ],
         },
       },
       {
@@ -294,8 +335,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1710417729),
         tokens: ['ETH'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Blast',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Blast',
+            },
+          ],
         },
       },
       {
@@ -305,8 +350,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1710427013),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Blast',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Blast',
+            },
+          ],
         },
       },
       {
@@ -316,8 +365,12 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1711095697),
         tokens: ['ETH'],
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Base',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Base',
+            },
+          ],
         },
       },
       {
@@ -327,47 +380,34 @@ export const zklinknova: Layer3 = {
         sinceTimestamp: new UnixTime(1711098033),
         tokens: '*',
         source: 'external',
-        bridge: {
-          name: 'zkLink Nova Bridge from Base',
+        bridgedUsing: {
+          bridges: [
+            {
+              name: 'zkLink Nova Bridge from Base',
+            },
+          ],
         },
       },
     ],
   },
-  riskView: makeBridgeCompatible({
-    validatedBy: RISK_VIEW.VALIDATED_BY_L2(ProjectId('linea')),
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    stateValidation: {
-      value: 'ZK proofs',
-      description:
-        'Uses PLONK zero-knowledge proof system with KZG commitments. Proofs are verified on Linea.',
-      sentiment: 'good',
-      sources: [
-        {
-          contract: 'zkLink',
-          references: [
-            'https://lineascan.build/address/0x9f2E11F287733c4EF5B9A6ED923b780c28062727#code',
-          ],
-        },
-      ],
-    },
-    dataAvailability: {
-      ...RISK_VIEW.DATA_EXTERNAL,
-      sources: [
-        {
-          contract: 'zkLink',
-          references: [
-            'https://lineascan.build/address/0x9f2E11F287733c4EF5B9A6ED923b780c28062727#code',
-          ],
-        },
-      ],
-    },
+  stage: { stage: 'NotApplicable' },
+  riskView: {
+    stateValidation: RISK_VIEW.STATE_ZKP_ST_SN_WRAP,
+    dataAvailability: RISK_VIEW.DATA_EXTERNAL,
     exitWindow: RISK_VIEW.EXIT_WINDOW(
       upgradeDelaySeconds,
       executionDelaySeconds,
     ),
     sequencerFailure: RISK_VIEW.SEQUENCER_ENQUEUE_VIA('L2'),
     proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
-  }),
+  },
+  stackedRiskView: {
+    stateValidation: RISK_VIEW.STATE_ZKP_L3('Linea'),
+    dataAvailability: RISK_VIEW.DATA_EXTERNAL_L3,
+    exitWindow: RISK_VIEW.EXIT_WINDOW(0, 0), // TODO(donnoh): something smarter if things change. should be (min(zklink, linea), sum(zklink, linea))
+    sequencerFailure: RISK_VIEW.SEQUENCER_NO_MECHANISM(),
+    proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
+  },
   technology: {
     newCryptography: NEW_CRYPTOGRAPHY.ZK_BOTH,
     dataAvailability: TECHNOLOGY_DATA_AVAILABILITY.GENERIC_OFF_CHAIN,
@@ -393,8 +433,8 @@ export const zklinknova: Layer3 = {
       references: [],
     },
     exitMechanisms: [
-      EXITS.REGULAR('zk', 'merkle proof'),
-      EXITS.FORCED('forced-withdrawals'),
+      EXITS.REGULAR_MESSAGING('zk'),
+      EXITS.FORCED_MESSAGING('forced-messages'),
     ],
     otherConsiderations: [
       {
@@ -411,44 +451,44 @@ export const zklinknova: Layer3 = {
       },
     ],
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['External'],
-    bridge: { type: 'None' },
-    mode: 'State diffs (compressed)',
-  }),
+  dataAvailability: {
+    layer: DA_LAYERS.NONE,
+    bridge: DA_BRIDGES.NONE,
+    mode: DA_MODES.STATE_DIFFS_COMPRESSED,
+  },
   contracts: {
-    addresses: [
-      lineaDiscovery.getContractDetails('L1ERC20Bridge', {
-        description:
-          'Main entry point for depositing ERC20 tokens from Linea to zkLink Nova. Outgoing messages and incoming withdrawal validation is delegated to the zkLink contract.',
-        ...lineaUpgradability,
-      }),
-      lineaDiscovery.getContractDetails('zkLink', {
-        description:
-          'Main contract of the system where blocks are committed, proven and executed. It syncs messages from secondary chains ("slow" path) and accepts "fast" forwarded requests from permissioned validators that are later cross-checked with the slow path. ETH coming from secondary chains are transferred and escrowed here. State roots are then synced back to the secondary chains.',
-        ...lineaUpgradability,
-      }),
-      lineaDiscovery.getContractDetails('LineaL2Gateway', {
-        description:
-          "High level interface between the main zkLink contract and Linea's message service.",
-        ...lineaUpgradability,
-      }),
-      lineaDiscovery.getContractDetails('ValidatorTimelock', {
-        description: `Intermediary contract between the one of the validators and the ZKsync Era diamond that can delay block execution (ie withdrawals and other L3 --> L2 messages). Currently, the delay is set to ${formatSeconds(
-          executionDelaySeconds,
-        )}.`,
-      }),
-      lineaDiscovery.getContractDetails('Verifier', {
-        description: 'Implements ZK proof verification logic.',
-        ...lineaUpgradability,
-      }),
-      lineaDiscovery.getContractDetails('Governance', {
-        description: `Intermediary governance contract with two roles and a customizable delay. This delay is only mandatory for transactions scheduled by the Owner role and can be set by the SecurityCouncil role. The SecurityCouncil role can execute arbitrary upgrade transactions immediately. Currently the delay is set to ${formatSeconds(
-          upgradeDelaySeconds,
-        )} and the SecurityCouncil role is not used.`,
-      }),
-    ],
-    nativeAddresses: {
+    addresses: {
+      [lineaDiscovery.chain]: [
+        lineaDiscovery.getContractDetails('L1ERC20Bridge', {
+          description:
+            'Main entry point for depositing ERC20 tokens from Linea to zkLink Nova. Outgoing messages and incoming withdrawal validation is delegated to the zkLink contract.',
+          ...lineaUpgradability,
+        }),
+        lineaDiscovery.getContractDetails('zkLink', {
+          description:
+            'Main contract of the system where blocks are committed, proven and executed. It syncs messages from secondary chains ("slow" path) and accepts "fast" forwarded requests from permissioned validators that are later cross-checked with the slow path. ETH coming from secondary chains are transferred and escrowed here. State roots are then synced back to the secondary chains.',
+          ...lineaUpgradability,
+        }),
+        lineaDiscovery.getContractDetails('LineaL2Gateway', {
+          description:
+            "High level interface between the main zkLink contract and Linea's message service.",
+          ...lineaUpgradability,
+        }),
+        lineaDiscovery.getContractDetails('ValidatorTimelock', {
+          description: `Intermediary contract between the one of the validators and the ZKsync Era diamond that can delay block execution (ie withdrawals and other L3 --> L2 messages). Currently, the delay is set to ${formatSeconds(
+            executionDelaySeconds,
+          )}.`,
+        }),
+        lineaDiscovery.getContractDetails('Verifier', {
+          description: 'Implements ZK proof verification logic.',
+          ...lineaUpgradability,
+        }),
+        lineaDiscovery.getContractDetails('Governance', {
+          description: `Intermediary governance contract with two roles and a customizable delay. This delay is only mandatory for transactions scheduled by the Owner role and can be set by the SecurityCouncil role. The SecurityCouncil role can execute arbitrary upgrade transactions immediately. Currently the delay is set to ${formatSeconds(
+            upgradeDelaySeconds,
+          )} and the SecurityCouncil role is not used.`,
+        }),
+      ],
       ethereum: [
         ethereumDiscovery.getContractDetails('L1ERC20Bridge', {
           description:
@@ -657,122 +697,131 @@ export const zklinknova: Layer3 = {
     },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    ...lineaDiscovery.getMultisigPermission(
-      'LineaOwner',
-      'Admin of the main zkLink contract, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-    ),
-    {
-      name: 'Validators',
-      accounts: lineaDiscovery.getPermissionedAccounts('zkLink', 'validators'),
-      chain: 'linea',
-      description:
-        'Permissioned actors that can commit, prove and execute blocks. It can also "fast" relay messages to zkLink Nova without going through the canonical bridges, meaning it can potentially relay invalid messages and mint tokens out of thin air. In that case, since the system checks such messages against the slow path, after some time the system would halt.',
+  permissions: {
+    [lineaDiscovery.chain]: {
+      actors: [
+        lineaDiscovery.getMultisigPermission(
+          'LineaOwner',
+          'Admin of the main zkLink contract, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+        lineaDiscovery.getPermissionDetails(
+          'Validators',
+          lineaDiscovery.getPermissionedAccounts('zkLink', 'validators'),
+          'Permissioned actors that can commit, prove and execute blocks. It can also "fast" relay messages to zkLink Nova without going through the canonical bridges, meaning it can potentially relay invalid messages and mint tokens out of thin air. In that case, since the system checks such messages against the slow path, after some time the system would halt.',
+        ),
+      ],
     },
-  ],
-  nativePermissions: {
-    optimism: [
-      optimismDiscovery.contractAsPermissioned(
-        optimismDiscovery.getContract('OptimismProxyAdmin'),
-        'Owner of the L1ERC20Bridge on OP Mainnet.',
-      ),
-      ...optimismDiscovery.getMultisigPermission(
-        'OptimismOwner',
-        'Admin of the zkLink contract on OP Mainnet and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    arbitrum: [
-      arbitrumDiscovery.contractAsPermissioned(
-        arbitrumDiscovery.getContract('ArbitrumProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Arbitrum One.',
-      ),
-      ...arbitrumDiscovery.getMultisigPermission(
-        'ArbitrumOwner',
-        'Admin of the zkLink contract on Arbitrum One and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    base: [
-      baseDiscovery.contractAsPermissioned(
-        baseDiscovery.getContract('BaseProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Base.',
-      ),
-      ...baseDiscovery.getMultisigPermission(
-        'BaseOwner',
-        'Admin of the zkLink contract on Base and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    mantapacific: [
-      mantapacificDiscovery.contractAsPermissioned(
-        mantapacificDiscovery.getContract('MantaProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Manta Pacific.',
-      ),
-      {
-        name: 'MantaOwner',
-        accounts: [
-          mantapacificDiscovery.getPermissionedAccount(
+    optimism: {
+      actors: [
+        optimismDiscovery.contractAsPermissioned(
+          optimismDiscovery.getContract('OptimismProxyAdmin'),
+          'Owner of the L1ERC20Bridge on OP Mainnet.',
+        ),
+        optimismDiscovery.getMultisigPermission(
+          'OptimismOwner',
+          'Admin of the zkLink contract on OP Mainnet and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    arbitrum: {
+      actors: [
+        arbitrumDiscovery.contractAsPermissioned(
+          arbitrumDiscovery.getContract('ArbitrumProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Arbitrum One.',
+        ),
+        arbitrumDiscovery.getMultisigPermission(
+          'ArbitrumOwner',
+          'Admin of the zkLink contract on Arbitrum One and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    base: {
+      actors: [
+        baseDiscovery.contractAsPermissioned(
+          baseDiscovery.getContract('BaseProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Base.',
+        ),
+        baseDiscovery.getMultisigPermission(
+          'BaseOwner',
+          'Admin of the zkLink contract on Base and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    mantapacific: {
+      actors: [
+        mantapacificDiscovery.contractAsPermissioned(
+          mantapacificDiscovery.getContract('MantaProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Manta Pacific.',
+        ),
+        mantapacificDiscovery.getPermissionDetails(
+          'MantaOwner',
+          mantapacificDiscovery.getPermissionedAccounts(
             'MantaProxyAdmin',
             'owner',
           ),
-        ],
-        description:
           'Admin of the zkLink contract on Manta Pacific and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gaining access to all funds.',
-      },
-      /* unverified contract
-      ...mantapacificDiscovery.getMultisigPermission(
-        'MantaOwner',
-        'Admin of the zkLink contract on Manta Pacific and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gaining access to all funds.',
-      ),
-      */
-    ],
-    mantle: [
-      mantleDiscovery.contractAsPermissioned(
-        mantleDiscovery.getContract('MantleProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Mantle.',
-      ),
-      ...mantleDiscovery.getMultisigPermission(
-        'MantleOwner',
-        'Admin of the zkLink contract on Mantle and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    scroll: [
-      scrollDiscovery.contractAsPermissioned(
-        scrollDiscovery.getContract('ScrollProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Scroll.',
-      ),
-      ...scrollDiscovery.getMultisigPermission(
-        'AdminMultisig',
-        'Admin of the zkLink contract on Scroll and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    blast: [
-      blastDiscovery.contractAsPermissioned(
-        blastDiscovery.getContract('BlastProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Blast.',
-      ),
-      ...blastDiscovery.getMultisigPermission(
-        'BlastOwner',
-        'Admin of the zkLink contract on Blast and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    zksync2: [
-      zksync2Discovery.contractAsPermissioned(
-        zksync2Discovery.getContract('EraProxyAdmin'),
-        'Owner of the L1ERC20Bridge on ZKsync Era.',
-      ),
-      ...zksync2Discovery.getMultisigPermission(
-        'EraOwner',
-        'Admin of the zkLink contract on ZKsync Era and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
-    ethereum: [
-      ethereumDiscovery.contractAsPermissioned(
-        ethereumDiscovery.getContract('EthereumProxyAdmin'),
-        'Owner of the L1ERC20Bridge on Ethereum.',
-      ),
-      ...ethereumDiscovery.getMultisigPermission(
-        'EthereumOwner',
-        'Admin of the zkLink contract on Ethereum and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
-      ),
-    ],
+        ),
+      ],
+    },
+    mantle: {
+      actors: [
+        mantleDiscovery.contractAsPermissioned(
+          mantleDiscovery.getContract('MantleProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Mantle.',
+        ),
+        mantleDiscovery.getMultisigPermission(
+          'MantleOwner',
+          'Admin of the zkLink contract on Mantle and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    scroll: {
+      actors: [
+        scrollDiscovery.contractAsPermissioned(
+          scrollDiscovery.getContract('ScrollProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Scroll.',
+        ),
+        scrollDiscovery.getMultisigPermission(
+          'ScrollOwner',
+          'Admin of the zkLink contract on Scroll and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    blast: {
+      actors: [
+        blastDiscovery.contractAsPermissioned(
+          blastDiscovery.getContract('BlastProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Blast.',
+        ),
+        blastDiscovery.getMultisigPermission(
+          'BlastOwner',
+          'Admin of the zkLink contract on Blast and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    zksync2: {
+      actors: [
+        zksync2Discovery.contractAsPermissioned(
+          zksync2Discovery.getContract('EraProxyAdmin'),
+          'Owner of the L1ERC20Bridge on ZKsync Era.',
+        ),
+        zksync2Discovery.getMultisigPermission(
+          'EraOwner',
+          'Admin of the zkLink contract on ZKsync Era and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
+    ethereum: {
+      actors: [
+        ethereumDiscovery.contractAsPermissioned(
+          ethereumDiscovery.getContract('EthereumProxyAdmin'),
+          'Owner of the L1ERC20Bridge on Ethereum.',
+        ),
+        ethereumDiscovery.getMultisigPermission(
+          'EthereumOwner',
+          'Admin of the zkLink contract on Ethereum and the ProxyAdmin, meaning it can upgrade the bridge implementation and potentially gain access to all funds.',
+        ),
+      ],
+    },
   },
 }

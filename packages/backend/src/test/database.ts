@@ -1,5 +1,5 @@
 import { getEnv } from '@l2beat/backend-tools'
-import { Database, createDatabase } from '@l2beat/database'
+import { type Database, createDatabase } from '@l2beat/database'
 import { mockObject } from 'earl'
 
 export function describeDatabase(name: string, suite: (db: Database) => void) {
@@ -24,7 +24,7 @@ export function describeDatabase(name: string, suite: (db: Database) => void) {
   })
 }
 
-export function getTestDatabase() {
+function getTestDatabase() {
   const env = getEnv()
   const connection = env.optionalString('TEST_DB_URL')
   if (!connection) {

@@ -1,31 +1,41 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import {
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   OPERATOR,
+  REASON_FOR_BEING_OTHER,
   RISK_VIEW,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
 import { OPTIMISTIC_ROLLUP_STATE_UPDATES_WARNING } from './common/liveness'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('honeypot')
 
 export const honeypot: Layer2 = {
   type: 'layer2',
   id: ProjectId('honeypot'),
-  badges: [Badge.VM.EVM, Badge.DA.EthereumCalldata, Badge.Stack.Cartesi],
+  capability: 'appchain',
+  addedAt: new UnixTime(1683905088), // 2023-05-12T15:24:48Z
+  badges: [
+    Badge.VM.CartesiVM,
+    Badge.VM.AppChain,
+    Badge.DA.EthereumCalldata,
+    Badge.Stack.Cartesi,
+  ],
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.NO_PROOFS],
   display: {
     name: 'Honeypot (Cartesi)',
     shortName: 'Honeypot',
     slug: 'cartesi-honeypot',
-    provider: 'Cartesi Rollups',
+    stack: 'Cartesi Rollups',
     description:
       'Honeypot is an application-specific rollup designed to challenge the security of Cartesi Rollups. It provides a gamified battlefield to incentivize bug hunters to hack the application to obtain the funds locked in the rollup contract.',
     purposes: ['Bug bounty'],
@@ -64,10 +74,12 @@ export const honeypot: Layer2 = {
         rollupNodeSourceAvailable: true,
       },
       stage1: {
-        stateVerificationOnL1: [
-          false,
-          'There is no onchain fraud proof system.',
-        ],
+        principle: false,
+        stateVerificationOnL1: {
+          satisfied: false,
+          message: 'There is no onchain fraud proof system.',
+          mode: 'replace',
+        },
         fraudProofSystemAtLeast5Outsiders: null,
         usersHave7DaysToExit: false,
         usersCanExitWithoutCooperation: false,
@@ -110,33 +122,18 @@ export const honeypot: Layer2 = {
       },
     ],
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'Transaction data',
-  }),
-  riskView: makeBridgeCompatible({
-    stateValidation: {
-      ...RISK_VIEW.STATE_NONE,
-      value: 'None',
-    },
-    dataAvailability: {
-      ...RISK_VIEW.DATA_ON_CHAIN,
-      sources: [
-        {
-          contract: 'InputBox',
-          references: [
-            'https://etherscan.io/address/0x59b22D57D4f067708AB0c00552767405926dc768#code#F1#L30',
-          ],
-        },
-      ],
-    },
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.TRANSACTION_DATA,
+  },
+  riskView: {
+    stateValidation: RISK_VIEW.STATE_NONE,
+    dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
     exitWindow: RISK_VIEW.EXIT_WINDOW_NON_UPGRADABLE,
     sequencerFailure: RISK_VIEW.SEQUENCER_SELF_SEQUENCE(0),
     proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
-    destinationToken: RISK_VIEW.CANONICAL,
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   technology: {
     stateCorrectness: {
       name: 'Fraud proofs are in development',
@@ -151,8 +148,9 @@ export const honeypot: Layer2 = {
       ],
       references: [
         {
-          text: 'Authority.sol#L148 - Etherscan source code, submitClaim function',
-          href: 'https://etherscan.io/address/0x9DB17B9426E6d3d517a969994E7ADDadbCa9C45f#code#F1#L48',
+          title:
+            'Authority.sol#L148 - Etherscan source code, submitClaim function',
+          url: 'https://etherscan.io/address/0x9DB17B9426E6d3d517a969994E7ADDadbCa9C45f#code#F1#L48',
         },
       ],
     },
@@ -160,8 +158,8 @@ export const honeypot: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CANONICAL,
       references: [
         {
-          text: 'InputBox.sol#30 - Etherscan source code, addInput function',
-          href: 'https://etherscan.io/address/0x59b22D57D4f067708AB0c00552767405926dc768#code#F1#L30',
+          title: 'InputBox.sol#30 - Etherscan source code, addInput function',
+          url: 'https://etherscan.io/address/0x59b22D57D4f067708AB0c00552767405926dc768#code#F1#L30',
         },
       ],
     },
@@ -170,12 +168,12 @@ export const honeypot: Layer2 = {
       references: [],
     },
     forceTransactions: {
-      ...FORCE_TRANSACTIONS.CANONICAL_ORDERING,
+      ...FORCE_TRANSACTIONS.CANONICAL_ORDERING('smart contract'),
       references: [],
     },
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('optimistic', 'merkle proof'),
+        ...EXITS.REGULAR_WITHDRAWAL('optimistic'),
         references: [],
         risks: [EXITS.RISK_CENTRALIZED_VALIDATOR],
       },
@@ -190,41 +188,56 @@ export const honeypot: Layer2 = {
       'The reference implementation for ERC20 deposits can be found [here](https://github.com/cartesi/rollups/blob/v1.0.2/onchain/rollups/contracts/common/InputEncoding.sol#L40). To learn about the withdrawal request format, please refer to the documentation [here](https://github.com/cartesi/honeypot#withdrawing-the-pot).',
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('Honeypot', {
-        description:
-          'CartesiDApp instance for the Honeypot DApp, responsible for holding assets and allowing the DApp to interact with other smart contracts.',
-      }),
-      discovery.getContractDetails('InputBox', {
-        description:
-          'Contract that receives arbitrary blobs as inputs to Cartesi DApps.',
-      }),
-      discovery.getContractDetails('ERC20Portal', {
-        description:
-          'Contract that allows anyone to perform transfers of ERC-20 tokens to Cartesi DApps.',
-      }),
-      discovery.getContractDetails('Authority', {
-        description:
-          'Simple consensus model controlled by a single address, the owner.',
-      }),
-      discovery.getContractDetails('History', {
-        description: 'Contract that stores claims for Cartesi DApps.',
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('Honeypot', {
+          description:
+            'CartesiDApp instance for the Honeypot DApp, responsible for holding assets and allowing the DApp to interact with other smart contracts.',
+        }),
+        discovery.getContractDetails('InputBox', {
+          description:
+            'Contract that receives arbitrary blobs as inputs to Cartesi DApps.',
+        }),
+        discovery.getContractDetails('ERC20Portal', {
+          description:
+            'Contract that allows anyone to perform transfers of ERC-20 tokens to Cartesi DApps.',
+        }),
+        discovery.getContractDetails('Authority', {
+          description:
+            'Simple consensus model controlled by a single address, the owner.',
+        }),
+        discovery.getContractDetails('History', {
+          description: 'Contract that stores claims for Cartesi DApps.',
+        }),
+      ],
+    },
     risks: [],
+  },
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Authority owner',
+          discovery.getPermissionedAccounts('Authority', 'owner'),
+          'The Authority owner can submit claims to the Honeypot DApp.',
+        ),
+      ],
+    },
   },
   milestones: [
     {
-      name: 'Honeypot announcement',
-      link: 'https://medium.com/cartesi/cartesi-ecosystem-update-2023-124b384401cc#:~:text=Honeypot%20DApp%20on%20Mainnet',
+      title: 'Honeypot announcement',
+      url: 'https://medium.com/cartesi/cartesi-ecosystem-update-2023-124b384401cc#:~:text=Honeypot%20DApp%20on%20Mainnet',
       date: '2023-04-11T00:00:00Z',
       description: 'Honeypot first announced to the community.',
+      type: 'general',
     },
     {
-      name: 'Honeypot launch',
-      link: 'https://x.com/cartesiproject/status/1706685141421047982',
+      title: 'Honeypot launch',
+      url: 'https://x.com/cartesiproject/status/1706685141421047982',
       date: '2023-09-26T00:00:00Z',
       description: 'Honeypot launched on mainnet.',
+      type: 'general',
     },
   ],
   knowledgeNuggets: [

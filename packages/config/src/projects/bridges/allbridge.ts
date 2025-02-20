@@ -1,14 +1,15 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('allbridge')
 
 export const allbridge: Bridge = {
   type: 'bridge',
   id: ProjectId('allbridge'),
+  addedAt: new UnixTime(1675164709), // 2023-01-31T11:31:49Z
   display: {
     name: 'Allbridge',
     slug: 'allbridge',
@@ -124,8 +125,8 @@ export const allbridge: Bridge = {
       The crosschain messages in this case are passed via either Allbridge AMB or Wormhole.`,
       references: [
         {
-          text: 'Docs: Wormhole architecture',
-          href: 'https://docs.wormhole.com/wormhole/explore-wormhole/components',
+          title: 'Docs: Wormhole architecture',
+          url: 'https://docs.wormhole.com/wormhole/explore-wormhole/components',
         },
       ],
       risks: [],
@@ -136,38 +137,34 @@ export const allbridge: Bridge = {
         'Validation process takes place in external network called the Guardian Network. Nodes in the network, called Guardians, observe the Core Contract on each supported chain and produce VAAs (Verified Action Approvals, essentially signed messages) when those contracts receive an interaction. Based on the VAA user can withdraw funds on the other end of the bridge.',
       references: [
         {
-          text: 'AllbridgeMessenger contract: function receiveMessage()',
-          href: 'https://etherscan.io/address/0x203e8785b4d4312c4152D0c42Ba3FA8BD79086dA#code#F1#L97',
+          title: 'AllbridgeMessenger contract: function receiveMessage()',
+          url: 'https://etherscan.io/address/0x203e8785b4d4312c4152D0c42Ba3FA8BD79086dA#code#F1#L97',
         },
         {
-          text: 'WormholeCore contract: function verifyVM()',
-          href: 'https://etherscan.io/address/0x3c3d457f1522d3540ab3325aa5f1864e34cba9d0#code#F9#L28',
+          title: 'WormholeCore contract: function verifyVM()',
+          url: 'https://etherscan.io/address/0x3c3d457f1522d3540ab3325aa5f1864e34cba9d0#code#F9#L28',
         },
         {
-          text: 'CCTP Risk Management Network',
-          href: 'https://docs.chain.link/ccip/concepts#risk-management-network',
+          title: 'CCTP Risk Management Network',
+          url: 'https://docs.chain.link/ccip/concepts#risk-management-network',
         },
       ],
       risks: [
         {
           category: 'Users can be censored if',
           text: 'the circle oracle network fails to facilitate a transfer via the Circle CCTP.',
-          isCritical: true,
         },
         {
           category: 'Users can be censored if',
           text: 'the Wormhole guardians and / or Allbridge validators decide to stop processing certain transactions.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'the Wormhole guardians and / or Allbridge validators allow to mint more tokens than there are locked on Ethereum thus preventing some existing holders from being able to bring their funds back to Ethereum.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'the Wormhole guardians and / or Allbridge validators sign a fraudulent message allowing themselves to withdraw all locked funds.',
-          isCritical: true,
         },
       ],
     },
@@ -180,94 +177,113 @@ export const allbridge: Bridge = {
       sentiment: 'warning',
     },
     sourceUpgradeability: {
-      value: 'YES',
+      value: 'Yes',
       description: `Allbridge contracts are immutable but all critical parameters can be changed by an EOA`,
       sentiment: 'bad',
     },
     destinationToken: RISK_VIEW.CANONICAL_OR_WRAPPED,
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'LPBridge',
-        'The main contract for the Allbridge liquidity network.',
-      ),
-      discovery.getContractDetails(
-        'TokenBridge',
-        'The main contract for the Allbridge token bridge.',
-      ),
-      discovery.getContractDetails(
-        'Validator',
-        'This contract is responsible for validating incoming messages to the token bridge.',
-      ),
-      discovery.getContractDetails(
-        'FeeOracle',
-        'This contract is responsible for calculating bridge fees.',
-      ),
-      discovery.getContractDetails(
-        'GasOracle',
-        'This contract is responsible for calculating crosschain gas fees.',
-      ),
-      discovery.getContractDetails(
-        'AllbridgeMessenger',
-        'Contract used to receive messages via allbridge AMB.',
-      ),
-      discovery.getContractDetails(
-        'WormholeMessenger',
-        'Contract used to receive messages via Wormhole AMB.',
-      ),
-      discovery.getContractDetails(
-        'CctpBridge',
-        'Contract used to receive messages via Circle CCTP.',
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'LPBridge',
+          'The main contract for the Allbridge liquidity network.',
+        ),
+        discovery.getContractDetails(
+          'TokenBridge',
+          'The main contract for the Allbridge token bridge.',
+        ),
+        discovery.getContractDetails(
+          'Validator',
+          'This contract is responsible for validating incoming messages to the token bridge.',
+        ),
+        discovery.getContractDetails(
+          'FeeOracle',
+          'This contract is responsible for calculating bridge fees.',
+        ),
+        discovery.getContractDetails(
+          'GasOracle',
+          'This contract is responsible for calculating crosschain gas fees.',
+        ),
+        discovery.getContractDetails(
+          'AllbridgeMessenger',
+          'Contract used to receive messages via allbridge AMB.',
+        ),
+        discovery.getContractDetails(
+          'WormholeMessenger',
+          'Contract used to receive messages via Wormhole AMB.',
+        ),
+        discovery.getContractDetails(
+          'CctpBridge',
+          'Contract used to receive messages via Circle CCTP.',
+        ),
+      ],
+    },
     risks: [],
   },
-  permissions: [
-    {
-      name: 'Allbridge Owner EOA.',
-      description:
-        'Owner of all system contracts, privileged to update messengers and other bridge parameters. As a result this account can drain all funds from the pools and the token bridge.',
-      accounts: [discovery.getPermissionedAccount('LPBridge', 'owner')],
-    },
-    {
-      name: 'AllbridgeMessenger EOA.',
-      description:
-        'EOA delivering crosschain messages to the AllbridgeMessenger contract.',
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x7234dB900E907398EdfAdA744d5Bf8A842B335BA',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'TokenBridge Admin',
+          discovery.getAccessControlRolePermission(
+            'TokenBridge',
+            'DEFAULT_ADMIN_ROLE',
           ),
-          type: 'EOA',
-        },
+          'Allowed to grant and revoke all roles in the TokenBridge (Can steal all funds).',
+        ),
+        discovery.getPermissionDetails(
+          'TokenBridge Manager',
+          discovery.getAccessControlRolePermission(
+            'TokenBridge',
+            'BRIDGE_MANAGER',
+          ),
+          'Allowed to set Validators, unlockSigners and unpause in the TokenBridge (Can steal all funds).',
+        ),
+        discovery.getPermissionDetails(
+          'TokenBridge Token Manager',
+          discovery.getAccessControlRolePermission(
+            'TokenBridge',
+            'TOKEN_MANAGER',
+          ),
+          'Allowed add and remove token support in the TokenBridge.',
+        ),
+        discovery.getPermissionDetails(
+          'TokenBridge Stop Manager',
+          discovery.getAccessControlRolePermission(
+            'TokenBridge',
+            'STOP_MANAGER',
+          ),
+          'Can pause the TokenBridge.',
+        ),
+        discovery.getPermissionDetails(
+          'Allbridge Owner EOA.',
+          discovery.getPermissionedAccounts('LPBridge', 'owner'),
+          'Owner of all system contracts except TokenBridge, privileged to update messengers and other bridge parameters. As a result this account can drain all funds from the pools.',
+        ),
+        discovery.getPermissionDetails(
+          'AllbridgeMessenger EOA.',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x7234dB900E907398EdfAdA744d5Bf8A842B335BA'),
+          ]),
+          'EOA delivering crosschain messages to the AllbridgeMessenger contract.',
+        ),
+        discovery.getPermissionDetails(
+          'WormholeMessenger EOA.',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x26f9AA5a00825d37E4ebBa0844fcCF1f852640D5'),
+          ]),
+          'EOA delivering crosschain messages to the WormholeMessenger contract.',
+        ),
+        discovery.getPermissionDetails(
+          'CctpBridge messenger EOA.',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0xb7C522Adb3429e2C7474df324c7a3744A5803414'),
+          ]),
+          'EOA delivering crosschain messages to the WormholeMessenger contract.',
+        ),
       ],
     },
-    {
-      name: 'WormholeMessenger EOA.',
-      description:
-        'EOA delivering crosschain messages to the WormholeMessenger contract.',
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x26f9AA5a00825d37E4ebBa0844fcCF1f852640D5',
-          ),
-          type: 'EOA',
-        },
-      ],
-    },
-    {
-      name: 'CctpBridge messenger EOA.',
-      description:
-        'EOA delivering crosschain messages to the WormholeMessenger contract.',
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0xb7C522Adb3429e2C7474df324c7a3744A5803414',
-          ),
-          type: 'EOA',
-        },
-      ],
-    },
-  ],
+  },
 }

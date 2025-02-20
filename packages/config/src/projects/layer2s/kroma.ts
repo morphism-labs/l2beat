@@ -5,58 +5,42 @@ import {
   UnixTime,
   formatSeconds,
 } from '@l2beat/shared-pure'
-
 import {
   CONTRACTS,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NUGGETS,
   OPERATOR,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
-import { subtractOne } from '../../common/assessCount'
+import { REASON_FOR_BEING_OTHER } from '../../common'
+import { ESCROW } from '../../common'
+import { formatChallengePeriod } from '../../common/formatDelays'
 import { RISK_VIEW } from '../../common/riskView'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
 import { HARDCODED } from '../../discovery/values/hardcoded'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
 import { OPTIMISTIC_ROLLUP_STATE_UPDATES_WARNING } from './common/liveness'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
+import {
+  generateDiscoveryDrivenContracts,
+  generateDiscoveryDrivenPermissions,
+} from './templates/generateDiscoveryDrivenSections'
 
 const discovery = new ProjectDiscovery('kroma')
 
-const proposerRoundDurationSeconds = discovery.getContractValue<number>(
-  'ValidatorPool',
-  'ROUND_DURATION',
-)
-
-const rootsSubmissionIntervalBlocks = discovery.getContractValue<number>(
-  'L2OutputOracle',
-  'SUBMISSION_INTERVAL',
-)
-
-const rootsSubmissionIntervalSeconds = rootsSubmissionIntervalBlocks * 2 // L2 block time
-
 const timelockDefaultDelay = discovery.getContractValue<number>(
-  'Timelock',
+  'TimeLock',
   'getMinDelay',
 )
 
-const upgradesProxy = {
-  upgradableBy: ['SecurityCouncil'],
-  upgradeDelay: `${formatSeconds(timelockDefaultDelay)} delay`,
-}
-
-const SCNumConfirmationsRequired = discovery.getContractValue<number>(
-  'SecurityCouncil',
-  'quorum',
-)
-
-const SCMembers = discovery.getPermissionedAccounts(
-  'SecurityCouncilToken',
-  'tokenOwners',
+assert(
+  timelockDefaultDelay === 0,
+  'timelock has a delay, update the upgrade risk in the contract section.',
 )
 
 const finalizationPeriod = discovery.getContractValue<number>(
@@ -64,28 +48,26 @@ const finalizationPeriod = discovery.getContractValue<number>(
   'FINALIZATION_PERIOD_SECONDS',
 )
 
-const SCMembersSize = SCMembers.length
-
-const SCThreshold = `${SCNumConfirmationsRequired} / ${SCMembersSize}`
-
 export const kroma: Layer2 = {
   type: 'layer2',
   id: ProjectId('kroma'),
+  addedAt: new UnixTime(1686820004), // 2023-06-15T09:06:44Z
+  capability: 'universal',
   badges: [
     Badge.VM.EVM,
     Badge.DA.EthereumBlobs,
     Badge.Stack.OPStack,
     Badge.Infra.Superchain,
   ],
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.NO_PROOFS],
   display: {
     name: 'Kroma',
     slug: 'kroma',
     description:
-      'Kroma aims to develop an universal ZK Rollup based on the Optimism Bedrock architecture. Currently, Kroma operates as an Optimistic Rollup with ZK fault proofs, utilizing a zkEVM based on Scroll.',
+      'Kroma aims to develop a universal ZK Rollup based on the Optimism Bedrock architecture. Currently, Kroma operates as an Optimistic Rollup with ZK fault proofs, utilizing a zkEVM based on Scroll and a zkVM based proven with SP1.',
     purposes: ['Universal'],
     category: 'Optimistic Rollup',
-
-    provider: 'OP Stack',
+    stack: 'OP Stack',
     links: {
       websites: ['https://kroma.network/'],
       apps: ['https://kroma.network/bridge/'],
@@ -104,7 +86,6 @@ export const kroma: Layer2 = {
         'https://medium.com/@kroma-network',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
     liveness: {
       warnings: {
         stateUpdates: OPTIMISTIC_ROLLUP_STATE_UPDATES_WARNING,
@@ -129,6 +110,7 @@ export const kroma: Layer2 = {
   chainConfig: {
     name: 'kroma',
     chainId: 255,
+    coingeckoPlatform: 'kroma',
     explorerUrl: 'https://kromascan.com',
     explorerApi: {
       url: 'https://api.kromascan.com/api',
@@ -138,6 +120,7 @@ export const kroma: Layer2 = {
     minTimestampForTvl: UnixTime.fromDate(new Date('2023-09-05T03:00:00Z')),
   },
   config: {
+    associatedTokens: ['KRO'],
     escrows: [
       discovery.getEscrowDetails({
         address: EthereumAddress('0x31F648572b67e60Ec6eb8E197E1848CC5F5558de'),
@@ -156,6 +139,7 @@ export const kroma: Layer2 = {
         address: EthereumAddress('0x7e1Bdb9ee75B6ef1BCAAE3B1De1c616C7B11ef6e'),
         sinceTimestamp: new UnixTime(1700122827),
         tokens: ['USDC'],
+        ...ESCROW.CANONICAL_EXTERNAL,
         description: 'Main entry point for users depositing USDC.',
       }),
     ],
@@ -164,8 +148,17 @@ export const kroma: Layer2 = {
       defaultUrl: 'https://api.kroma.network',
       defaultCallsPerMinute: 1500,
       startBlock: 1,
-      assessCount: subtractOne,
+      adjustCount: { type: 'SubtractOne' },
     },
+    daTracking: [
+      {
+        type: 'ethereum',
+        daLayer: ProjectId('ethereum'),
+        sinceBlock: 0, // Edge Case: config added @ DA Module start
+        inbox: '0xfF00000000000000000000000000000000000255',
+        sequencers: ['0x41b8cD6791De4D8f9E0eaF7861aC506822AdcE12'],
+      },
+    ],
     trackedTxs: [
       {
         uses: [
@@ -202,73 +195,35 @@ export const kroma: Layer2 = {
     ],
     finality: {
       type: 'OPStack',
+      // timestamp of the first blob tx
+      minTimestamp: new UnixTime(1714032407),
+      l2BlockTimeSeconds: 2,
+      genesisTimestamp: new UnixTime(1693880389),
       lag: 0,
       stateUpdate: 'disabled',
     },
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (blobs or calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'Transaction data',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_BLOBS_OR_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.TRANSACTION_DATA,
+  },
+  riskView: {
     stateValidation: {
       ...RISK_VIEW.STATE_FP_INT_ZK,
       description:
         RISK_VIEW.STATE_FP_INT_ZK.description +
-        " The challenge protocol can be subject to delay attacks and can fail under certain conditions. The current system doesn't use posted L2 txs batches on L1 as inputs to prove a fault, meaning that DA is not enforced.",
+        " The challenge protocol can fail under certain conditions. The current system doesn't use posted L2 txs batches on L1 as inputs to prove a fault (for the zkEVM prover path), meaning that DA is not always enforced.",
       sentiment: 'bad',
-      secondLine: `${formatSeconds(finalizationPeriod)} challenge period`,
+      secondLine: formatChallengePeriod(finalizationPeriod),
     },
-    dataAvailability: {
-      ...RISK_VIEW.DATA_ON_CHAIN,
-      sources: [
-        {
-          contract: 'KromaPortal',
-          references: [
-            'https://etherscan.io/address/0x381F53695230BAF83a39D1a08304D233A35730Fa#code#F1#430',
-          ],
-        },
-      ],
-    },
-    exitWindow: {
-      ...RISK_VIEW.EXIT_WINDOW(timelockDefaultDelay, finalizationPeriod),
-      sources: [
-        {
-          contract: 'KromaPortal',
-          references: [
-            'https://etherscan.io/address/0x31F648572b67e60Ec6eb8E197E1848CC5F5558de',
-          ],
-        },
-      ],
-    },
-    sequencerFailure: {
-      ...RISK_VIEW.SEQUENCER_SELF_SEQUENCE(
-        HARDCODED.KROMA.SEQUENCING_WINDOW_SECONDS,
-      ),
-      sources: [
-        {
-          contract: 'KromaPortal',
-          references: [
-            'https://etherscan.io/address/0x381F53695230BAF83a39D1a08304D233A35730Fa#code#F1#430',
-          ],
-        },
-      ],
-    },
-    proposerFailure: {
-      ...RISK_VIEW.PROPOSER_SELF_PROPOSE_ROOTS,
-      sources: [
-        {
-          contract: 'L2OutputOracle',
-          references: [
-            'https://etherscan.io/address/0x14126FFa3889a026A79F0f99FaE80B3dc9E38095#code#F1#L197',
-          ],
-        },
-      ],
-    },
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+    dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
+    exitWindow: RISK_VIEW.EXIT_WINDOW(timelockDefaultDelay, finalizationPeriod),
+    sequencerFailure: RISK_VIEW.SEQUENCER_SELF_SEQUENCE(
+      HARDCODED.KROMA.SEQUENCING_WINDOW_SECONDS,
+    ),
+    proposerFailure: RISK_VIEW.PROPOSER_SELF_PROPOSE_ROOTS,
+  },
   stage: getStage(
     {
       stage0: {
@@ -278,6 +233,7 @@ export const kroma: Layer2 = {
         rollupNodeSourceAvailable: true,
       },
       stage1: {
+        principle: false,
         stateVerificationOnL1: false,
         fraudProofSystemAtLeast5Outsiders: true,
         usersHave7DaysToExit: false,
@@ -298,34 +254,34 @@ export const kroma: Layer2 = {
     stateCorrectness: {
       name: 'Fraud Proofs ensure state correctness',
       description:
-        'Kroma uses an interactive fraud proof system to find a single block of disagreement, which is then ZK proven. The zkEVM used is based on Scroll.\
-        Once the single block of disagreement is found, the challenger is required to present ZK proof of the fraud. When the proof is validated, the incorrect\
-        state output is deleted. The Security Council can always override the result of the challenge, it can also delete any L2 state root at any time. If\
-        the malicious attester and challenger collude and are willing to spend bonds, they can perform a delay attack by engaging in continuous challenge\
-        resulting in lack of finalization of the L2 state root on L1. The protocol can also fail under certain conditions.',
+        'Kroma uses an interactive fraud proof system to find a single block of disagreement, which is then ZK proven. Once the single block of disagreement\
+        is found, the challenger is required to present a ZK proof of the fraud. This can be either a proof verified in a zkEVM verifier base on Scroll, or in a\
+        zkVM verifier built by Succinct SP1. If the proof is validated, the incorrect state output is deleted. The Security Council can always override the\
+        result of the challenge, it can also delete any L2 state root at any time. The protocol\
+        can fail under certain conditions.',
       references: [
         {
-          text: 'Colosseum.sol#L300 - Etherscan source code, createChallenge function',
-          href: 'https://etherscan.io/address/0x7526F997ea040B3949415c3a44e708273863AA2b#code#F1#L300',
+          title:
+            'Colosseum.sol#L300 - Etherscan source code, createChallenge() function',
+          url: 'https://etherscan.io/address/0xBFcA810D1c26a3aC6F81a32Ab5C023F24bE93dAC#code#F1#L374',
         },
         {
-          text: 'Colosseum.sol#L378 - Etherscan source code, bisect function',
-          href: 'https://etherscan.io/address/0x7526F997ea040B3949415c3a44e708273863AA2b#code#F1#L378',
+          title:
+            'Colosseum.sol#L378 - Etherscan source code, bisect() function',
+          url: 'https://etherscan.io/address/0xBFcA810D1c26a3aC6F81a32Ab5C023F24bE93dAC#code#F1#L452',
         },
         {
-          text: 'Colosseum.sol#L434 - Etherscan source code, proveFault function',
-          href: 'https://etherscan.io/address/0x7526F997ea040B3949415c3a44e708273863AA2b#code#F1#L434',
+          title:
+            'Colosseum.sol#L434 - Etherscan source code, proveFaultWithZkEvm() function',
+          url: 'https://etherscan.io/address/0xBFcA810D1c26a3aC6F81a32Ab5C023F24bE93dAC#code#F1#L505',
         },
         {
-          text: 'KROMA-020: lack of validation segments and proofs in Colosseum.sol - ChainLight security audit',
-          href: 'https://drive.google.com/file/d/13TUxZ9KPyvUXNZGddALcJLin-xmp_Fkj/view',
+          title:
+            'KROMA-020: lack of validation segments and proofs in Colosseum.sol - ChainLight security audit',
+          url: 'https://drive.google.com/file/d/13TUxZ9KPyvUXNZGddALcJLin-xmp_Fkj/view',
         },
       ],
       risks: [
-        {
-          category: 'Withdrawals can be delayed if',
-          text: 'the fraud proof system is under a delay attack.',
-        },
         {
           category: 'Funds can be lost if',
           text: 'the cryptography is broken or implemented incorrectly.',
@@ -336,16 +292,17 @@ export const kroma: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CANONICAL,
       references: [
         {
-          text: 'Derivation: Batch Submission - Kroma specs',
-          href: 'https://specs.kroma.network/glossary.html#batch-submission',
+          title: 'Derivation: Batch Submission - Kroma specs',
+          url: 'https://specs.kroma.network/glossary.html#batch-submission',
         },
         {
-          text: 'BatchInbox - Etherscan address',
-          href: 'https://etherscan.io/address/0xff00000000000000000000000000000000000255',
+          title: 'BatchInbox - Etherscan address',
+          url: 'https://etherscan.io/address/0xff00000000000000000000000000000000000255',
         },
         {
-          text: 'KromaPortal.sol#L430 - Etherscan source code, depositTransaction function',
-          href: 'https://etherscan.io/address/0x381F53695230BAF83a39D1a08304D233A35730Fa#code#F1#L430',
+          title:
+            'KromaPortal.sol - Etherscan source code, depositTransaction() function',
+          url: 'https://etherscan.io/address/0x5C8eE8323a33ebBF3ea3c6c3b84DACFca44A9316#code#F1#L455',
         },
       ],
     },
@@ -353,35 +310,38 @@ export const kroma: Layer2 = {
       ...OPERATOR.CENTRALIZED_SEQUENCER,
       references: [
         {
-          text: 'SystemConfig - batcher address',
-          href: 'https://etherscan.io/address/0x3971EB866AA9b2b8aFEa8a7C816F3b7e8b195a35#readProxyContract#F3',
+          title: 'SystemConfig - batcher address',
+          url: 'https://etherscan.io/address/0x3971EB866AA9b2b8aFEa8a7C816F3b7e8b195a35#readProxyContract#F3',
         },
       ],
     },
     forceTransactions: {
-      ...FORCE_TRANSACTIONS.CANONICAL_ORDERING,
+      ...FORCE_TRANSACTIONS.CANONICAL_ORDERING('smart contract'),
       references: [
         {
-          text: 'Sequencing Window - Kroma specs',
-          href: 'https://specs.kroma.network/glossary.html#sequencing-window',
+          title: 'Sequencing Window - Kroma specs',
+          url: 'https://specs.kroma.network/glossary.html#sequencing-window',
         },
         {
-          text: 'KromaPortal.sol#430 - Etherscan source code, depositTransaction function',
-          href: 'https://etherscan.io/address/0x381F53695230BAF83a39D1a08304D233A35730Fa#code#F1#L430',
+          title:
+            'KromaPortal.sol - Etherscan source code, depositTransaction function',
+          url: 'https://etherscan.io/address/0x5C8eE8323a33ebBF3ea3c6c3b84DACFca44A9316#code#F1#L455',
         },
       ],
     },
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('optimistic', 'merkle proof', finalizationPeriod),
+        ...EXITS.REGULAR_MESSAGING('optimistic', finalizationPeriod),
         references: [
           {
-            text: 'KromaPortal.sol#L241 - Etherscan source code, proveWithdrawalTransaction function',
-            href: 'https://etherscan.io/address/0x381F53695230BAF83a39D1a08304D233A35730Fa#code#F1#L241',
+            title:
+              'KromaPortal.sol - Etherscan source code, proveWithdrawalTransaction function',
+            url: 'https://etherscan.io/address/0x5C8eE8323a33ebBF3ea3c6c3b84DACFca44A9316#code#F1#L253',
           },
           {
-            text: 'KromaPortal.sol#L324 - Etherscan source code, finalizeWithdrawalTransaction function',
-            href: 'https://etherscan.io/address/0x381F53695230BAF83a39D1a08304D233A35730Fa#code#F1#L324',
+            title:
+              'KromaPortal.sol - Etherscan source code, finalizeWithdrawalTransaction function',
+            url: 'https://etherscan.io/address/0x5C8eE8323a33ebBF3ea3c6c3b84DACFca44A9316#code#F1#L350',
           },
         ],
       },
@@ -395,8 +355,8 @@ export const kroma: Layer2 = {
         risks: [],
         references: [
           {
-            text: 'Introducing EVM Equivalence',
-            href: 'https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306',
+            title: 'Introducing EVM Equivalence',
+            url: 'https://medium.com/ethereum-optimism/introducing-evm-equivalence-5c2021deb306',
           },
         ],
       },
@@ -414,152 +374,50 @@ export const kroma: Layer2 = {
     dataFormat:
       'L2 blocks derivation from L1 data plus the format and architecture of batch submission is documented [here](https://specs.kroma.network/protocol/rollup-node.html#derivation).',
   },
-  permissions: [
-    {
-      name: 'Spectrum EOA Admin',
-      accounts: [discovery.getPermissionedAccount('SC_ProxyAdmin', 'owner')],
-      description: (() => {
-        const scPA = discovery.getPermissionedAccount(
-          'SC_ProxyAdmin',
-          'owner',
-        ).address
-        const shPA = discovery.getPermissionedAccount(
-          'SH_ProxyAdmin',
-          'owner',
-        ).address
-        const spETHPA = discovery.getPermissionedAccount(
-          'spETH_ProxyAdmin',
-          'owner',
-        ).address
-        assert(
-          scPA === shPA && shPA === spETHPA,
-          'Spectrum EOA Admin permission changed, please update the .ts file.',
-        )
-        const description =
-          'Can upgrade all Spectrum-related contracts and potentially gain access to all escrowed weETH.'
-        return description
-      })(),
-    },
-    {
-      name: 'SecurityCouncil',
-      accounts: [
-        discovery.getPermissionedAccount('Colosseum', 'SECURITY_COUNCIL'),
-      ],
-      description: `MultiSig (currently ${SCThreshold}) that is a guardian of KromaPortal, privileged Validator that does not need a bond \
-        and privileged actor in Colosseum contract that can remove any L2Output state root regardless of the outcome of the challenge.`,
-    },
-    {
-      name: 'SecurityCouncil members',
-      accounts: SCMembers,
-      description: `Members of the SecurityCouncil.`,
-      references: [
-        {
-          text: 'Security Council members - Announcing Kroma Security Council',
-          href: 'https://blog.kroma.network/announcing-kroma-security-council-435b540d2ab4',
-        },
-      ],
-    },
-    {
-      name: 'Sequencer',
-      accounts: [
-        discovery.getPermissionedAccount('SystemConfig', 'batcherHash'),
-      ],
-      description: 'Central actor allowed to commit L2 transactions on L1.',
-    },
-    {
-      name: 'Guardian',
-      accounts: [discovery.getPermissionedAccount('KromaPortal', 'GUARDIAN')],
-      description:
-        'Actor allowed to pause withdrawals. Currently set to the Security Council.',
-    },
-  ],
+  permissions: generateDiscoveryDrivenPermissions([discovery]),
   contracts: {
-    addresses: [
-      discovery.getContractDetails('L2OutputOracle', {
-        description: `The L2OutputOracle contract contains a list of proposed state roots which Proposers assert to be a result of block execution. Anyone can participate as a Proposer by depositing in the ValidatorPool. A root can be proposed every ${formatSeconds(
-          rootsSubmissionIntervalSeconds,
-        )}.`,
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('KromaPortal', {
-        description:
-          'The OptimismPortal contract is the main entry point to deposit funds from L1 to L2. It also allows to prove and finalize withdrawals.',
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('SystemConfig', {
-        description:
-          'It contains configuration parameters such as the Sequencer address, the L2 gas limit and the unsafe block signer address.',
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('L1ERC721Bridge', {
-        description:
-          'The L1ERC721Bridge contract is the main entry point to deposit ERC721 tokens from L1 to L2.',
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('L1CrossDomainMessenger', {
-        description:
-          "The L1 Cross Domain Messenger contract sends messages from L1 to L2, and relays messages from L2 onto L1. In the event that a message sent from L1 to L2 is rejected for exceeding the L2 epoch gas limit, it can be resubmitted via this contract's replay function.",
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('Timelock', {
-        description: `Timelock contract behind which the ProxyAdmin is. There is a ${formatSeconds(
-          timelockDefaultDelay,
-        )} delay.`,
-      }),
-      discovery.getContractDetails('SecurityCouncil', {
-        description:
-          'Contract allowed to start upgrades, dismiss challenges and delete roots. It is also designated as a guardian, meaning it can pause withdrawals.',
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('UpgradeGovernor', {
-        description:
-          'Controls the Timelock. It is governed using a Soulbound NFT.',
-      }),
-      discovery.getContractDetails('ProxyAdmin', {
-        description:
-          "Admin of the L2OutputOracle, Timelock, KromaPortal, SystemConfig, SecurityCouncil, L1CrossDomainMessenger, L1ERC721Bridge, ZKVerifier, Colosseum, L1StandardBridge, UpgradeGovernor, SecurityCouncilToken, ValidatorPool proxies. It's effectively controlled by the Security Council. The proxy is behind a Timelock.",
-      }),
-      discovery.getContractDetails('Colosseum', {
-        description:
-          'Contract used to challenge state roots and prove fraud. The SecurityCouncil can interfere by deleting challenges and roots.',
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('ValidatorPool', {
-        description: `Contract used to manage the Proposers. Anyone can submit a deposit and bond to a state root, or create a challenge. It also manages the Proposer rotation for each submittable block using a random selection. If the selected proposer fails to publish a root within ${formatSeconds(
-          proposerRoundDurationSeconds,
-        )}, then the submission becomes open to everyone.`,
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('ZKMerkleTrie', {
-        description: 'Trie contract used to prove withdrawals.',
-      }),
-      discovery.getContractDetails('ZKVerifier', {
-        description:
-          'ZK verifier used to verify the last step of a fraud proof, which corresponds to a block.',
-        ...upgradesProxy,
-      }),
-      discovery.getContractDetails('Poseidon2', {
-        description:
-          'Contract used to compute hashes. It is used by the ZKMerkeTrie. The contract has been generated using the circomlibjs library.',
-      }),
-    ],
-    risks: [
-      CONTRACTS.UPGRADE_WITH_DELAY_RISK(formatSeconds(timelockDefaultDelay)),
-    ],
+    addresses: generateDiscoveryDrivenContracts([discovery]),
+    risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
   milestones: [
     {
-      name: 'Ecotone upgrade',
-      link: 'https://twitter.com/kroma_network/status/1783410075346063564',
+      title: 'SP1 fault proofs upgrade',
+      url: 'https://blog.kroma.network/kromas-transition-to-zkvm-fault-proof-b8c8d2dc39c6',
+      date: '2025-02-11T00:00:00Z',
+      description:
+        'Kroma adds an option to prove faults using the SP1 zk virtual machine.',
+      type: 'general',
+    },
+    {
+      title: 'Chain fork #2 - Output root replaced',
+      url: 'https://x.com/kroma_network/status/1774683208753590506',
+      date: '2024-04-05T00:00:00Z',
+      description:
+        'The chain forked and an L2 output on Ethereum has to be replaced by the Security Council.',
+      type: 'incident',
+    },
+    {
+      title: 'Chain fork - Output root replaced',
+      url: 'https://x.com/kroma_network/status/1767478100819153009',
+      date: '2024-03-18T00:00:00Z',
+      description:
+        'The chain forked and an L2 output on Ethereum has to be replaced by the Security Council.',
+      type: 'incident',
+    },
+    {
+      title: 'Ecotone upgrade',
+      url: 'https://twitter.com/kroma_network/status/1783410075346063564',
       date: '2024-04-25T00:00:00.00Z',
       description:
         'Introduces EIP-4844 data blobs for L1 data availability and more L2 opcodes.',
+      type: 'general',
     },
     {
-      name: 'Kroma Mainnet Launch',
-      link: 'https://twitter.com/kroma_network/status/1699267271968055305?s=20',
+      title: 'Kroma Mainnet Launch',
+      url: 'https://twitter.com/kroma_network/status/1699267271968055305?s=20',
       date: '2023-09-06T00:00:00Z',
       description: 'Kroma is live on mainnet.',
+      type: 'general',
     },
   ],
   knowledgeNuggets: [

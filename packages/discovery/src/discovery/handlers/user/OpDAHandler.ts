@@ -1,11 +1,10 @@
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { EthereumAddress } from '@l2beat/shared-pure'
 import * as z from 'zod'
 
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
-import { Handler, HandlerResult } from '../Handler'
+import type { IProvider } from '../../provider/IProvider'
+import type { Handler, HandlerResult } from '../Handler'
 import {
-  generateScopeVariables,
+  generateReferenceInput,
   getReferencedName,
   resolveReference,
 } from '../reference'
@@ -36,6 +35,19 @@ const OP_STACK_CELESTIA_DA_EXAMPLE_INPUT =
 const BLOB_TX_TYPE = 3
 
 /**
+ * https://specs.optimism.io/experimental/alt-da.html#input-commitment-submission
+ * These versioning prefixes are super weird.
+ *
+ * aevo: 		  0x01 01 00  	(EIGEN)
+ * soma: 		  0x01 00 00 		(EIGEN)
+ * donatuz: 	0x01 01 00		(EIGEN)
+ * automata: 	0x01 00 a5 		(challenges)
+ * syndicate: 0x01 00 9c		(keccak256)
+ */
+const EIGEN_DA_COMMITMENT_PREFIX = '0x01'
+const EIGEN_DA_COMMITMENT_THIRD_BYTE = '00'
+
+/**
  * This is a OP Stack specific handler that is used to check if
  * the OP Stack project is still posting the transaction data on Ethereum.
  */
@@ -45,7 +57,6 @@ export class OpStackDAHandler implements Handler {
   constructor(
     readonly field: string,
     readonly definition: OpStackDAHandlerDefinition,
-    readonly logger: DiscoveryLogger,
   ) {
     const dependency = getReferencedName(this.definition.sequencerAddress)
     if (dependency) {
@@ -58,47 +69,60 @@ export class OpStackDAHandler implements Handler {
     currentContractAddress: EthereumAddress,
     previousResults: Record<string, HandlerResult | undefined>,
   ): Promise<HandlerResult> {
-    this.logger.logExecution(this.field, ['Checking OP Stack DA mode'])
-    const scopeVariables = generateScopeVariables(
+    const referenceInput = generateReferenceInput(
+      previousResults,
       provider,
       currentContractAddress,
     )
-
     const resolved = resolveReference(
       this.definition.sequencerAddress,
-      previousResults,
-      scopeVariables,
+      referenceInput,
     )
     const sequencerAddress = valueToAddress(resolved)
-    const last10Txs = await provider.raw(
+    const lastTxs = await provider.raw(
       `optimism_sequencer_100.${sequencerAddress}.${provider.blockNumber}`,
       ({ etherscanClient }) =>
-        etherscanClient.getLast10OutgoingTxs(
+        etherscanClient.getAtMost10RecentOutgoingTxs(
           sequencerAddress,
           provider.blockNumber,
         ),
     )
 
-    const isSomeTxsLengthEqualToCelestiaDAExample = last10Txs.some(
-      (tx) => tx.input.length === OP_STACK_CELESTIA_DA_EXAMPLE_INPUT.length,
-    )
+    const hasTxs = lastTxs.length > 0
+
+    const isSomeTxsLengthEqualToCelestiaDAExample =
+      hasTxs &&
+      lastTxs.some(
+        (tx) => tx.input.length === OP_STACK_CELESTIA_DA_EXAMPLE_INPUT.length,
+      )
 
     const rpcTxs = await Promise.all(
-      last10Txs.map((tx) => provider.getTransaction(tx.hash)),
+      lastTxs.map((tx) => provider.getTransaction(tx.hash)),
     )
     const missingIndex = rpcTxs.findIndex((x) => x === undefined)
     if (missingIndex !== -1) {
-      throw new Error(`Transaction ${last10Txs[missingIndex]?.hash} is missing`)
+      throw new Error(`Transaction ${lastTxs[missingIndex]?.hash} is missing`)
     }
-    const isSequencerSendingBlobTx = rpcTxs.some(
-      (tx) => tx?.type === BLOB_TX_TYPE,
-    )
+    const isSequencerSendingBlobTx =
+      hasTxs && rpcTxs.some((tx) => tx?.type === BLOB_TX_TYPE)
+
+    const isUsingEigenDA =
+      hasTxs &&
+      lastTxs.some((tx) => {
+        const thirdByte = tx.input.slice(6, 8)
+
+        const prefixMatch = tx.input.startsWith(EIGEN_DA_COMMITMENT_PREFIX)
+        const thirdByteMatch = thirdByte === EIGEN_DA_COMMITMENT_THIRD_BYTE
+
+        return prefixMatch && thirdByteMatch
+      })
 
     return {
       field: this.field,
       value: {
         isSomeTxsLengthEqualToCelestiaDAExample,
         isSequencerSendingBlobTx,
+        isUsingEigenDA,
       },
     }
   }

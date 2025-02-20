@@ -1,27 +1,28 @@
-import { Env } from '@l2beat/backend-tools'
+import { join } from 'path'
+import { toBackendProject } from '@l2beat/backend-shared'
+import type { Env } from '@l2beat/backend-tools'
 import {
-  bridgeToBackendProject,
+  type ChainConfig,
+  ProjectService,
   bridges,
-  chains,
-  layer2ToBackendProject,
   layer2s,
 } from '@l2beat/config'
 import { ConfigReader } from '@l2beat/discovery'
 import { ChainId, UnixTime } from '@l2beat/shared-pure'
-
-import { Config, DiscordConfig } from './Config'
+import type { Config, DiscordConfig } from './Config'
 import { FeatureFlags } from './FeatureFlags'
+import { getChainConfig } from './chain/getChainConfig'
 import {
+  getChainActivityBlockExplorerConfig,
   getChainActivityConfig,
   getProjectsWithActivity,
 } from './features/activity'
-import {
-  getChainActivityBlockExplorerConfig,
-  getProjectsWithActivity2,
-} from './features/activity2'
+import { getDaTrackingConfig } from './features/da'
+import { getDaBeatConfig } from './features/dabeat'
 import { getFinalityConfigurations } from './features/finality'
 import { getTvlConfig } from './features/tvl'
 import { getChainDiscoveryConfig } from './features/updateMonitor'
+import { getVerifiersConfig } from './features/verifiers'
 import { getGitCommitHash } from './getGitCommitHash'
 
 interface MakeConfigOptions {
@@ -30,14 +31,20 @@ interface MakeConfigOptions {
   minTimestampOverride?: UnixTime
 }
 
-export function makeConfig(
+export async function makeConfig(
   env: Env,
   { name, isLocal, minTimestampOverride }: MakeConfigOptions,
-): Config {
+): Promise<Config> {
+  const ps = new ProjectService()
+
   const flags = new FeatureFlags(
     env.string('FEATURES', isLocal ? '' : '*'),
   ).append('status')
-  const tvlConfig = getTvlConfig(flags, env, minTimestampOverride)
+
+  const chains = (await ps.getProjects({ select: ['chainConfig'] })).map(
+    (p) => p.chainConfig,
+  )
+  const tvlConfig = getTvlConfig(flags, env, chains, minTimestampOverride)
 
   const isReadonly = env.boolean(
     'READONLY',
@@ -48,11 +55,11 @@ export function makeConfig(
   return {
     name,
     isReadonly,
-    projects: layer2s
-      .map(layer2ToBackendProject)
-      .concat(bridges.map(bridgeToBackendProject)),
+    // (sz-piotr) why are layer3s omitted here?
+    projects: [...layer2s, ...bridges].map(toBackendProject),
     clock: {
-      minBlockTimestamp: minTimestampOverride ?? getEthereumMinTimestamp(),
+      minBlockTimestamp:
+        minTimestampOverride ?? getEthereumMinTimestamp(chains),
       safeTimeOffsetSeconds: 60 * 60,
       hourlyCutoffDays: 7,
       sixHourlyCutoffDays: 90,
@@ -61,6 +68,7 @@ export function makeConfig(
       ? {
           connection: {
             connectionString: env.string('LOCAL_DB_URL'),
+            application_name: 'BE-LOCAL',
             ssl: !env.string('LOCAL_DB_URL').includes('localhost')
               ? { rejectUnauthorized: false }
               : undefined,
@@ -79,6 +87,7 @@ export function makeConfig(
           enableQueryLogging: env.boolean('ENABLE_QUERY_LOGGING', false),
           connection: {
             connectionString: env.string('DATABASE_URL'),
+            application_name: 'BE-PROD',
             ssl: { rejectUnauthorized: false },
           },
           connectionPoolSize: {
@@ -88,6 +97,7 @@ export function makeConfig(
           },
           isReadonly,
         },
+    coingeckoApiKey: env.string('COINGECKO_API_KEY'),
     api: {
       port: env.integer('PORT', isLocal ? 3000 : undefined),
       cache: {
@@ -124,43 +134,10 @@ export function makeConfig(
             'l2costs',
             'aggregator',
           ),
-          coingeckoApiKey: env.optionalString([
-            'COINGECKO_API_KEY_FOR_TVL',
-            'COINGECKO_API_KEY',
-          ]),
         },
       },
     },
     finality: flags.isEnabled('finality') && {
-      ethereumProviderUrl: env.string([
-        'ETHEREUM_RPC_URL_FOR_FINALITY',
-        'ETHEREUM_RPC_URL',
-      ]),
-      ethereumProviderCallsPerMinute: env.integer(
-        [
-          'ETHEREUM_RPC_CALLS_PER_MINUTE_FOR_FINALITY',
-          'ETHEREUM_RPC_CALLS_PER_MINUTE',
-        ],
-        600,
-      ),
-      beaconApiUrl: env.string([
-        'ETHEREUM_BEACON_API_URL_FOR_FINALITY',
-        'ETHEREUM_BEACON_API_URL',
-      ]),
-      beaconApiCPM: env.integer(
-        [
-          'ETHEREUM_BEACON_API_CALLS_PER_MINUTE_FOR_FINALITY',
-          'ETHEREUM_BEACON_API_CALLS_PER_MINUTE',
-        ],
-        600,
-      ),
-      beaconApiTimeout: env.integer(
-        [
-          'ETHEREUM_BEACON_API_TIMEOUT_FOR_FINALITY',
-          'ETHEREUM_BEACON_API_TIMEOUT',
-        ],
-        10000,
-      ),
       configurations: getFinalityConfigurations(flags, env),
     },
     activity: flags.isEnabled('activity') && {
@@ -175,37 +152,15 @@ export function makeConfig(
         ],
         600,
       ),
-      projectsExcludedFromAPI:
-        env.optionalString('ACTIVITY_PROJECTS_EXCLUDED_FROM_API')?.split(' ') ??
-        [],
       projects: getProjectsWithActivity()
         .filter((x) => flags.isEnabled('activity', x.id.toString()))
-        .map((x) => ({ id: x.id, config: getChainActivityConfig(env, x) })),
-    },
-    activity2: flags.isEnabled('activity2') && {
-      starkexApiKey: env.string([
-        'STARKEX_API_KEY_FOR_ACTIVITY',
-        'STARKEX_API_KEY',
-      ]),
-      starkexCallsPerMinute: env.integer(
-        [
-          'STARKEX_API_CALLS_PER_MINUTE_FOR_ACTIVITY',
-          'STARKEX_API_CALLS_PER_MINUTE',
-        ],
-        600,
-      ),
-      projectsExcludedFromAPI:
-        env.optionalString('ACTIVITY_PROJECTS_EXCLUDED_FROM_API')?.split(' ') ??
-        [],
-      projects: getProjectsWithActivity2()
-        .filter((x) => flags.isEnabled('activity2', x.id.toString()))
         .map((x) => ({
           id: x.id,
           config: getChainActivityConfig(env, x),
           blockExplorerConfig: getChainActivityBlockExplorerConfig(env, x),
         })),
     },
-    verifiers: flags.isEnabled('verifiers'),
+    verifiers: flags.isEnabled('verifiers') && (await getVerifiersConfig(ps)),
     lzOAppsEnabled: flags.isEnabled('lzOApps'),
     statusEnabled: flags.isEnabled('status'),
     updateMonitor: flags.isEnabled('updateMonitor') && {
@@ -213,56 +168,51 @@ export function makeConfig(
         ? env.boolean('UPDATE_MONITOR_RUN_ON_START', true)
         : undefined,
       discord: getDiscordConfig(env, isLocal),
-      chains: new ConfigReader()
+      chains: new ConfigReader(join(process.cwd(), '../config'))
         .readAllChains()
         .filter((chain) => flags.isEnabled('updateMonitor', chain))
-        .map((chain) => getChainDiscoveryConfig(env, chain)),
-      enableCache: env.optionalBoolean(['DISCOVERY_CACHE_ENABLED']),
+        .map((chain) => getChainDiscoveryConfig(env, chain, chains)),
+      cacheEnabled: env.optionalBoolean(['DISCOVERY_CACHE_ENABLED']),
+      cacheUri: env.string(['DISCOVERY_CACHE_URI'], 'postgres'),
+      updateMessagesRetentionPeriodDays: env.integer(
+        ['UPDATE_MESSAGES_RETENTION_PERIOD_DAYS'],
+        30,
+      ),
     },
     implementationChangeReporterEnabled: flags.isEnabled(
       'implementationChangeReporter',
     ),
+    flatSourceModuleEnabled: flags.isEnabled('flatSourcesModule'),
     chains: chains.map((x) => ({ name: x.name, chainId: ChainId(x.chainId) })),
-
-    daBeat: flags.isEnabled('da-beat') && {
-      coingeckoApiKey: env.string([
-        'COINGECKO_API_KEY_FOR_DA_BEAT',
-        'COINGECKO_API_KEY',
+    daBeat: flags.isEnabled('da-beat') && (await getDaBeatConfig(ps, env)),
+    chainConfig: getChainConfig(env, chains),
+    beaconApi: {
+      url: env.optionalString([
+        'ETHEREUM_BEACON_API_URL_FOR_FINALITY',
+        'ETHEREUM_BEACON_API_URL',
       ]),
-      quicknodeApiUrl: env.string([
-        'QUICKNODE_API_URL_FOR_DA_BEAT',
-        'QUICKNODE_API_URL',
-      ]),
-      quicknodeCallsPerMinute: env.integer(
+      callsPerMinute: env.integer(
         [
-          'QUICKNODE_API_CALLS_PER_MINUTE_FOR_DA_BEAT',
-          'QUICKNODE_API_CALLS_PER_MINUTE',
+          'ETHEREUM_BEACON_API_CALLS_PER_MINUTE_FOR_FINALITY',
+          'ETHEREUM_BEACON_API_CALLS_PER_MINUTE',
         ],
         600,
       ),
-      celestiaApiUrl: env.string([
-        'CELESTIA_API_URL_FOR_DA_BEAT',
-        'CELESTIA_API_URL',
-      ]),
-      celestiaCallsPerMinute: env.integer(
+      timeout: env.integer(
         [
-          'CELESTIA_API_CALLS_PER_MINUTE_FOR_DA_BEAT',
-          'CELESTIA_API_CALLS_PER_MINUTE',
+          'ETHEREUM_BEACON_API_TIMEOUT_FOR_FINALITY',
+          'ETHEREUM_BEACON_API_TIMEOUT',
         ],
-        600,
-      ),
-      nearRpcUrl: env.string(
-        ['NEAR_RPC_URL_FOR_DA_BEAT', 'NEAR_RPC_URL'],
-        'https://rpc.mainnet.near.org/',
+        10000,
       ),
     },
-
+    da: flags.isEnabled('da') && (await getDaTrackingConfig(ps, env)),
     // Must be last
     flags: flags.getResolved(),
   }
 }
 
-function getEthereumMinTimestamp() {
+function getEthereumMinTimestamp(chains: ChainConfig[]) {
   const minBlockTimestamp = chains.find(
     (c) => c.name === 'ethereum',
   )?.minTimestampForTvl

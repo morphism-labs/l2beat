@@ -1,57 +1,51 @@
-import { NEW_CRYPTOGRAPHY, RISK_VIEW } from '../../common'
+import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
+import {
+  DA_BRIDGES,
+  DA_LAYERS,
+  NEW_CRYPTOGRAPHY,
+  RISK_VIEW,
+} from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
+import { PolygoncdkDAC } from '../da-beat/templates/polygoncdk-template'
 import { polygonCDKStack } from './templates/polygonCDKStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('astarzkevm')
+const bridge = discovery.getContract('PolygonZkEVMBridgeV2')
 
 const membersCountDAC = discovery.getContractValue<number>(
-  'AstarValidiumDAC',
+  'PolygonDataCommittee',
   'getAmountOfMembers',
 )
 
 const requiredSignaturesDAC = discovery.getContractValue<number>(
-  'AstarValidiumDAC',
+  'PolygonDataCommittee',
   'requiredAmountOfSignatures',
 )
 
 const isForcedBatchDisallowed =
-  discovery.getContractValue<string>('AstarValidium', 'forceBatchAddress') !==
+  discovery.getContractValue<string>('Validium', 'forceBatchAddress') !==
   '0x0000000000000000000000000000000000000000'
 
-const upgradeability = {
-  upgradableBy: ['LocalAdmin'],
-  upgradeDelay: 'None',
-}
-
 export const astarzkevm: Layer2 = polygonCDKStack({
-  badges: [Badge.DA.DAC, Badge.RaaS.Gelato],
+  addedAt: new UnixTime(1690815262), // 2023-07-31T14:54:22Z
+  additionalBadges: [Badge.DA.DAC, Badge.RaaS.Gelato],
   daProvider: {
-    name: 'DAC',
-    bridge: {
-      type: 'DAC Members',
+    layer: DA_LAYERS.DAC,
+    bridge: DA_BRIDGES.DAC_MEMBERS({
       requiredSignatures: requiredSignaturesDAC,
       membersCount: membersCountDAC,
-    },
-    riskView: {
-      ...RISK_VIEW.DATA_EXTERNAL_DAC({
-        membersCount: membersCountDAC,
-        requiredSignatures: requiredSignaturesDAC,
-      }),
-      sources: [
-        {
-          contract: 'PolygonDataCommittee.sol',
-          references: [
-            'https://etherscan.io/address/0xF4e87685e323818E0aE35dCdFc3B65106002E456#code',
-          ],
-        },
-      ],
-    },
+    }),
+    riskView: RISK_VIEW.DATA_EXTERNAL_DAC({
+      membersCount: membersCountDAC,
+      requiredSignatures: requiredSignaturesDAC,
+    }),
     technology: {
       name: 'Data is not stored on chain',
       description:
-        'The transaction data is not recorded on the Ethereum main chain. Transaction data is stored off-chain and only the hashes are posted on-chain by the Sequencer, after being signed by the DAC members.',
+        'The transaction data is not recorded on the Ethereum main chain. Transaction data is stored off-chain and only the hashes are posted onchain by the Sequencer, after being signed by the DAC members.',
       risks: [
         {
           category: 'Funds can be lost if',
@@ -61,28 +55,26 @@ export const astarzkevm: Layer2 = polygonCDKStack({
       ],
       references: [
         {
-          text: 'PolygonValidiumStorageMigration.sol - Etherscan source code, sequenceBatchesValidium function',
-          href: 'https://etherscan.io/address/0x10D296e8aDd0535be71639E5D1d1c30ae1C6bD4C#code#F1#L126',
+          title:
+            'PolygonValidiumStorageMigration.sol - Etherscan source code, sequenceBatchesValidium function',
+          url: 'https://etherscan.io/address/0x10D296e8aDd0535be71639E5D1d1c30ae1C6bD4C#code#F1#L126',
         },
       ],
     },
   },
-  rollupModuleContract: discovery.getContract('AstarValidium'),
-  rollupVerifierContract: discovery.getContract('AstarVerifier'),
+  rollupModuleContract: discovery.getContract('Validium'),
+  rollupVerifierContract: discovery.getContract('FflonkVerifier'),
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.SMALL_DAC],
   display: {
     name: 'Astar zkEVM',
     slug: 'astarzkevm',
     description:
       "Astar zkEVM is a Validium that leverages Polygon's CDK and zero-knowledge cryptography to enable off-chain transactions while maintaining EVM equivalence.",
-    purposes: ['Universal'],
-    headerWarning:
-      'Astar zkEVM is using AggLayer, meaning it shares the TVL escrow contracts with Polygon zkEVM and other connected chains. For now, you can check its TVL [here](https://dune.com/hashed_official/astar-zkevm). We have not verified it so proceed with caution.',
     links: {
-      websites: ['https://astar.network/astar2'],
-      apps: [],
+      websites: ['https://astar.network/blog/astar-evolution-phase-1-56'],
       documentation: ['https://docs.astar.network/docs/build/zkEVM/'],
       explorers: ['https://astar-zkevm.explorer.startale.com/'],
-      repositories: [],
+      repositories: ['https://github.com/AstarNetwork'],
       socialMedia: [
         'https://twitter.com/AstarNetwork',
         'https://discord.com/invite/astarnetwork',
@@ -90,12 +82,35 @@ export const astarzkevm: Layer2 = polygonCDKStack({
         'https://t.me/PlasmOfficial',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  rpcUrl: 'https://evm.astar.network',
+  chainConfig: {
+    name: 'astarzkevm',
+    chainId: 3776,
+    explorerUrl: 'https://astar-zkevm.explorer.startale.com',
+    minTimestampForTvl: new UnixTime(1708632059),
+    multicallContracts: [
+      {
+        address: EthereumAddress('0xcA11bde05977b3631167028862bE2a173976CA11'),
+        batchSize: 150,
+        sinceBlock: 183817,
+        version: '3',
+      },
+    ],
+  },
+  rpcUrl: 'https://rpc.startale.com/astar-zkevm',
   discovery,
   isForcedBatchDisallowed,
-  nonTemplateEscrows: [],
+  nonTemplateEscrows: [
+    discovery.getEscrowDetails({
+      address: bridge.address,
+      tokens: '*',
+      sharedEscrow: {
+        type: 'AggLayer',
+        nativeAsset: 'etherPreminted',
+        premintedAmount: '340282366920938463463374607431768211455',
+      },
+    }),
+  ],
   nonTemplateTechnology: {
     newCryptography: {
       ...NEW_CRYPTOGRAPHY.ZK_BOTH,
@@ -110,27 +125,21 @@ export const astarzkevm: Layer2 = polygonCDKStack({
     dataFormat:
       'The trusted sequencer request signatures from DAC members off-chain, and posts hashed batches with signatures to the AstarValidium contract.',
   },
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'LocalAdmin',
-      'Admin of the AstarValidium contract, can set core system parameters like timeouts, sequencer, activate forced transactions, update the DA mode and upgrade the AstarValidiumDAC contract',
-    ),
-  ],
-  nonTemplateContracts: [
-    discovery.getContractDetails('AstarValidiumDAC', {
-      description:
-        'Validium committee contract that allows the admin to setup the members of the committee and stores the required amount of signatures threshold.',
-      ...upgradeability,
-    }),
-  ],
   milestones: [
     {
-      name: 'Astar zkEVM Launch',
-      link: 'https://polygon.technology/blog/astar-zkevm-built-with-polygon-cdk-connects-to-agglayer-and-taps-unified-liquidity-with-polygon-zkevm',
+      title: 'Astar zkEVM Launch',
+      url: 'https://astar.network/blog/astars-zkevm-mainnet-is-live-86096',
       date: '2024-03-06',
       description:
         'Astar Network launched Astar zkEVM, integrated with Polygon AggLayer.',
+      type: 'general',
     },
   ],
   knowledgeNuggets: [],
+  customDa: PolygoncdkDAC({
+    dac: {
+      requiredMembers: requiredSignaturesDAC,
+      membersCount: membersCountDAC,
+    },
+  }),
 })

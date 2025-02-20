@@ -1,14 +1,13 @@
-import { Bytes, EthereumAddress } from '@l2beat/shared-pure'
+import type { Bytes, EthereumAddress } from '@l2beat/shared-pure'
 import { utils } from 'ethers'
 import * as z from 'zod'
 
 import { getErrorMessage } from '../../../utils/getErrorMessage'
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
-import { Handler, HandlerResult } from '../Handler'
+import type { IProvider } from '../../provider/IProvider'
+import type { Handler, HandlerResult } from '../Handler'
 import {
-  ScopeVariables,
-  generateScopeVariables,
+  type ReferenceInput,
+  generateReferenceInput,
   getReferencedName,
   resolveReference,
 } from '../reference'
@@ -39,7 +38,6 @@ export class DynamicArrayHandler implements Handler {
   constructor(
     readonly field: string,
     private readonly definition: DynamicArrayHandlerDefinition,
-    readonly logger: DiscoveryLogger,
   ) {
     this.dependencies = getDependencies(definition)
   }
@@ -49,13 +47,12 @@ export class DynamicArrayHandler implements Handler {
     address: EthereumAddress,
     previousResults: Record<string, HandlerResult | undefined>,
   ): Promise<HandlerResult> {
-    this.logger.logExecution(this.field, ['Reading dynamic array storage'])
-    const scopeVariables = generateScopeVariables(provider, address)
-    const resolved = resolveDependencies(
-      this.definition,
+    const referenceInput = generateReferenceInput(
       previousResults,
-      scopeVariables,
+      provider,
+      address,
     )
+    const resolved = resolveDependencies(this.definition, referenceInput)
 
     const elementStorages: Bytes[] = []
     try {
@@ -95,17 +92,12 @@ function getDependencies(definition: DynamicArrayHandlerDefinition): string[] {
 
 function resolveDependencies(
   definition: DynamicArrayHandlerDefinition,
-  previousResults: Record<string, HandlerResult | undefined>,
-  scopeVariables: ScopeVariables,
+  referenceInput: ReferenceInput,
 ): {
   slot: bigint
   returnType: 'number' | 'address' | 'bytes'
 } {
-  const resolved = resolveReference(
-    definition.slot,
-    previousResults,
-    scopeVariables,
-  )
+  const resolved = resolveReference(definition.slot, referenceInput)
   const slot = valueToBigInt(resolved)
 
   const returnType = definition.returnType ?? 'address'

@@ -8,20 +8,18 @@ import {
 } from '@l2beat/shared-pure'
 import { expect } from 'earl'
 import { utils } from 'ethers'
-import { startsWith } from 'lodash'
-
-import { get$Implementations } from '@l2beat/discovery-types'
-import { chains } from '../../chains'
-import {
-  NUGGETS,
-  ScalingProjectReference,
-  ScalingProjectRiskViewEntry,
-  ScalingProjectTechnologyChoice,
-} from '../../common'
-import { ScalingProjectTechnology } from '../../common/ScalingProjectTechnology'
+import { startsWith, uniq } from 'lodash'
+import { describe } from 'mocha'
+import { NUGGETS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
 import { checkRisk } from '../../test/helpers'
-import { tokenList } from '../../tokens'
+import { tokenList } from '../../tokens/tokens'
+import type {
+  ProjectTechnologyChoice,
+  ReferenceLink,
+  ScalingProjectTechnology,
+} from '../../types'
+import { chains } from '../chains'
 import { layer2s, milestonesLayer2s } from './index'
 
 describe('layer2s', () => {
@@ -52,13 +50,13 @@ describe('layer2s', () => {
     describe('every escrow in new format resolves to discovery entry', () => {
       for (const layer2 of layer2s) {
         // NOTE(radomski): PolygonCDK projects have a shared escrow
-        if (layer2.display.provider === 'Polygon') continue
+        if (layer2.display.stack === 'Polygon') continue
 
         try {
           const discovery = new ProjectDiscovery(layer2.id.toString())
 
           for (const escrow of layer2.config.escrows.filter(
-            (e) => e.newVersion && !e.isHistorical,
+            (e) => e.contract && !e.isHistorical,
           )) {
             it(`${layer2.id.toString()} : ${escrow.address.toString()}`, () => {
               // try to resolve escrow by address
@@ -147,7 +145,8 @@ describe('layer2s', () => {
   describe('chain name equals project id', () => {
     for (const layer2 of layer2s) {
       const name = layer2.chainConfig?.name
-      if (name !== undefined) {
+      // polygon-pos is the exception
+      if (name !== undefined && layer2.id !== 'polygon-pos') {
         it(layer2.id.toString(), () => {
           expect(name).toEqual(layer2.id.toString())
         })
@@ -207,6 +206,8 @@ describe('layer2s', () => {
                     return []
                   case 'sharpSubmission':
                     return []
+                  case 'sharedBridge':
+                    return []
                   default:
                     assertUnreachable(x)
                 }
@@ -262,8 +263,8 @@ describe('layer2s', () => {
     describe('all arbitrum and op stack chains have the assessCount defined', () => {
       const opAndArbL2sWithActivity = layer2s
         .filter((layer2) => {
-          const { provider } = layer2.display
-          return provider === 'Arbitrum' || provider === 'OP Stack'
+          const { stack } = layer2.display
+          return stack === 'Arbitrum' || stack === 'OP Stack'
         })
         .flatMap((layer2) => {
           const { transactionApi } = layer2.config
@@ -271,7 +272,7 @@ describe('layer2s', () => {
           if (transactionApi && transactionApi.type === 'rpc') {
             return {
               id: layer2.id,
-              assessCount: transactionApi.assessCount,
+              assessCount: transactionApi.adjustCount,
             }
           }
 
@@ -287,41 +288,26 @@ describe('layer2s', () => {
   })
 
   describe('references', () => {
-    describe('points to an existing implementation', () => {
+    describe('permissions references are valid', () => {
       for (const layer2 of layer2s) {
         try {
           const discovery = new ProjectDiscovery(layer2.id.toString())
 
-          for (const [riskName, riskEntry] of Object.entries(layer2.riskView)) {
-            const risk = riskEntry as ScalingProjectRiskViewEntry
-            if (risk.sources === undefined) continue
+          for (const perChain of Object.values(layer2.permissions ?? {})) {
+            const all = [...(perChain.roles ?? []), ...(perChain.actors ?? [])]
+            for (const { name, references } of all) {
+              const referencedAddresses = getAddressFromReferences(references)
+              if (referencedAddresses.length === 0) continue
 
-            describe(`${layer2.id.toString()} : ${riskName}`, () => {
-              for (const sourceCodeReference of risk.sources ?? []) {
-                it(sourceCodeReference.contract, () => {
-                  const referencedAddresses = getReferencedAddresses(
-                    sourceCodeReference.references,
-                  )
-
-                  if (referencedAddresses.length > 0) {
-                    const contract = discovery.getContract(
-                      sourceCodeReference.contract,
-                    )
-
-                    const contractAddresses = [
-                      contract.address,
-                      ...get$Implementations(contract.values),
-                    ]
-
-                    expect(
-                      contractAddresses.some((a) =>
-                        referencedAddresses.includes(a),
-                      ),
-                    ).toEqual(true)
-                  }
-                })
-              }
-            })
+              it(`${layer2.id.toString()} : ${name}`, () => {
+                const contractAddresses = discovery.getAllContractAddresses()
+                expect(
+                  contractAddresses.some((a) =>
+                    referencedAddresses.includes(a),
+                  ),
+                ).toEqual(true)
+              })
+            }
           }
         } catch {
           continue
@@ -329,22 +315,34 @@ describe('layer2s', () => {
       }
     })
 
-    describe('permissions references are valid', () => {
+    describe('technology references are valid', () => {
       for (const layer2 of layer2s) {
         try {
           const discovery = new ProjectDiscovery(layer2.id.toString())
+          if (layer2.technology.isUnderReview === true) continue
 
-          if (layer2.permissions === 'UnderReview') continue
+          for (const [key, choicesAny] of Object.entries(layer2.technology)) {
+            if (choicesAny === undefined) {
+              continue
+            }
+            it(`${layer2.id.toString()} : ${key}`, () => {
+              const choicesTyped = choicesAny as
+                | ProjectTechnologyChoice
+                | ProjectTechnologyChoice[]
 
-          for (const { name, references } of layer2.permissions ?? []) {
-            const referencedAddresses = getAddressFromReferences(references)
-            if (referencedAddresses.length === 0) continue
+              const choices = Array.isArray(choicesTyped)
+                ? choicesTyped
+                : [choicesTyped]
+              const referencedAddresses = getReferencedAddresses(
+                choices.flatMap((c) => c.references).map((ref) => ref.url),
+              )
 
-            it(`${layer2.id.toString()} : ${name}`, () => {
-              const contractAddresses = discovery.getAllContractAddresses()
-              expect(
-                contractAddresses.some((a) => referencedAddresses.includes(a)),
-              ).toEqual(true)
+              const allAddresses = discovery
+                .getAllContractAddresses()
+                .concat(discovery.getContractsAndEoas().map((m) => m.address))
+              for (const address of referencedAddresses) {
+                expect(allAddresses.includes(address)).toBeTruthy()
+              }
             })
           }
         } catch {
@@ -382,10 +380,7 @@ describe('layer2s', () => {
             }
           }
 
-          function checkChoice(
-            choice: ScalingProjectTechnologyChoice,
-            name: string,
-          ) {
+          function checkChoice(choice: ProjectTechnologyChoice, name: string) {
             it(`${name}.name doesn't end with a dot`, () => {
               expect(choice.name.endsWith('.')).toEqual(false)
             })
@@ -414,18 +409,6 @@ describe('layer2s', () => {
     })
   })
 
-  describe('every purpose is short', () => {
-    const purposes = layer2s.map((x) => x.display.purposes)
-    for (const purpose of purposes) {
-      const totalLength = purpose.reduce((acc, curr) => {
-        return acc + curr.length
-      }, 0)
-      it(purpose.join(', '), () => {
-        expect(totalLength).toBeLessThanOrEqual(20)
-      })
-    }
-  })
-
   describe('milestones', () => {
     describe('name', () => {
       describe('no longer than 50 characters', () => {
@@ -434,14 +417,14 @@ describe('layer2s', () => {
             continue
           }
           for (const milestone of project.milestones) {
-            it(`Milestone: ${milestone.name} (${project.display.name}) name is no longer than 50 characters`, () => {
-              expect(milestone.name.length).toBeLessThanOrEqual(50)
+            it(`Milestone: ${milestone.title} (${project.display.name}) name is no longer than 50 characters`, () => {
+              expect(milestone.title.length).toBeLessThanOrEqual(50)
             })
           }
         }
         for (const milestone of milestonesLayer2s) {
-          it(`Milestone: ${milestone.name} (main page) name is no longer than 50 characters`, () => {
-            expect(milestone.name.length).toBeLessThanOrEqual(50)
+          it(`Milestone: ${milestone.title} (main page) name is no longer than 50 characters`, () => {
+            expect(milestone.title.length).toBeLessThanOrEqual(50)
           })
         }
       })
@@ -457,7 +440,7 @@ describe('layer2s', () => {
             if (milestone.description === undefined) {
               continue
             }
-            it(`Milestone: ${milestone.name} (${project.display.name}) description ends with a dot`, () => {
+            it(`Milestone: ${milestone.title} (${project.display.name}) description ends with a dot`, () => {
               expect(milestone.description?.endsWith('.')).toEqual(true)
             })
           }
@@ -466,7 +449,7 @@ describe('layer2s', () => {
           if (milestone.description === undefined) {
             continue
           }
-          it(`Milestone: ${milestone.name} (main page) description ends with a dot`, () => {
+          it(`Milestone: ${milestone.title} (main page) description ends with a dot`, () => {
             expect(milestone.description?.endsWith('.')).toEqual(true)
           })
         }
@@ -480,7 +463,7 @@ describe('layer2s', () => {
             if (milestone.description === undefined) {
               continue
             }
-            it(`Milestone: ${milestone.name} (${project.display.name}) description is no longer than 100 characters`, () => {
+            it(`Milestone: ${milestone.title} (${project.display.name}) description is no longer than 100 characters`, () => {
               expect(milestone.description?.length ?? 0).toBeLessThanOrEqual(
                 100,
               )
@@ -491,7 +474,7 @@ describe('layer2s', () => {
           if (milestone.description === undefined) {
             continue
           }
-          it(`Milestone: ${milestone.name} (main page) description is no longer than 100 characters`, () => {
+          it(`Milestone: ${milestone.title} (main page) description is no longer than 100 characters`, () => {
             expect(milestone.description?.length ?? 0).toBeLessThanOrEqual(100)
           })
         }
@@ -504,7 +487,7 @@ describe('layer2s', () => {
           continue
         }
         for (const milestone of project.milestones) {
-          it(`Milestone: ${milestone.name} (${project.display.name}) date is full day`, () => {
+          it(`Milestone: ${milestone.title} (${project.display.name}) date is full day`, () => {
             expect(
               UnixTime.fromDate(new Date(milestone.date)).isFull('day'),
             ).toEqual(true)
@@ -512,7 +495,7 @@ describe('layer2s', () => {
         }
       }
       for (const milestone of milestonesLayer2s) {
-        it(`Milestone: ${milestone.name} (main page) date is full day`, () => {
+        it(`Milestone: ${milestone.title} (main page) date is full day`, () => {
           expect(
             UnixTime.fromDate(new Date(milestone.date)).isFull('day'),
           ).toEqual(true)
@@ -581,10 +564,21 @@ describe('layer2s', () => {
       }
     })
   })
+
+  describe('badges', () => {
+    for (const layer2 of layer2s) {
+      if (layer2.badges === undefined) {
+        continue
+      }
+      it(`${layer2.display.name} does not have duplicated badges`, () => {
+        expect(layer2.badges?.length).toEqual(uniq(layer2.badges).length)
+      })
+    }
+  })
 })
 
-function getAddressFromReferences(references: ScalingProjectReference[] = []) {
-  const addresses = references.map((r) => r.href)
+function getAddressFromReferences(references: ReferenceLink[] = []) {
+  const addresses = references.map((r) => r.url)
   return getReferencedAddresses(addresses)
 }
 

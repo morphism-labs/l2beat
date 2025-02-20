@@ -1,4 +1,4 @@
-import { Database, L2CostPriceRecord } from '@l2beat/database'
+import type { Database, L2CostPriceRecord } from '@l2beat/database'
 import { CoingeckoQueryService } from '@l2beat/shared'
 import { CoingeckoId, UnixTime } from '@l2beat/shared-pure'
 import {
@@ -23,7 +23,10 @@ export class L2CostsPricesIndexer extends ManagedChildIndexer {
     const unixFrom = new UnixTime(from)
     const unixTo = new UnixTime(to)
 
-    const shiftedTo = CoingeckoQueryService.getAdjustedTo(unixFrom, unixTo)
+    const shiftedTo = CoingeckoQueryService.calculateAdjustedTo(
+      unixFrom,
+      unixTo,
+    )
 
     this.logger.info('Time range shifted', {
       shiftedTo,
@@ -53,7 +56,6 @@ export class L2CostsPricesIndexer extends ManagedChildIndexer {
       ETHEREUM_COINGECKO_ID,
       from,
       to,
-      undefined,
     )
 
     return prices.map((p) => ({

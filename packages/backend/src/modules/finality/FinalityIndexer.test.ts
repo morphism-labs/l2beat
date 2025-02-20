@@ -1,13 +1,13 @@
 import { Logger } from '@l2beat/backend-tools'
-import { StateUpdateMode } from '@l2beat/config'
+import type { StateUpdateMode } from '@l2beat/config'
 import { ProjectId, UnixTime } from '@l2beat/shared-pure'
-import { ChildIndexer } from '@l2beat/uif'
+import type { ChildIndexer } from '@l2beat/uif'
 import { expect, mockFn, mockObject } from 'earl'
 
-import { Database, FinalityRecord } from '@l2beat/database'
+import type { Database, FinalityRecord } from '@l2beat/database'
 import { FinalityIndexer } from './FinalityIndexer'
-import { BaseAnalyzer } from './analyzers/types/BaseAnalyzer'
-import { FinalityConfig } from './types/FinalityConfig'
+import type { BaseAnalyzer, Batch } from './analyzers/types/BaseAnalyzer'
+import type { FinalityConfig } from './types/FinalityConfig'
 
 const MIN_TIMESTAMP = UnixTime.fromDate(new Date('2024-02-07T00:00:00Z'))
 
@@ -82,7 +82,7 @@ describe(FinalityIndexer.name, () => {
       const finalityRepository = mockObject<Database['finality']>({
         insert: mockFn().resolvesToOnce(1),
       })
-      const runtimeConfiguration = getMockFinalityRuntimeConfiguration([2, 4])
+      const runtimeConfiguration = getMockFinalityRuntimeConfiguration([])
       const finalityIndexer = getMockFinalityIndexer({
         runtimeConfiguration,
         finalityRepository,
@@ -110,7 +110,16 @@ describe(FinalityIndexer.name, () => {
       })
 
       const runtimeConfiguration = getMockFinalityRuntimeConfiguration(
-        [2, 4],
+        [
+          {
+            l1Timestamp: 123,
+            l2Blocks: [{ timestamp: 121, blockNumber: 12 }],
+          },
+          {
+            l1Timestamp: 142,
+            l2Blocks: [{ timestamp: 138, blockNumber: 15 }],
+          },
+        ],
         'analyze',
       )
       const finalityIndexer = getMockFinalityIndexer({
@@ -127,8 +136,27 @@ describe(FinalityIndexer.name, () => {
         averageTimeToInclusion: 3,
         minimumTimeToInclusion: 2,
         maximumTimeToInclusion: 4,
-        averageStateUpdate: 3,
+        averageStateUpdate: 0,
       })
+    })
+
+    it('throws an error if data is negative', async () => {
+      const start = UnixTime.now().toStartOf('day')
+      const from = start.toNumber()
+      const to = start.add(1, 'days').toNumber()
+      const finalityIndexer = getMockFinalityIndexer({})
+      finalityIndexer.isConfigurationSynced = mockFn().resolvesToOnce(false)
+      finalityIndexer.getFinalityData = mockFn().resolvesToOnce({
+        projectId: ProjectId('project'),
+        timestamp: start.add(1, 'days'),
+        averageTimeToInclusion: -1,
+        minimumTimeToInclusion: -2,
+        maximumTimeToInclusion: 4,
+      })
+
+      expect(
+        async () => await finalityIndexer.update(from + 1, to),
+      ).toBeRejectedWith(`Finality data cannot be negative: project`)
     })
   })
 
@@ -178,11 +206,22 @@ describe(FinalityIndexer.name, () => {
         averageTimeToInclusion: 2,
         minimumTimeToInclusion: 1,
         maximumTimeToInclusion: 3,
-        averageStateUpdate: 2,
+        averageStateUpdate: 0,
       }
 
       const runtimeConfiguration = getMockFinalityRuntimeConfiguration([
-        1, 2, 3,
+        {
+          l1Timestamp: 123,
+          l2Blocks: [{ timestamp: 122, blockNumber: 12 }],
+        },
+        {
+          l1Timestamp: 234,
+          l2Blocks: [{ timestamp: 232, blockNumber: 15 }],
+        },
+        {
+          l1Timestamp: 345,
+          l2Blocks: [{ timestamp: 342, blockNumber: 19 }],
+        },
       ])
       const finalityIndexer = getMockFinalityIndexer({ runtimeConfiguration })
 
@@ -216,7 +255,16 @@ describe(FinalityIndexer.name, () => {
       const to = start.add(1, 'days').toNumber()
 
       const runtimeConfiguration = getMockFinalityRuntimeConfiguration(
-        [2, 4],
+        [
+          {
+            l1Timestamp: 123,
+            l2Blocks: [{ timestamp: 121, blockNumber: 12 }],
+          },
+          {
+            l1Timestamp: 142,
+            l2Blocks: [{ timestamp: 138, blockNumber: 15 }],
+          },
+        ],
         'analyze',
       )
 
@@ -237,7 +285,7 @@ describe(FinalityIndexer.name, () => {
         averageTimeToInclusion: 3,
         minimumTimeToInclusion: 2,
         maximumTimeToInclusion: 4,
-        averageStateUpdate: 3,
+        averageStateUpdate: 0,
       })
 
       expect(
@@ -258,7 +306,16 @@ describe(FinalityIndexer.name, () => {
         })
 
         const runtimeConfiguration = getMockFinalityRuntimeConfiguration(
-          [2, 4],
+          [
+            {
+              l1Timestamp: 123,
+              l2Blocks: [{ timestamp: 121, blockNumber: 12 }],
+            },
+            {
+              l1Timestamp: 142,
+              l2Blocks: [{ timestamp: 138, blockNumber: 15 }],
+            },
+          ],
           mode,
         )
         const finalityIndexer = getMockFinalityIndexer({
@@ -427,7 +484,7 @@ function getMockStateRepository(
 }
 
 function getMockFinalityRuntimeConfiguration(
-  results?: number[],
+  results?: Batch[],
   stateUpdateMode?: StateUpdateMode,
 ) {
   return {

@@ -1,36 +1,41 @@
 import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
-
-import { subtractOne } from '../../common/assessCount'
+import { NUGGETS } from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
-import { CELESTIA_DA_PROVIDER, opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
+import { EIGENDA_DA_PROVIDER, opStackL2 } from './templates/opStack'
 
 const discovery = new ProjectDiscovery('aevo')
 
 export const aevo: Layer2 = opStackL2({
-  badges: [Badge.DA.Celestia, Badge.RaaS.Conduit],
-  daProvider: CELESTIA_DA_PROVIDER,
+  addedAt: new UnixTime(1694090052), // 2023-09-07T12:34:12Z
+  additionalBadges: [Badge.DA.EigenDA, Badge.RaaS.Conduit],
+  daProvider: EIGENDA_DA_PROVIDER,
   associatedTokens: ['AEVO'],
   discovery,
+  additionalPurposes: ['Exchange'],
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.NO_PROOFS,
+    REASON_FOR_BEING_OTHER.NO_DA_ORACLE,
+  ],
   display: {
     name: 'Aevo',
     slug: 'aevo',
-    architectureImage: 'aevo',
-    warning:
-      'Fraud proof system is currently under development. Users need to trust the block proposer to submit correct L1 state roots.',
     description:
-      'Aevo is a high-performance decentralized options exchange, powered by the OP Stack and Celestia DA.',
-    purposes: ['Exchange'],
+      'Aevo is a high-performance decentralized options exchange, powered by the OP Stack and EigenDA.',
     links: {
       websites: ['https://aevo.xyz/'],
       apps: ['https://app.aevo.xyz/'],
       documentation: ['https://docs.aevo.xyz/'],
       explorers: ['https://explorer.aevo.xyz/'],
       repositories: ['https://github.com/aevoxyz'],
-      socialMedia: ['https://twitter.com/aevoxyz'],
+      socialMedia: [
+        'https://twitter.com/aevoxyz',
+        'https://discord.com/invite/aevo',
+        'https://t.me/aevoupdates',
+      ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
   chainConfig: {
     name: 'aevo',
@@ -52,38 +57,54 @@ export const aevo: Layer2 = opStackL2({
   },
   transactionApi: {
     type: 'rpc',
-    defaultUrl: 'https://l2-aevo-mainnet-prod-0.t.conduit.xyz/',
+    defaultUrl: 'https://rpc-aevo-mainnet-prod-0.t.conduit.xyz',
     startBlock: 1,
     defaultCallsPerMinute: 800,
-    assessCount: subtractOne,
+    adjustCount: { type: 'SubtractOne' },
+  },
+  celestiaDa: {
+    sinceBlock: 0, // Edge Case: config added @ DA Module start
+    namespace: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAADBuw7+PjGs8=',
   },
   genesisTimestamp: new UnixTime(1679202395),
   isNodeAvailable: false,
   milestones: [
     {
-      name: 'Aevo Open Mainnet Launch',
-      link: 'https://aevo.mirror.xyz/hV7VYkpk7caoYl2DbOFcSaZRRrK-8NeWqKczrgUff6k',
+      title: 'Aevo switches to EigenDA',
+      url: 'https://x.com/aevoxyz/status/1879728286093479947',
+      date: '2025-01-15T00:00:00.00Z',
+      description:
+        'Aevo switches from Celestia to EigenDA for data availability.',
+      type: 'general',
+    },
+    {
+      title: 'Aevo Open Mainnet Launch',
+      url: 'https://aevo.mirror.xyz/hV7VYkpk7caoYl2DbOFcSaZRRrK-8NeWqKczrgUff6k',
       date: '2023-06-14T00:00:00.00Z',
       description:
         'Aevo removes the whitelist and opens the mainnet to the public.',
+      type: 'general',
     },
     {
-      name: 'Aevo switches to Celestia',
-      link: 'https://twitter.com/aevoxyz/status/1750013642278633510',
+      title: 'Aevo switches to Celestia',
+      url: 'https://twitter.com/aevoxyz/status/1750013642278633510',
       date: '2024-01-16T00:00:00.00Z',
       description: 'Aevo starts using Celestia for data availability.',
+      type: 'general',
     },
     {
-      name: 'AEVO Token Airdrop',
-      link: 'https://aevo.mirror.xyz/5LfLIxt_lfdoVBUTtdofAVU6YXioBzGkbhtUWnaRT-U',
+      title: 'AEVO Token Airdrop',
+      url: 'https://aevo.mirror.xyz/5LfLIxt_lfdoVBUTtdofAVU6YXioBzGkbhtUWnaRT-U',
       date: '2024-03-13T00:00:00.00Z',
       description: 'AEVO token launches.',
+      type: 'general',
     },
   ],
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'ConduitMultisig',
-      'This address is the owner of the following contracts: ProxyAdmin, SystemConfig. It is also designated as a Guardian of the OptimismPortal, meaning it can halt withdrawals. It can upgrade the bridge implementation potentially gaining access to all funds, and change the sequencer, state root proposer or any other system component (unlimited upgrade power).',
-    ),
+  knowledgeNuggets: [
+    {
+      title: 'Blobstream and Celestia Architecture',
+      url: 'https://www.youtube.com/watch?v=cn_fN6pkakQ',
+      thumbnail: NUGGETS.THUMBNAILS.MODULAR_ROLLUP,
+    },
   ],
 })

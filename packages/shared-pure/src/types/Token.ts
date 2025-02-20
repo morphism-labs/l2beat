@@ -1,8 +1,8 @@
-import { AssetId } from './AssetId'
-import { ChainId } from './ChainId'
-import { CoingeckoId } from './CoingeckoId'
-import { EthereumAddress } from './EthereumAddress'
-import { UnixTime } from './UnixTime'
+import type { AssetId } from './AssetId'
+import type { ChainId } from './ChainId'
+import type { CoingeckoId } from './CoingeckoId'
+import type { EthereumAddress } from './EthereumAddress'
+import type { UnixTime } from './UnixTime'
 
 export interface Token {
   id: AssetId
@@ -16,11 +16,20 @@ export interface Token {
   category: 'ether' | 'stablecoin' | 'other'
   iconUrl?: string
   chainId: ChainId
+  chainName: string
+  url?: string
   source: 'canonical' | 'external' | 'native'
   supply: 'totalSupply' | 'circulatingSupply' | 'zero'
-  bridgedUsing?: {
-    bridge: string
-    slug?: string
-    warning?: string
-  }
+  excludeFromTotal?: true
+  bridgedUsing?: TokenBridgedUsing
+}
+
+export interface TokenBridge {
+  name: string
+  slug?: string
+}
+
+export interface TokenBridgedUsing {
+  bridges: TokenBridge[]
+  warning?: string
 }

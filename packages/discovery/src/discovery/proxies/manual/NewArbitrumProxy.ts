@@ -1,8 +1,8 @@
-import { ProxyDetails } from '@l2beat/discovery-types'
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { ProxyDetails } from '@l2beat/discovery-types'
+import type { EthereumAddress } from '@l2beat/shared-pure'
 
 import { get$Implementations } from '@l2beat/discovery-types'
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
 import { detectEip1967Proxy } from '../auto/Eip1967Proxy'
 
 export async function getNewArbitrumProxy(
@@ -33,10 +33,9 @@ export async function getNewArbitrumProxy(
     type: 'new Arbitrum proxy',
     values: {
       $admin: detection.values.$admin,
-      $implementation: get$Implementations(detection.values).concat(
-        adminFacet,
-        userFacet,
-      ),
+      $implementation: get$Implementations(detection.values)
+        .concat(adminFacet, userFacet)
+        .map((i) => i.toString()),
     },
   }
 }

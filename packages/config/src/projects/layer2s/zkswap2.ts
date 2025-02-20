@@ -2,13 +2,14 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import {
   CONTRACTS,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   NEW_CRYPTOGRAPHY,
   RISK_VIEW,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
-import { Layer2 } from './types'
+import type { Layer2 } from '../../types'
 import { zkswap } from './zkswap'
 
 const discovery = new ProjectDiscovery('zkswap2')
@@ -16,6 +17,8 @@ const discovery = new ProjectDiscovery('zkswap2')
 export const zkswap2: Layer2 = {
   type: 'layer2',
   id: ProjectId('zkswap2'),
+  capability: 'universal',
+  addedAt: new UnixTime(1629199654), // 2021-08-17T11:27:34Z
   isArchived: true,
   display: {
     name: 'ZKSwap 2.0',
@@ -24,8 +27,8 @@ export const zkswap2: Layer2 = {
       'Version 3 of the protocol called ZkSpace is available and users are encouraged to move their assets there.',
     description:
       'ZKSwap is a fork of ZKsync with added AMM functionality. Based on ZK Rollup technology, ZKSwap aims to execute the full functionality of Uniswap on Layer 2, but increase the TPS, and make transaction processing cheaper.',
-    purposes: ['Payments', 'AMM'],
-    provider: 'ZKsync Lite',
+    purposes: ['Payments', 'Exchange'],
+    stack: 'ZKsync Lite',
     category: 'ZK Rollup',
 
     links: {
@@ -57,28 +60,26 @@ export const zkswap2: Layer2 = {
       },
     ],
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'State diffs',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.STATE_DIFFS,
+  },
+  riskView: {
     stateValidation: RISK_VIEW.STATE_ZKP_SN,
     dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
     exitWindow: RISK_VIEW.EXIT_WINDOW_UNKNOWN,
     sequencerFailure: RISK_VIEW.SEQUENCER_FORCE_VIA_L1(),
     proposerFailure: RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_ZK,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   technology: {
     stateCorrectness: zkswap.technology.stateCorrectness,
     newCryptography: {
       ...NEW_CRYPTOGRAPHY.ZK_SNARKS,
       references: [
         {
-          text: 'ZKSpace Whitepaper',
-          href: 'https://github.com/l2labs/zkspace-whitepaper',
+          title: 'ZKSpace Whitepaper',
+          url: 'https://github.com/l2labs/zkspace-whitepaper',
         },
       ],
     },
@@ -88,44 +89,46 @@ export const zkswap2: Layer2 = {
     exitMechanisms: zkswap.technology.exitMechanisms,
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'ZkSync',
-        'The main Rollup contract. Operator commits blocks, provides ZK proof which is validated by the Verifier contract and process withdrawals (executes blocks). Users deposit ETH and ERC20 tokens. This contract defines the upgrade delay in the UPGRADE_NOTICE_PERIOD constant that is currently set to 8 days.',
-      ),
-      discovery.getContractDetails(
-        'ZkSyncCommitBlock',
-        'Additional contract to store implementation details of the main ZkSync contract.',
-      ),
-      discovery.getContractDetails('ZkSyncExit'),
-      discovery.getContractDetails(
-        'Governance',
-        'Keeps a list of block producers and whitelisted tokens.',
-      ),
-      discovery.getContractDetails(
-        'UniswapV2Factory',
-        'Manages trading pairs.',
-      ),
-      discovery.getContractDetails('Verifier', 'zkSNARK Plonk Verifier.'),
-      discovery.getContractDetails('VerifierExit'),
-      discovery.getContractDetails('UpgradeGatekeeper'),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'ZkSync',
+          'The main Rollup contract. Operator commits blocks, provides ZK proof which is validated by the Verifier contract and process withdrawals (executes blocks). Users deposit ETH and ERC20 tokens. This contract defines the upgrade delay in the UPGRADE_NOTICE_PERIOD constant that is currently set to 8 days.',
+        ),
+        discovery.getContractDetails(
+          'ZkSyncCommitBlock',
+          'Additional contract to store implementation details of the main ZkSync contract.',
+        ),
+        discovery.getContractDetails('ZkSyncExit'),
+        discovery.getContractDetails(
+          'Governance',
+          'Keeps a list of block producers and whitelisted tokens.',
+        ),
+        discovery.getContractDetails(
+          'UniswapV2Factory',
+          'Manages trading pairs.',
+        ),
+        discovery.getContractDetails('Verifier', 'zkSNARK Plonk Verifier.'),
+        discovery.getContractDetails('VerifierExit'),
+        discovery.getContractDetails('UpgradeGatekeeper'),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_WITH_DELAY_RISK('8 days')],
   },
-  permissions: [
-    {
-      name: 'zkSwap 2.0 Admin',
-      accounts: [
-        discovery.getPermissionedAccount('UpgradeGatekeeper', 'getMaster'),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'zkSwap 2.0 Admin',
+          discovery.getPermissionedAccounts('UpgradeGatekeeper', 'getMaster'),
+          'This address is the master of Upgrade Gatekeeper contract, which is allowed to perform upgrades for Governance, Verifier, VerifierExit, PairManager and ZkSync contracts.',
+        ),
+        discovery.getPermissionDetails(
+          'Active validator',
+          discovery.getPermissionedAccounts('Governance', 'validators'),
+          'This actor is allowed to propose, revert and execute L2 blocks on L1. A list of active validators is kept inside Governance contract and can be updated by zkSwap 2.0 Admin.',
+        ),
       ],
-      description:
-        'This address is the master of Upgrade Gatekeeper contract, which is allowed to perform upgrades for Governance, Verifier, VerifierExit, PairManager and ZkSync contracts.',
     },
-    {
-      name: 'Active validator',
-      accounts: discovery.getPermissionedAccounts('Governance', 'validators'),
-      description:
-        'This actor is allowed to propose, revert and execute L2 blocks on L1. A list of active validators is kept inside Governance contract and can be updated by zkSwap 2.0 Admin.',
-    },
-  ],
+  },
 }

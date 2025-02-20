@@ -5,14 +5,14 @@ import path from 'path'
 import Convert from 'ansi-to-html'
 import chalk from 'chalk'
 import { splitIntoSubfiles } from './powerdiff/splitIntoFiles'
-import { Configuration } from './powerdiff/types'
+import type { Configuration } from './powerdiff/types'
 
 export const DIFFING_MODES = ['together', 'split'] as const
 export type DiffingMode = (typeof DIFFING_MODES)[number]
 
 export const DISPLAY_MODES = ['inline', 'side-by-side'] as const
 export type DisplayMode = (typeof DISPLAY_MODES)[number]
-export const displayModeMap: Record<DisplayMode, string> = {
+const displayModeMap: Record<DisplayMode, string> = {
   inline: '--display=inline',
   'side-by-side': '--display=side-by-side-show-both --width=200',
 }
@@ -28,6 +28,7 @@ function diffToHtml(
   difftasticPath: string,
   mode: DiffingMode,
   displayMode: DisplayMode,
+  context: number,
 ): string {
   const currentDirectory = process.env.INIT_CWD ?? process.cwd()
 
@@ -42,6 +43,7 @@ function diffToHtml(
     path2: absPath2,
     displayMode,
     difftasticPath,
+    context,
   }
 
   const result = []
@@ -54,16 +56,28 @@ function diffToHtml(
     config.path2 = splitResult.path2
     for (const list of splitResult.filePathsList) {
       const { left, right } = list
-      const filePathsList = processGitDiff(gitDiffFolders(left, right))
-      const title = `${path.basename(left)} <-> ${path.basename(right)}`
-      result.push(
-        collapsible(title, diffPaths(config, filePathsList).join('\n')),
-      )
+      if (left === right) {
+        result.push(diffPaths(config, [list]))
+      } else {
+        const filePathsList = processGitDiff(gitDiffFolders(left, right))
+        const title = `${path.basename(left)} <-> ${path.basename(right)}`
+        result.push(
+          collapsible(title, diffPaths(config, filePathsList).join('\n')),
+        )
+      }
     }
 
+    if (splitResult.filePathsList.length === 0) {
+      result.push(genNoChangesHtml())
+    }
     filePathsList = splitResult.filePathsList
   } else if (mode === 'together') {
-    result.push(...diffPaths(config, filePathsList))
+    const diffs = diffPaths(config, filePathsList)
+
+    if (diffs.length === 0) {
+      diffs.push(genNoChangesHtml())
+    }
+    result.push(...diffs)
   }
 
   result.push(HTML_END)
@@ -80,7 +94,7 @@ function diffPaths(
     let diff
     if (filePaths.left === filePaths.right) {
       diff = readFileSync(filePaths.left).toString()
-      if (filePaths.left.startsWith(config.path1)) {
+      if (filePaths.left.startsWith(addTrailingSlash(config.path1))) {
         status = 'removed'
         diff = chalk.redBright(diff)
       } else {
@@ -93,6 +107,7 @@ function diffPaths(
         filePaths.right,
         displayModeMap[config.displayMode],
         config.difftasticPath,
+        config.context,
       )
       const difftasticStatus = diff.split('\n')[1] ?? 'Error'
       if (
@@ -110,7 +125,7 @@ function diffPaths(
             <p>Error with difftastic:</p>
             <p><code>exceeded DFT_PARSE_ERROR_LIMIT</code></p>
             <p>Include the following command to increase the limit:</p>
-            <p><code>export DFT_PARSE_ERROR_LIMIT=100; yarn powerdiff ...</code></p>
+            <p><code>export DFT_PARSE_ERROR_LIMIT=100; pnpm powerdiff ...</code></p>
           </div>`,
         )
       }
@@ -140,11 +155,12 @@ function compareUsingDifftastic(
   filePath2: string,
   displayMode: string,
   difftasticPath: string,
+  context: number,
 ) {
   const fileName = filePath1.split('/').slice(-1)[0]
   console.log(`Processing ${fileName}`)
   try {
-    const cmd = `${difftasticPath} --ignore-comments ${displayMode} --color=always ${filePath1} ${filePath2}`
+    const cmd = `${difftasticPath} --ignore-comments ${displayMode} --color=always "${filePath1}" "${filePath2}" --context ${context}`
     return osExec(cmd).toString()
   } catch (error) {
     console.log(error)
@@ -179,6 +195,16 @@ function gitDiffFolders(absPath1: string, absPath2: string): string {
 
 function osExec(command: string) {
   return execSync(command, { maxBuffer: 1024 * 1024 * 10 }) // 10 MB
+}
+
+function genNoChangesHtml(): string {
+  return `
+    <div class="container">
+      <div class="message-box">
+        <h1 class="main-message">Looks like there are no differences!</h1>
+        <p class="sub-message">The content in both of those directories appears to be <i>the same</i>.</p>
+      </div>
+    </div>`
 }
 
 function genDiffHtml(
@@ -299,6 +325,34 @@ const HTML_START = `
         .collapsible.expanded > .button > .icon {
             transform: rotate(90deg);
         }
+
+        // Classes related to no changes message
+
+        .container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #444;
+            padding: 20px;
+        }
+
+        .message-box {
+            text-align: center;
+        }
+
+        .main-message {
+            font-size: 2.8em;
+            font-weight: 600;
+            color: #3a8fdc;
+            margin-bottom: 10px;
+        }
+
+        .sub-message {
+            font-size: 1.2em;
+            color: #666;
+            margin-top: 0;
+        }
     </style>
   </head>
 
@@ -319,12 +373,17 @@ const HTML_START = `
 
 const HTML_END = '<br><br></body></html>'
 
+function addTrailingSlash(path: string): string {
+  return path.endsWith('/') ? path : `${path}/`
+}
+
 export function powerdiff(
   path1: string,
   path2: string,
   difftasticPath: string = 'difft',
   mode: DiffingMode = 'together',
   displayMode: DisplayMode = 'inline',
+  context: number = 3,
 ) {
   checkDeps()
   const htmlContent = diffToHtml(
@@ -333,6 +392,7 @@ export function powerdiff(
     difftasticPath,
     mode,
     displayMode,
+    context,
   )
 
   const server = http.createServer((_, res) => {

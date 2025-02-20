@@ -1,16 +1,13 @@
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { EthereumAddress } from '@l2beat/shared-pure'
 
 import { getErrorMessage } from '../../utils/getErrorMessage'
-import { DiscoveryLogger } from '../DiscoveryLogger'
-import { IProvider } from '../provider/IProvider'
-import { Handler, HandlerResult } from './Handler'
-import { SCOPE_VARIABLE_PREFIX } from './reference'
+import type { IProvider } from '../provider/IProvider'
+import type { Handler, HandlerResult } from './Handler'
 
 export async function executeHandlers(
   provider: IProvider,
   handlers: Handler[],
   address: EthereumAddress,
-  logger: DiscoveryLogger,
 ): Promise<HandlerResult[]> {
   const results: HandlerResult[] = []
   const batches = orderByDependencies(handlers)
@@ -19,11 +16,7 @@ export async function executeHandlers(
     const batchResults = await Promise.all(
       batch.map(async (x) => {
         try {
-          const result = await x.execute(provider, address, fields)
-          if (result.error) {
-            logger.logExecutionError(x.field, result.error)
-          }
-          return result
+          return await x.execute(provider, address, fields)
         } catch (e) {
           return { field: x.field, error: getErrorMessage(e) }
         }
@@ -42,9 +35,7 @@ function orderByDependencies(handlers: Handler[]): Handler[][] {
     const batch: Handler[] = []
     for (const handler of remaining) {
       if (
-        handler.dependencies.every(
-          (x) => known.has(x) || x.startsWith(SCOPE_VARIABLE_PREFIX),
-        )
+        handler.dependencies.every((x) => known.has(x) || x.startsWith('$'))
       ) {
         batch.push(handler)
       }

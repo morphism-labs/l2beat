@@ -1,8 +1,15 @@
-import { EthereumAddress, ProjectId } from '@l2beat/shared-pure'
+import {
+  assert,
+  type EthereumAddress,
+  type ProjectId,
+} from '@l2beat/shared-pure'
 import { expect } from 'earl'
-
-import { bridges, layer2s, layer3s } from '../'
-import { checkRisk } from './helpers'
+import { bridges } from '../projects/bridges'
+import { layer2s } from '../projects/layer2s'
+import { layer3s } from '../projects/layer3s'
+import type { Layer2, Layer3 } from '../types'
+import { isDiscoveryDriven } from '../utils/discoveryDriven'
+import { NON_DISCOVERY_DRIVEN_PROJECTS } from './constants'
 
 describe('projects', () => {
   describe('every slug is valid', () => {
@@ -69,36 +76,6 @@ describe('projects', () => {
     })
   })
 
-  describe('contracts', () => {
-    for (const project of [...layer2s, ...bridges]) {
-      describe(project.display.name, () => {
-        for (const [i, contract] of project.contracts?.addresses.entries() ??
-          []) {
-          const description = contract.description
-          if (description) {
-            it(`contracts[${i}].description ends with a dot`, () => {
-              expect(description.endsWith('.')).toEqual(true)
-            })
-          }
-
-          if ('address' in contract && project.permissions !== 'UnderReview') {
-            const upgradableBy = contract.upgradableBy
-            const actors = project.permissions?.map((x) => x.name) ?? []
-            if (upgradableBy) {
-              it(`contracts[${i}].upgradableBy is valid`, () => {
-                expect(actors).toInclude(...upgradableBy)
-              })
-            }
-          }
-        }
-
-        for (const [i, risk] of project.contracts?.risks.entries() ?? []) {
-          checkRisk(risk, `contracts.risks[${i}]`)
-        }
-      })
-    }
-  })
-
   describe('links', () => {
     describe('every project has at least one website link', () => {
       for (const project of [...layer2s, ...bridges]) {
@@ -163,13 +140,83 @@ describe('projects', () => {
     })
   })
 
-  describe('has an activityDataSource defined if transaction data API is set', () => {
-    for (const project of [...layer2s, ...layer3s]) {
-      it(project.display.name, () => {
-        if (project.config.transactionApi) {
-          expect(project.display.activityDataSource).toBeTruthy()
-        }
+  describe('all new projects are discovery driven', () => {
+    const isNormalProject = (p: Layer2 | Layer3) => {
+      return (
+        p.isArchived !== true &&
+        p.isUpcoming !== true &&
+        p.isUnderReview !== true
+      )
+    }
+
+    const allProjects: (Layer2 | Layer3)[] = [...layer2s, ...layer3s]
+    const projects = allProjects.filter(
+      (p) =>
+        isNormalProject(p) &&
+        !NON_DISCOVERY_DRIVEN_PROJECTS.includes(p.id.toString()),
+    )
+
+    for (const p of projects) {
+      it(`${p.id.toString()} is discovery driven`, () => {
+        assert(
+          isDiscoveryDriven(p),
+          'New projects are expected to be discovery driven. Read the comment in constants.ts',
+        )
       })
     }
+  })
+
+  // TODO: refactor config so there are no more zeroes, resync data
+  describe('daTracking', () => {
+    // Some of the projects have sinceBlock set to zero because they were added at DA Module start
+    const excluded = new Set([
+      'aevo',
+      'ancient',
+      'arbitrum',
+      'base',
+      'bob',
+      'fuel',
+      'hypr',
+      'ink',
+      'karak',
+      'kinto',
+      'kroma',
+      'linea',
+      'loopring',
+      'lyra',
+      'eclipse',
+      'mantapacific',
+      'mint',
+      'morph',
+      'optimism',
+      'orderly',
+      'paradex',
+      'polynomial',
+      'scroll',
+      'sophon',
+      'starknet',
+      'superlumio',
+      'taiko',
+      'b3',
+      'deri',
+      'ham',
+      'rari',
+      'stack',
+    ])
+    // All new projects should have non-zero sinceBlock - it will make sync more efficient
+    describe('every project has non-zero sinceBlock', () => {
+      for (const project of [...layer2s, ...layer3s]) {
+        if (project.config.daTracking) {
+          if (!excluded.has(project.id)) {
+            it(project.id, () => {
+              assert(project.config.daTracking) // type issue
+              for (const config of project.config.daTracking) {
+                expect(config.sinceBlock).toBeGreaterThan(0)
+              }
+            })
+          }
+        }
+      }
+    })
   })
 })

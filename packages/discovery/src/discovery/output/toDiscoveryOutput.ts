@@ -1,35 +1,52 @@
-import {
+import type {
   ContractParameters,
   DiscoveryOutput,
-  Meta,
+  EoaParameters,
 } from '@l2beat/discovery-types'
-import { Hash256 } from '@l2beat/shared-pure'
+import type { Hash256 } from '@l2beat/shared-pure'
 
-import { Analysis, AnalyzedContract } from '../analysis/AddressAnalyzer'
-import { PermissionConfiguration } from '../config/RawDiscoveryConfig'
-import { DISCOVERY_LOGIC_VERSION } from '../engine/DiscoveryEngine'
+import type { Analysis, AnalyzedContract } from '../analysis/AddressAnalyzer'
+import type { DiscoveryConfig } from '../config/DiscoveryConfig'
+import { resolveAnalysis } from '../permission-resolving/resolveAnalysis'
+import {
+  transformToIssued,
+  transformToReceived,
+} from '../permission-resolving/transform'
+import { neuterErrors } from './errors'
 
 export function toDiscoveryOutput(
-  name: string,
-  chain: string,
-  configHash: Hash256,
+  config: DiscoveryConfig,
   blockNumber: number,
   results: Analysis[],
-  shapeFilesHash: Hash256,
 ): DiscoveryOutput {
-  return {
-    name,
-    chain,
-    blockNumber,
-    configHash,
-    version: DISCOVERY_LOGIC_VERSION,
-    ...processAnalysis(results),
-    usedTemplates: collectUsedTemplatesWithHashes(results),
-    shapeFilesHash,
-  }
+  const discovery = toRawDiscoveryOutput(config, blockNumber, results)
+
+  discovery.contracts.forEach((c) => {
+    if (c.errors !== undefined) {
+      c.errors = sortByKeys(neuterErrors(c.errors))
+    }
+  })
+
+  return discovery
 }
 
-export function collectUsedTemplatesWithHashes(
+export function toRawDiscoveryOutput(
+  config: DiscoveryConfig,
+  blockNumber: number,
+  results: Analysis[],
+): DiscoveryOutput {
+  return withoutUndefinedKeys({
+    name: config.name,
+    chain: config.chain,
+    blockNumber,
+    configHash: config.hash,
+    sharedModules: undefinedIfEmpty(config.sharedModules),
+    ...processAnalysis(results),
+    usedTemplates: collectUsedTemplatesWithHashes(results),
+  })
+}
+
+function collectUsedTemplatesWithHashes(
   results: Analysis[],
 ): Record<string, Hash256> {
   const entries: [string, Hash256][] = results
@@ -44,8 +61,7 @@ export function collectUsedTemplatesWithHashes(
 export function processAnalysis(
   results: Analysis[],
 ): Pick<DiscoveryOutput, 'contracts' | 'eoas' | 'abis'> {
-  // DO NOT CHANGE BELOW CODE UNLESS YOU KNOW WHAT YOU ARE DOING!
-  // CHANGES MIGHT TRIGGER UPDATE MONITOR FALSE POSITIVES!
+  const resolvedPermissions = resolveAnalysis(results)
 
   const { contracts, abis } = getContracts(results)
   return {
@@ -53,22 +69,36 @@ export function processAnalysis(
       .sort((a, b) => a.address.localeCompare(b.address.toString()))
       .map((x): ContractParameters => {
         const displayName = x.combinedMeta?.displayName
+        const { directlyReceivedPermissions, receivedPermissions } =
+          transformToReceived(
+            x.address,
+            resolvedPermissions,
+            x.combinedMeta?.permissions,
+          )
+
+        const references = undefinedIfEmpty([
+          ...(x.selfMeta?.references ?? []),
+          ...(x.references ?? []),
+        ])
+
         return withoutUndefinedKeys({
           name: x.name,
           address: x.address,
           unverified: x.isVerified ? undefined : true,
           template: x.extendedTemplate?.template,
+          sourceHashes: x.isVerified
+            ? x.sourceBundles.map((b) => b.hash as string)
+            : undefined,
           proxyType: x.proxyType,
           displayName:
             displayName && displayName !== x.name ? displayName : undefined,
-          descriptions: x.combinedMeta?.descriptions,
-          roles: setToSortedArray(x.combinedMeta?.roles),
+          description: x.combinedMeta?.description,
           categories: setToSortedArray(x.combinedMeta?.categories),
           types: setToSortedArray(x.combinedMeta?.types),
           severity: x.combinedMeta?.severity,
-          assignedPermissions: toLegacyPermissionView(
-            x.combinedMeta?.permissions,
-          ),
+          issuedPermissions: transformToIssued(x.address, resolvedPermissions),
+          receivedPermissions,
+          directlyReceivedPermissions,
           ignoreInWatchMode: x.ignoreInWatchMode,
           sinceTimestamp: x.deploymentTimestamp?.toNumber(),
           values:
@@ -83,22 +113,31 @@ export function processAnalysis(
             Object.keys(x.fieldsMeta).length > 0 ? x.fieldsMeta : undefined,
           derivedName: x.derivedName,
           usedTypes: x.usedTypes?.length === 0 ? undefined : x.usedTypes,
+          references,
         } satisfies ContractParameters)
       }),
     eoas: results
       .filter((x) => x.type === 'EOA')
       .sort((a, b) => a.address.localeCompare(b.address.toString()))
-      .map((x) => ({
-        address: x.address,
-        descriptions: x.combinedMeta?.descriptions,
-        roles: setToSortedArray(x.combinedMeta?.roles),
-        categories: setToSortedArray(x.combinedMeta?.categories),
-        types: setToSortedArray(x.combinedMeta?.types),
-        severity: x.combinedMeta?.severity,
-        assignedPermissions: toLegacyPermissionView(
-          x.combinedMeta?.permissions,
-        ),
-      })),
+      .map((x) => {
+        const { directlyReceivedPermissions, receivedPermissions } =
+          transformToReceived(
+            x.address,
+            resolvedPermissions,
+            x.combinedMeta?.permissions,
+          )
+        return {
+          name: x.name,
+          address: x.address,
+          description: x.combinedMeta?.description,
+          categories: setToSortedArray(x.combinedMeta?.categories),
+          types: setToSortedArray(x.combinedMeta?.types),
+          severity: x.combinedMeta?.severity,
+          issuedPermissions: transformToIssued(x.address, resolvedPermissions),
+          receivedPermissions,
+          directlyReceivedPermissions,
+        } satisfies EoaParameters
+      }),
     abis,
   }
 }
@@ -121,36 +160,16 @@ function getContracts(results: Analysis[]): {
   return { contracts, abis }
 }
 
-// TODO(radomski): This is purely a plumbing function, should be removed once
-// we get ultimate owner resolution working and we'll save grantedPermissions
-// and receivedPermissions
-function toLegacyPermissionView(
-  permissions: PermissionConfiguration[] | undefined,
-): Meta['assignedPermissions'] {
-  if (permissions === undefined) {
+function withoutUndefinedKeys<T extends object>(obj: T): T {
+  return JSON.parse(JSON.stringify(obj)) as T
+}
+
+function undefinedIfEmpty<T>(array: T[]): T[] | undefined {
+  if (array.length === 0) {
     return undefined
   }
 
-  const result: Meta['assignedPermissions'] = {}
-
-  for (const permission of permissions) {
-    result[permission.type] ??= []
-    result[permission.type]?.push(permission.target)
-  }
-
-  for (const key of Object.keys(result)) {
-    if (result[key] === undefined) {
-      continue
-    }
-
-    result[key] = result[key].sort()
-  }
-
-  return result
-}
-
-function withoutUndefinedKeys<T extends object>(obj: T): T {
-  return JSON.parse(JSON.stringify(obj)) as T
+  return array
 }
 
 export function sortByKeys<T extends object>(obj: T): T {

@@ -2,14 +2,15 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('skale-ima')
 
 export const skaleIMA: Bridge = {
   type: 'bridge',
   id: ProjectId('skale-ima'),
+  addedAt: new UnixTime(1684437883), // 2023-05-18T19:24:43Z
   display: {
     name: 'SKALE IMA Bridge',
     slug: 'skale-ima',
@@ -45,17 +46,7 @@ export const skaleIMA: Bridge = {
       discovery.getEscrowDetails({
         address: EthereumAddress('0x8fB1A35bB6fB9c47Fb5065BE5062cB8dC1687669'),
         sinceTimestamp: new UnixTime(1626719900),
-        tokens: [
-          'RAZOR',
-          'USDP',
-          'USDC',
-          'SKL',
-          'DAI',
-          'USDT',
-          'WBTC',
-          // 'HMT',
-          'LINK',
-        ],
+        tokens: '*',
       }),
     ],
   },
@@ -67,8 +58,8 @@ export const skaleIMA: Bridge = {
         'It is a cross-chain BLS threshold bridge that allows users to transfer Eth, ERC20, ERC721, ERC1155 and arbitrary messages between Ethereum and SKALE chains without fees and between SKALE chains without gas fees. Locks/Unlocks on main chain (Ethereum or SKALE chain which is origin of the asset), Burns/Mints on target chain.',
       references: [
         {
-          text: 'Bridging transactions',
-          href: 'https://bridge-docs.orbitchain.io/bridging-transaction',
+          title: 'Bridging transactions',
+          url: 'https://bridge-docs.orbitchain.io/bridging-transaction',
         },
       ],
       risks: [],
@@ -77,11 +68,11 @@ export const skaleIMA: Bridge = {
     validation: {
       name: 'Validation',
       description:
-        'SKALE IMA Bridge operates on SKALE Network nodes for connected SKALE chain. Messages are signed by BLS secret key with a 11 out of 16 threshold, then sent and validated on Ethereum. The validator set signing the message is the same one that is used for the consensus of the SKALE chain, making the bridge as secure as the chain itself. Since the state root is not sent to L1, the bridge and the chain state can diverge.',
+        'SKALE IMA Bridge operates on SKALE Network nodes for connected SKALE chain. Messages are signed by BLS secret key with an 11 out of 16 threshold, then sent and validated on Ethereum. The validator set signing the message is the same one that is used for the consensus of the SKALE chain, making the bridge as secure as the chain itself. Since the state root is not sent to L1, the bridge and the chain state can diverge.',
       references: [
         {
-          text: 'SKALE IMA Bridge - Overview',
-          href: 'https://docs.skale.network/ima/1.4.x/',
+          title: 'SKALE IMA Bridge - Overview',
+          url: 'https://docs.skale.network/ima/1.4.x/',
         },
       ],
       risks: [],
@@ -94,15 +85,6 @@ export const skaleIMA: Bridge = {
       description:
         'There are 16 randomly selected validator nodes of the destination chain, 11 of them needs to sign and verify messages',
       sentiment: 'warning',
-      sources: [
-        {
-          contract: 'MessageProxyForMainnet',
-          references: [
-            'https://etherscan.io/address/0x64e4cd4Fe42eAB98AcD15fddaC657B1537aa5190#code#F1#L508',
-            'https://etherscan.io/tx/0xb463ae9bacd3b0ba41eea25bdb51b115858bd9997d631bc26ccbb8a4fc3774c7',
-          ],
-        },
-      ],
     },
     sourceUpgradeability: {
       value: 'Yes',
@@ -117,42 +99,48 @@ export const skaleIMA: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'MessageProxyForMainnet',
-        'Contract responsible for sending and receiving messages. It is used internally by the DepositBox contracts to transfer value between chains. It supports gas reimbursement from the CommunityPool.',
-      ),
-      discovery.getContractDetails(
-        'DepositBoxEth',
-        'Bridge contract to transfer ETH to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
-      ),
-      discovery.getContractDetails(
-        'DepositBoxERC721WithMetadata',
-        'Bridge contract to transfer ERC721 tokens with metadata to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
-      ),
-      discovery.getContractDetails(
-        'DepositBoxERC20',
-        'Bridge contract to transfer ERC20 tokens to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
-      ),
-      discovery.getContractDetails(
-        'DepositBoxERC721',
-        'Bridge contract to transfer ERC721 tokens to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
-      ),
-      discovery.getContractDetails(
-        'DepositBoxERC1155',
-        'Bridge contract to transfer ERC1155 tokens to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
-      ),
-      discovery.getContractDetails(
-        'CommunityPool',
-        'CommunityPool is Gas Wallet contract, where users need to deposit Eth, to be able to transfer their assets(Eth, ERC20, NFTs) or messages from SKALE chain to Ethereum. Deposited amount will be spend for gas reimbursement to Agent which will deliver message on Ethereum.',
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'MessageProxyForMainnet',
+          'Contract responsible for sending and receiving messages. It is used internally by the DepositBox contracts to transfer value between chains. It supports gas reimbursement from the CommunityPool.',
+        ),
+        discovery.getContractDetails(
+          'DepositBoxEth',
+          'Bridge contract to transfer ETH to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
+        ),
+        discovery.getContractDetails(
+          'DepositBoxERC721WithMetadata',
+          'Bridge contract to transfer ERC721 tokens with metadata to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
+        ),
+        discovery.getContractDetails(
+          'DepositBoxERC20',
+          'Bridge contract to transfer ERC20 tokens to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
+        ),
+        discovery.getContractDetails(
+          'DepositBoxERC721',
+          'Bridge contract to transfer ERC721 tokens to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
+        ),
+        discovery.getContractDetails(
+          'DepositBoxERC1155',
+          'Bridge contract to transfer ERC1155 tokens to Skale chains, Proxy, Source code of implementation is verified on Etherscan.',
+        ),
+        discovery.getContractDetails(
+          'CommunityPool',
+          'CommunityPool is Gas Wallet contract, where users need to deposit Eth, to be able to transfer their assets(Eth, ERC20, NFTs) or messages from SKALE chain to Ethereum. Deposited amount will be spend for gas reimbursement to Agent which will deliver message on Ethereum.',
+        ),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'ProxyAdminOwner',
-      'This is an owner of DepositBox contracts proxies, can upgrade the implementation of those contracts, which potentially can introduce bug or introduce malicious behaviors.',
-    ),
-  ],
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'ProxyAdminOwner',
+          'This is an owner of DepositBox contracts proxies, can upgrade the implementation of those contracts, which potentially can introduce bug or introduce malicious behaviors.',
+        ),
+      ],
+    },
+  },
 }

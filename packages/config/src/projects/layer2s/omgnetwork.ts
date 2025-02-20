@@ -7,10 +7,9 @@ import {
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  makeBridgeCompatible,
 } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
-import { Layer2 } from './types'
+import type { Layer2 } from '../../types'
 
 const discovery = new ProjectDiscovery('omgnetwork')
 
@@ -19,6 +18,8 @@ const upgradeDelay = 0
 export const omgnetwork: Layer2 = {
   type: 'layer2',
   id: ProjectId('omgnetwork'),
+  capability: 'universal',
+  addedAt: new UnixTime(1623332638), // 2021-06-10T13:43:58Z
   isArchived: true,
   display: {
     name: 'OMG Network',
@@ -30,7 +31,6 @@ export const omgnetwork: Layer2 = {
 
     links: {
       websites: ['https://omg.network'],
-      apps: [],
       documentation: ['https://docs.omg.network/'],
       explorers: ['https://blockexplorer.mainnet.v1.omg.network/'],
       repositories: ['https://github.com/omgnetwork/plasma-contracts'],
@@ -38,7 +38,6 @@ export const omgnetwork: Layer2 = {
         'https://twitter.com/omgnetworkhq',
         'https://discord.gg/m7NysJjKhm',
         'https://t.me/omgnetwork',
-        'https://linkedin.com/company/omgnetwork/',
       ],
     },
   },
@@ -62,7 +61,7 @@ export const omgnetwork: Layer2 = {
       },
     ],
   },
-  riskView: makeBridgeCompatible({
+  riskView: {
     stateValidation: RISK_VIEW.STATE_EXITS_ONLY,
     dataAvailability: RISK_VIEW.DATA_EXTERNAL,
     exitWindow: RISK_VIEW.EXIT_WINDOW(upgradeDelay, 0),
@@ -73,9 +72,7 @@ export const omgnetwork: Layer2 = {
         RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_MP.description +
         ' The details are unknown.',
     },
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL('OMG'),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   technology: {
     stateCorrectness: {
       ...STATE_CORRECTNESS.EXIT_FRAUD_PROOFS,
@@ -114,17 +111,19 @@ export const omgnetwork: Layer2 = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('EthVault'),
-      discovery.getContractDetails('Erc20Vault'),
-      discovery.getContractDetails('ETHDepositVerifier'),
-      discovery.getContractDetails('ERC20DepositVerifier'),
-      discovery.getContractDetails('PlasmaFramework'),
-      discovery.getContractDetails(
-        'PaymentExitGame',
-        'The source code of the PaymentStartStandardExit library used by this contract is not verified on Etherscan.',
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('EthVault'),
+        discovery.getContractDetails('Erc20Vault'),
+        discovery.getContractDetails('ETHDepositVerifier'),
+        discovery.getContractDetails('ERC20DepositVerifier'),
+        discovery.getContractDetails('PlasmaFramework'),
+        discovery.getContractDetails(
+          'PaymentExitGame',
+          'The source code of the PaymentStartStandardExit library used by this contract is not verified on Etherscan.',
+        ),
+      ],
+    },
     risks: [],
   },
 }

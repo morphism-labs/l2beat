@@ -1,9 +1,13 @@
-import { CoingeckoClient } from '@l2beat/shared'
-import { CoingeckoId, EthereumAddress, UnixTime } from '@l2beat/shared-pure'
-import { providers, utils } from 'ethers'
-
-import { ethereum } from '../../../src/chains/ethereum'
-import { ScriptLogger } from './ScriptLogger'
+import type { CoingeckoClient } from '@l2beat/shared'
+import {
+  assert,
+  type CoingeckoId,
+  type EthereumAddress,
+  UnixTime,
+} from '@l2beat/shared-pure'
+import { type providers, utils } from 'ethers'
+import { MIN_TIMESTAMP_FOR_TVL } from '../../../src/projects/da-beat/ethereum/ethereum'
+import type { ScriptLogger } from './ScriptLogger'
 import { getContractCreationTimestamp } from './getContractCreationTimestamp'
 
 export async function getTokenInfo(
@@ -13,6 +17,7 @@ export async function getTokenInfo(
   address: EthereumAddress,
   symbolFromConfig: string,
   coingeckoId: CoingeckoId,
+  deploymentTimestampOverride?: UnixTime,
 ) {
   const [
     name,
@@ -26,7 +31,12 @@ export async function getTokenInfo(
     getSymbol(provider, logger, address),
     getDecimals(provider, logger, address),
     getImageUrl(coingeckoClient, logger, coingeckoId),
-    getDeploymentTimestamp(logger, provider, address),
+    getDeploymentTimestamp(
+      logger,
+      provider,
+      address,
+      deploymentTimestampOverride,
+    ),
     getCoingeckoListingTimestamp(logger, coingeckoClient, coingeckoId),
   ])
 
@@ -119,12 +129,22 @@ async function getDeploymentTimestamp(
   logger: ScriptLogger,
   provider: providers.JsonRpcProvider,
   address: EthereumAddress,
+  override?: UnixTime,
 ) {
+  if (override) {
+    return override
+  }
+
   logger.fetching('sinceTimestamp (this will take a while)')
 
   const contractCreationTimestamp = await getContractCreationTimestamp(
     provider,
     address,
+  )
+
+  assert(
+    contractCreationTimestamp.gt(MIN_TIMESTAMP_FOR_TVL),
+    'Deployment timestamp looks odd, provide manual override in tokens.jsonc',
   )
 
   return contractCreationTimestamp
@@ -141,7 +161,7 @@ async function getCoingeckoListingTimestamp(
     await coingeckoClient.getCoinMarketChartRange(
       coingeckoId,
       'usd',
-      ethereum.minTimestampForTvl ?? new UnixTime(0),
+      MIN_TIMESTAMP_FOR_TVL,
       UnixTime.now(),
     )
 

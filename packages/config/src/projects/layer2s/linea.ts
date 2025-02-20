@@ -7,25 +7,27 @@ import {
   formatSeconds,
 } from '@l2beat/shared-pure'
 import { utils } from 'ethers'
-import { Badge } from '../badges'
-
 import {
   CONTRACTS,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
+  ESCROW,
   EXITS,
   FORCE_TRANSACTIONS,
   FRONTRUNNING_RISK,
   NEW_CRYPTOGRAPHY,
+  REASON_FOR_BEING_OTHER,
   RISK_VIEW,
   STATE_CORRECTNESS,
-  ScalingProjectPermissionedAccount,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
+import { formatExecutionDelay } from '../../common/formatDelays'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
-import { PERFORMED_BY } from '../other/zk-catalog'
+import type { Layer2, ProjectPermissionedAccount } from '../../types'
+import { Badge } from '../badges'
+import { PERFORMED_BY } from '../zk-catalog/common/performedBy'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('linea')
 
@@ -36,37 +38,60 @@ const timelockDelay = discovery.getContractValue<number>(
 const timelockDelayString = formatSeconds(timelockDelay)
 
 const upgradesTimelock = {
-  upgradableBy: ['AdminMultisig'],
-  upgradeDelay: timelockDelay === 0 ? 'No delay' : timelockDelayString,
+  upgradableBy: [
+    {
+      name: 'LineaAdminMultisig',
+      delay: timelockDelay === 0 ? 'no' : timelockDelayString,
+    },
+  ],
 }
 
 const upgrades = {
-  upgradableBy: ['AdminMultisig'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'LineaAdminMultisig', delay: 'no' }],
 }
 
 const zodiacRoles = discovery.getContractValue<{
   roles: Record<string, Record<string, boolean>>
 }>('Roles', 'roles')
 const zodiacPauserRole = '1'
-const zodiacPausers: ScalingProjectPermissionedAccount[] = Object.keys(
-  zodiacRoles.roles[zodiacPauserRole].members,
-).map((zodiacPauser) => discovery.formatPermissionedAccount(zodiacPauser))
+const zodiacPausers: ProjectPermissionedAccount[] =
+  discovery.formatPermissionedAccounts(
+    Object.keys(zodiacRoles.roles[zodiacPauserRole].members),
+  )
 
 const isPaused: boolean =
-  discovery.getContractValue<boolean>('zkEVM', 'generalPause') ||
-  discovery.getContractValue<boolean>('zkEVM', 'l1l2Pause') ||
-  discovery.getContractValue<boolean>('zkEVM', 'l2l1Pause')
+  discovery.getContractValue<boolean>('LineaRollup', 'isPaused_GENERAL') ||
+  discovery.getContractValue<boolean>('LineaRollup', 'isPaused_FINALIZATION') ||
+  discovery.getContractValue<boolean>(
+    'LineaRollup',
+    'isPaused_BLOB_SUBMISSION',
+  ) ||
+  discovery.getContractValue<boolean>(
+    'LineaRollup',
+    'isPaused_CALLDATA_SUBMISSION',
+  ) ||
+  discovery.getContractValue<boolean>(
+    'LineaRollup',
+    'isPaused_COMPLETE_TOKEN_BRIDGING',
+  ) ||
+  discovery.getContractValue<boolean>(
+    'LineaRollup',
+    'isPaused_INITIATE_TOKEN_BRIDGING',
+  ) ||
+  discovery.getContractValue<boolean>('LineaRollup', 'isPaused_L1_L2') ||
+  discovery.getContractValue<boolean>('LineaRollup', 'isPaused_L2_L1')
 
 const periodInSeconds = discovery.getContractValue<number>(
-  'zkEVM',
+  'LineaRollup',
   'periodInSeconds',
 )
 
 const withdrawalLimitInWei = discovery.getContractValue<number>(
-  'zkEVM',
+  'LineaRollup',
   'limitInWei',
 )
+
+const finalizationPeriod = 0
 
 const withdrawalLimitString = `Currently, there is a general limit of ${utils.formatEther(
   withdrawalLimitInWei,
@@ -77,12 +102,15 @@ const withdrawalLimitString = `Currently, there is a general limit of ${utils.fo
 export const linea: Layer2 = {
   type: 'layer2',
   id: ProjectId('linea'),
+  capability: 'universal',
+  addedAt: new UnixTime(1679651674), // 2023-03-24T09:54:34Z
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.NO_PROOFS],
   display: {
     name: 'Linea',
     slug: 'linea',
     warning: 'The circuit of the program being proven is not public.',
     description:
-      'Linea is a ZK Rollup powered by Consensys zkEVM, designed to scale the Ethereum network.',
+      'Linea is a ZK Rollup powered by a zkEVM developed at Consensys, designed to scale the Ethereum network.',
     purposes: ['Universal'],
     category: 'ZK Rollup',
     links: {
@@ -105,13 +133,12 @@ export const linea: Layer2 = {
       ],
       rollupCodes: 'https://rollup.codes/linea',
     },
-    activityDataSource: 'Blockchain RPC',
     liveness: {
       explanation:
-        'Linea is a ZK rollup that posts transaction data to the L1. For a transaction to be considered final, it has to be posted on L1. Tx data, proofs and state roots are currently posted in the same transaction. Blocks can also be finalized by the operator without the need to provide a proof.',
+        'Linea is a ZK rollup that posts transaction data to the L1. For a transaction to be considered final, it has to be posted on L1. Proofs and state roots are currently posted in the same transaction.',
     },
     finality: {
-      finalizationPeriod: 0,
+      finalizationPeriod,
     },
   },
   config: {
@@ -124,11 +151,13 @@ export const linea: Layer2 = {
       discovery.getEscrowDetails({
         address: EthereumAddress('0x504A330327A089d8364C4ab3811Ee26976d388ce'),
         sinceTimestamp: new UnixTime(1691079071),
+        ...ESCROW.CANONICAL_EXTERNAL,
         tokens: ['USDC'],
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0x051F1D88f0aF5763fB888eC4378b4D8B29ea3319'),
         sinceTimestamp: new UnixTime(1691060675),
+        excludedTokens: ['rsETH'],
         tokens: '*',
       }),
     ],
@@ -137,6 +166,18 @@ export const linea: Layer2 = {
       defaultUrl: 'https://linea-mainnet.infura.io/v3',
       startBlock: 1,
     },
+    daTracking: [
+      {
+        type: 'ethereum',
+        daLayer: ProjectId('ethereum'),
+        sinceBlock: 0, // Edge Case: config added @ DA Module start
+        inbox: '0xd19d4b5d358258f05d7b411e21a1460d11b0876f',
+        sequencers: [
+          '0x46d2F319fd42165D4318F099E143dEA8124E9E3e',
+          '0x52FF08F313A00A54e3Beffb5C4a7F7446eFb6754',
+        ],
+      },
+    ],
     trackedTxs: [
       {
         uses: [
@@ -152,6 +193,7 @@ export const linea: Layer2 = {
           functionSignature:
             'function submitData((bytes32,bytes32,bytes32,uint256,uint256,bytes32,bytes))',
           sinceTimestamp: new UnixTime(1707831168),
+          untilTimestamp: new UnixTime(1711469339),
         },
       },
       {
@@ -189,6 +231,41 @@ export const linea: Layer2 = {
           // first tx with blobs
           // https://etherscan.io/tx/0x88bca59bc9581b15b39379e5c68a6d0e4847eae04185c838f1c48c9b67abf87a
           sinceTimestamp: new UnixTime(1717588271),
+          untilTimestamp: new UnixTime(1734357131),
+        },
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'batchSubmissions' },
+          { type: 'l2costs', subtype: 'batchSubmissions' },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xd19d4B5d358258f05D7B411E21A1460D11B0876F',
+          ),
+          selector: '0x6854f6bc',
+          functionSignature:
+            'function submitDataAsCalldata(tuple(bytes32 finalStateRootHash, bytes32 snarkHash, bytes compressedData) _submission, bytes32 _parentShnarf, bytes32 _expectedShnarf)',
+          sinceTimestamp: new UnixTime(1734357131),
+        },
+      },
+      {
+        uses: [
+          { type: 'liveness', subtype: 'batchSubmissions' },
+          { type: 'l2costs', subtype: 'batchSubmissions' },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xd19d4B5d358258f05D7B411E21A1460D11B0876F',
+          ),
+          selector: '0x99467a35',
+          functionSignature:
+            'function submitBlobs(tuple(uint256 dataEvaluationClaim, bytes kzgCommitment, bytes kzgProof, bytes32 finalStateRootHash, bytes32 snarkHash)[] _blobSubmissions, bytes32 _parentShnarf, bytes32 _finalBlobShnarf)',
+          // upgrade tx
+          // https://etherscan.io/tx/0x96b88112de2e594cb763bc625cc2dcb6920825bb642eb1a62ff577f0c29f616d
+          sinceTimestamp: new UnixTime(1734357131),
         },
       },
       {
@@ -257,6 +334,29 @@ export const linea: Layer2 = {
           functionSignature:
             'function finalizeBlocksWithProof(bytes,uint256,(bytes32,bytes32,uint256,(bytes32,bytes32,bytes32,bytes32,bytes32),uint256,uint256,bytes32,bytes32,uint256,uint256,uint256,bytes32[],bytes))',
           sinceTimestamp: new UnixTime(1717508999),
+          untilTimestamp: new UnixTime(1734357131),
+        },
+      },
+      {
+        uses: [
+          {
+            type: 'liveness',
+            subtype: 'stateUpdates',
+          },
+          {
+            type: 'l2costs',
+            subtype: 'stateUpdates',
+          },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0xd19d4B5d358258f05D7B411E21A1460D11B0876F',
+          ),
+          selector: '0x5603c65f',
+          functionSignature:
+            'function finalizeBlocks(bytes _aggregatedProof, uint256 _proofType, tuple(bytes32 parentStateRootHash, uint256 endBlockNumber, tuple(bytes32 parentShnarf, bytes32 snarkHash, bytes32 finalStateRootHash, bytes32 dataEvaluationPoint, bytes32 dataEvaluationClaim) shnarfData, uint256 lastFinalizedTimestamp, uint256 finalTimestamp, bytes32 lastFinalizedL1RollingHash, bytes32 l1RollingHash, uint256 lastFinalizedL1RollingHashMessageNumber, uint256 l1RollingHashMessageNumber, uint256 l2MerkleTreesDepth, bytes32[] l2MerkleRoots, bytes l2MessagingBlocksOffsets) _finalizationData)',
+          sinceTimestamp: new UnixTime(1734357131),
         },
       },
     ],
@@ -276,6 +376,7 @@ export const linea: Layer2 = {
   chainConfig: {
     name: 'linea',
     chainId: 59144,
+    blockscoutV2ApiUrl: 'https://api-explorer.linea.build/api/v2',
     explorerUrl: 'https://lineascan.build',
     explorerApi: {
       url: 'https://api.lineascan.build/api',
@@ -292,43 +393,36 @@ export const linea: Layer2 = {
     ],
     coingeckoPlatform: 'linea',
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (blobs or calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'Transaction data (compressed)',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_BLOBS_OR_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.TRANSACTION_DATA_COMPRESSED,
+  },
+  riskView: {
     stateValidation: {
       ...RISK_VIEW.STATE_ZKP_SN,
-      sources: [
-        {
-          contract: 'zkEVM',
-          references: [
-            'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
-          ],
-        },
-      ],
+      secondLine: formatExecutionDelay(finalizationPeriod),
     },
     dataAvailability: {
       ...RISK_VIEW.DATA_ON_CHAIN,
       description:
         RISK_VIEW.DATA_ON_CHAIN.description +
         ' Unlike most ZK rollups, transaction data is posted instead of state diffs.',
-      sources: [
-        {
-          contract: 'zkEVM',
-          references: [
-            'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
-          ],
-        },
-      ],
     },
     exitWindow: RISK_VIEW.EXIT_WINDOW(timelockDelay, 0),
-    sequencerFailure: RISK_VIEW.SEQUENCER_NO_MECHANISM(),
-    proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+    sequencerFailure: {
+      ...RISK_VIEW.SEQUENCER_NO_MECHANISM(),
+      description:
+        RISK_VIEW.SEQUENCER_NO_MECHANISM().description +
+        ' Eventually (after 6 months of no finalized blocks) the Operator role becomes public, theoretically allowing anyone to post data.',
+    },
+    proposerFailure: {
+      ...RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
+      description:
+        RISK_VIEW.PROPOSER_CANNOT_WITHDRAW.description +
+        ' Eventually (after 6 months of no finalized blocks) the Operator role becomes public, theoretically allowing anyone to propose state with valid proofs.',
+    },
+  },
   stage: getStage({
     stage0: {
       callsItselfRollup: true,
@@ -337,14 +431,16 @@ export const linea: Layer2 = {
       rollupNodeSourceAvailable: false,
     },
     stage1: {
+      principle: false,
       stateVerificationOnL1: true,
       fraudProofSystemAtLeast5Outsiders: null,
       usersHave7DaysToExit: false,
       usersCanExitWithoutCooperation: false,
-      securityCouncilProperlySetUp: [
-        false,
-        'Security Council members are not publicly known.',
-      ],
+      securityCouncilProperlySetUp: {
+        satisfied: false,
+        message: 'Security Council members are not publicly known.',
+        mode: 'replace',
+      },
     },
     stage2: {
       proofSystemOverriddenOnlyInCaseOfABug: false,
@@ -358,28 +454,14 @@ export const linea: Layer2 = {
     },
     stateCorrectness: {
       ...STATE_CORRECTNESS.VALIDITY_PROOFS,
-      description:
-        STATE_CORRECTNESS.VALIDITY_PROOFS.description +
-        ' Operator can finalize L2 state root without proof.',
-      risks: [
-        {
-          category: 'Funds can be stolen if',
-          text: 'the operator forces and finalizes L2 state root without proof.',
-        },
-      ],
-      references: [
-        {
-          text: 'ZkEvmV2.sol - Etherscan source code, _verifyProof() function',
-          href: 'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
-        },
-      ],
     },
     dataAvailability: {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_BLOB_OR_CALLDATA,
       references: [
         {
-          text: 'LineaRollup.sol - Etherscan source code, submitData() function',
-          href: 'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
+          title:
+            'LineaRollup.sol - Etherscan source code, submitBlobs() function',
+          url: 'https://etherscan.io/address/0x07ddce60658A61dc1732Cacf2220FcE4A01C49B0#code',
         },
       ],
     },
@@ -397,105 +479,115 @@ export const linea: Layer2 = {
       ],
       references: [
         {
-          text: 'LineaRollup.sol - Etherscan source code, onlyRole(OPERATOR_ROLE) modifier',
-          href: 'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
+          title:
+            'LineaRollup.sol - Etherscan source code, onlyRole(OPERATOR_ROLE) modifier',
+          url: 'https://etherscan.io/address/0x07ddce60658A61dc1732Cacf2220FcE4A01C49B0#code',
         },
       ],
     },
     forceTransactions: FORCE_TRANSACTIONS.SEQUENCER_NO_MECHANISM,
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('zk', 'no proof'),
+        ...EXITS.REGULAR_MESSAGING('zk'),
         description:
-          EXITS.REGULAR('zk', 'no proof').description +
+          EXITS.REGULAR_MESSAGING('zk').description +
           ' Note that withdrawal requests can be censored by the Sequencer. ' +
-          withdrawalLimitString,
+          withdrawalLimitString +
+          ' Users can (eventually, after 6 months of inactivity from the centralized Operator) exit by replacing the Operator. In such a case they need to self-propose and prove their new state on the base layer with the required software which is currently not made available.',
         risks: [EXITS.OPERATOR_CENSORS_WITHDRAWAL],
         references: [
           {
-            text: 'L1MessageService.sol - Etherscan source code, claimMessageWithProof() function',
-            href: 'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
+            title:
+              'L1MessageService.sol - Etherscan source code, claimMessageWithProof() function',
+            url: 'https://etherscan.io/address/0x07ddce60658A61dc1732Cacf2220FcE4A01C49B0#code',
+          },
+          {
+            title:
+              'LineaRollup.sol - Etherscan source code, setFallbackOperator() function',
+            url: 'https://etherscan.io/address/0x07ddce60658A61dc1732Cacf2220FcE4A01C49B0#code#F1#L212',
           },
         ],
       },
     ],
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'AdminMultisig',
-      'Admin of the Linea rollup. It can upgrade core contracts, bridges, update permissioned actors, and publish blocks by effectively overriding the proof system.',
-    ),
-    discovery.contractAsPermissioned(
-      discovery.getContract('Roles'),
-      `Module to the AdminMultisig. Allows to add additional members to the multisig via permissions to call functions specified by roles.`,
-    ),
-    {
-      accounts: discovery.getAccessControlRolePermission(
-        'zkEVM',
-        'OPERATOR_ROLE',
-      ),
-      name: 'Operators',
-      description:
-        'The operators are allowed to prove blocks and post the corresponding transaction data.',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'LineaAdminMultisig',
+          'Admin of the Linea rollup. Can upgrade all core contracts, bridges and update permissioned actors.',
+        ),
+        discovery.getPermissionDetails(
+          'Pauser',
+          zodiacPausers,
+          'Address allowed to pause the TokenBridge, the USDCBridge and the core functionalities of the project (via LineaRollup contract).',
+        ),
+        discovery.getPermissionDetails(
+          'Operators',
+          discovery.getAccessControlRolePermission(
+            'LineaRollup',
+            'OPERATOR_ROLE',
+          ),
+          'The operators are allowed to prove blocks and post the corresponding transaction data.',
+        ),
+        discovery.getPermissionDetails(
+          'Pauser',
+          zodiacPausers,
+          'Address allowed to pause the ERC20Bridge, the USDCBridge and the core functionalities of the project in the LineaRollup contract (via the Roles module of the LineaAdminMultisig).',
+        ),
+      ],
     },
-    {
-      accounts: zodiacPausers,
-      name: 'Pauser',
-      description:
-        'Address allowed to pause the ERC20Bridge, the USDCBridge and the core functionalities of the project.',
-    },
-    {
-      accounts: discovery.getAccessControlRolePermission(
-        'zkEVM',
-        'VERIFIER_SETTER_ROLE',
-      ),
-      name: 'Verifier Setters',
-      description:
-        'The verifier setters are allowed to change the verifier address.',
-    },
-  ],
+  },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('zkEVM', {
-        description:
-          'The main contract of the Linea zkEVM rollup. Contains state roots, the verifier addresses and manages messages between L1 and the L2.',
-        ...upgradesTimelock,
-        pausable: (() => {
-          const addresses = discovery.getAccessControlField(
-            'zkEVM',
-            'PAUSE_MANAGER_ROLE',
-          ).members
-          assert(addresses.length === 1)
-          assert(
-            addresses[0] ===
-              discovery.getPermissionedAccount('ERC20Bridge', 'owner').address,
-          )
-          return { pausableBy: ['AdminMultisig'], paused: isPaused }
-        })(),
-        references: [
-          {
-            text: 'LineaRollup.sol - Etherscan source code, state injections: stateRoot and l2MerkleRoot are part of the validity proof input.',
-            href: 'https://etherscan.io/address/0x53fC68bFfC03D17804e5A901DE42d1eeF2e64562#code',
-          },
-        ],
-      }),
-      discovery.getContractDetails(
-        'Timelock',
-        `Owner of the ProxyAdmin and Verifier Setter. The current delay is ${timelockDelayString}.`,
-      ),
-      discovery.getContractDetails('VerifierProofType3', {
-        description:
-          'Currently used smart contract verifying the proofs for the Linea zkEVM.',
-      }),
-      discovery.getContractDetails('ERC20Bridge', {
-        description: 'Contract used to bridge ERC20 tokens.',
-        ...upgrades,
-      }),
-      discovery.getContractDetails('USDCBridge', {
-        description: 'Contract used to bridge USDC tokens.',
-        ...upgrades,
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('LineaRollup', {
+          description:
+            'The main contract of the Linea zkEVM rollup. Contains state roots, the verifier addresses and manages messages between L1 and the L2.',
+          ...upgradesTimelock,
+          pausable: (() => {
+            const addresses = discovery.getAccessControlField(
+              'LineaRollup',
+              'PAUSE_MANAGER',
+            ).members
+            assert(addresses.length === 1)
+            assert(
+              addresses[0] ===
+                discovery.getContract('LineaAdminMultisig').address,
+            )
+            return { pausableBy: ['LineaAdminMultisig'], paused: isPaused }
+          })(),
+          references: [
+            {
+              title:
+                'LineaRollup.sol - Etherscan source code, state injections: stateRoot and l2MerkleRoot are part of the validity proof input.',
+              url: 'https://etherscan.io/address/0x07ddce60658A61dc1732Cacf2220FcE4A01C49B0#code',
+            },
+          ],
+          ...upgradesTimelock,
+        }),
+        discovery.getContractDetails(
+          'Timelock',
+          `Owner of the ProxyAdmin and Verifier Setter. The current delay is ${timelockDelayString}.`,
+        ),
+        discovery.getContractDetails('VerifierProofType3', {
+          description:
+            'Currently used smart contract verifying the proofs for the Linea zkEVM.',
+        }),
+        discovery.getContractDetails('TokenBridge', {
+          description: 'Contract used to bridge ERC20 tokens.',
+          ...upgrades,
+        }),
+        discovery.getContractDetails('USDCBridge', {
+          description: 'Contract used to bridge USDC tokens.',
+          ...upgrades,
+        }),
+        discovery.getContractDetails('CallForwardingProxy', {
+          description:
+            'A proxy contract forwarding calls to a predefined (immutable) target contract. In this case the it is targeting the LineaRollup where it is registered as a fallback operator, allowing anyone to access operator functions when 6 months have passed since the latest finalized block.',
+        }),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_WITH_DELAY_RISK(timelockDelayString)],
   },
   stateValidation: {
@@ -511,10 +603,6 @@ export const linea: Layer2 = {
         description: 'The source code of the circuits is currently not public.',
         risks: [
           {
-            category: 'Funds can be lost if',
-            text: 'the proof system is implemented incorrectly.',
-          },
-          {
             category: 'Funds can be stolen if',
             text: 'the prover is able to generate false proofs.',
           },
@@ -527,6 +615,7 @@ export const linea: Layer2 = {
       },
     ],
     proofVerification: {
+      shortDescription: 'Linea is a universal ZK-EVM rollup on Ethereum.',
       aggregation: false,
       requiredTools: [],
       verifiers: [
@@ -572,29 +661,33 @@ export const linea: Layer2 = {
   },
   milestones: [
     {
-      name: 'Linea starts using blobs',
-      link: 'https://twitter.com/LineaBuild/status/1772711269159567483',
+      title: 'Linea starts using blobs',
+      url: 'https://twitter.com/LineaBuild/status/1772711269159567483',
       date: '2024-03-26T00:00:00Z',
       description: 'Linea starts publishing data to blobs.',
+      type: 'general',
     },
     {
-      name: 'Alpha v2 is released',
+      title: 'Alpha v2 is released',
       date: '2024-02-13',
       description: 'This release reduces L1 costs and fees for users.',
-      link: 'https://docs.linea.build/build-on-linea/linea-version#alpha-v2-release-notes',
+      url: 'https://docs.linea.build/build-on-linea/linea-version#alpha-v2-release-notes',
+      type: 'general',
     },
     {
-      name: 'Open Testnet is Live',
+      title: 'Open Testnet is Live',
       date: '2023-03-28',
       description:
         'Linea has launched on the Goerli testnet, allowing users and developers to test the platform.',
-      link: 'https://linea.mirror.xyz/6G30hwV2wPs_wPv0VEgHYaIdghMkIQaad-OI_0br1hM',
+      url: 'https://linea.mirror.xyz/6G30hwV2wPs_wPv0VEgHYaIdghMkIQaad-OI_0br1hM',
+      type: 'general',
     },
     {
-      name: 'Mainnet Alpha Launch',
+      title: 'Mainnet Alpha Launch',
       date: '2023-07-12',
       description: 'Linea has launched on the Ethereum mainnet.',
-      link: 'https://linea.mirror.xyz/7l9gKzYzKVOxEOnReavov467Ss_fsrkGzABvbRISPMY',
+      url: 'https://linea.mirror.xyz/7l9gKzYzKVOxEOnReavov467Ss_fsrkGzABvbRISPMY',
+      type: 'general',
     },
   ],
   badges: [Badge.VM.EVM, Badge.DA.EthereumBlobs, Badge.Other.L3HostChain],

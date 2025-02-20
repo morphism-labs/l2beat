@@ -1,9 +1,11 @@
-import { ProjectId } from '@l2beat/shared-pure'
+import { ProjectId, UnixTime } from '@l2beat/shared-pure'
+import type { Layer3 } from '../../types'
 import { upcomingL3 } from '../layer2s/templates/upcoming'
-import { Layer3 } from './types'
 
 export const orb3: Layer3 = upcomingL3({
   id: 'orb3',
+  capability: 'universal',
+  addedAt: new UnixTime(1710863171), // 2024-03-19T15:46:11Z
   hostChain: ProjectId('arbitrum'),
   display: {
     name: 'ORB3',
@@ -11,8 +13,8 @@ export const orb3: Layer3 = upcomingL3({
     category: 'Optimium',
     description:
       'ORB3 is a GameFi-focused Ethereum L3 leveraging Arbitrum AnyTrust.',
-    purposes: ['Gaming', 'NFT', 'DeFi', 'Social'],
-    provider: 'Arbitrum',
+    purposes: ['Gaming', 'NFT', 'Universal', 'Social'],
+    stack: 'Arbitrum',
     links: {
       websites: ['https://orb3.tech/'],
       apps: [
@@ -29,6 +31,5 @@ export const orb3: Layer3 = upcomingL3({
         'https://mirror.xyz/0xCC98fAeE2309c7424cFE5995741b96BE61c9253f',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
 })

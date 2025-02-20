@@ -1,25 +1,25 @@
-import { Logger } from '@l2beat/backend-tools'
+import type { Logger } from '@l2beat/backend-tools'
 import {
-  ConfigReader,
-  DiscoveryConfig,
-  DiscoveryDiff,
+  type ConfigReader,
+  type DiscoveryConfig,
+  type DiscoveryDiff,
   diffDiscovery,
-  normalizeDiffPath,
 } from '@l2beat/discovery'
 import type { DiscoveryOutput } from '@l2beat/discovery-types'
 import {
   assert,
-  ChainConverter,
+  type ChainConverter,
   UnixTime,
   assertUnreachable,
 } from '@l2beat/shared-pure'
 import { Gauge } from 'prom-client'
 
-import { Database } from '@l2beat/database'
-import { Clock } from '../../tools/Clock'
+import type { Database } from '@l2beat/database'
+import { hashJson, sortObjectByKeys } from '@l2beat/shared'
+import type { Clock } from '../../tools/Clock'
 import { TaskQueue } from '../../tools/queue/TaskQueue'
-import { DiscoveryRunner } from './DiscoveryRunner'
-import { DailyReminderChainEntry, UpdateNotifier } from './UpdateNotifier'
+import type { DiscoveryRunner } from './DiscoveryRunner'
+import type { DailyReminderChainEntry, UpdateNotifier } from './UpdateNotifier'
 import { sanitizeDiscoveryOutput } from './sanitizeDiscoveryOutput'
 import { findDependents } from './utils/findDependents'
 import { findUnknownContracts } from './utils/findUnknownContracts'
@@ -37,7 +37,6 @@ export class UpdateMonitor {
     private readonly chainConverter: ChainConverter,
     private readonly logger: Logger,
     private readonly runOnStart: boolean,
-    private readonly version: number,
   ) {
     this.logger = this.logger.for(this)
     this.taskQueue = new TaskQueue(
@@ -92,8 +91,7 @@ export class UpdateMonitor {
         )
 
         const diff = diffDiscovery(committed.contracts, discovery.contracts)
-
-        const severityCounts = countSeverities(diff, projectConfig)
+        const severityCounts = countSeverities(diff)
 
         if (diff.length > 0) {
           result[projectConfig.name] ??= []
@@ -176,10 +174,11 @@ export class UpdateMonitor {
       runner,
       projectConfig,
     )
-    const discovery = await runner.run(projectConfig, blockNumber, {
-      logger: this.logger,
-      injectInitialAddresses: false,
-    })
+    const { discovery, flatSources } = await runner.discoverWithRetry(
+      projectConfig,
+      blockNumber,
+      this.logger,
+    )
 
     if (!previousDiscovery || !discovery) return
 
@@ -213,6 +212,7 @@ export class UpdateMonitor {
       projectConfig,
       blockNumber,
       runner.chain,
+      timestamp,
     )
 
     await this.db.updateMonitor.upsert({
@@ -221,8 +221,15 @@ export class UpdateMonitor {
       timestamp,
       blockNumber,
       discovery,
-      version: this.version,
       configHash: projectConfig.hash,
+    })
+
+    await this.db.flatSources.upsert({
+      projectName: projectConfig.name,
+      chainId: this.chainConverter.toChainId(runner.chain),
+      blockNumber,
+      contentHash: hashJson(sortObjectByKeys(flatSources)),
+      flat: flatSources,
     })
   }
 
@@ -268,21 +275,13 @@ export class UpdateMonitor {
       )
     }
 
-    if (previousDiscovery.version === this.version) {
-      return previousDiscovery
-    }
-    this.logger.info(
-      'Discovery logic version changed, discovering with new logic',
-      {
-        chain: runner.chain,
-        project: projectConfig.name,
-      },
+    const result = await runner.discoverWithRetry(
+      projectConfig,
+      previousDiscovery.blockNumber,
+      this.logger,
     )
 
-    return await runner.run(projectConfig, previousDiscovery.blockNumber, {
-      logger: this.logger,
-      injectInitialAddresses: false,
-    })
+    return result.discovery
   }
 
   private async handleDiff(
@@ -291,6 +290,7 @@ export class UpdateMonitor {
     projectConfig: DiscoveryConfig,
     blockNumber: number,
     chain: string,
+    timestamp: UnixTime,
   ) {
     if (diff.length > 0) {
       const dependents = findDependents(
@@ -298,7 +298,7 @@ export class UpdateMonitor {
         chain,
         this.configReader,
       )
-      const unknownContracts = await findUnknownContracts(
+      const unknownContracts = findUnknownContracts(
         discovery.name,
         discovery.contracts,
         this.configReader,
@@ -311,6 +311,7 @@ export class UpdateMonitor {
         this.chainConverter.toChainId(chain),
         dependents,
         unknownContracts,
+        timestamp,
       )
     }
   }
@@ -332,18 +333,11 @@ const errorCount = new Gauge({
   help: 'Value showing amount of errors in the update cycle',
 })
 
-function countSeverities(diffs: DiscoveryDiff[], config?: DiscoveryConfig) {
+function countSeverities(diffs: DiscoveryDiff[]) {
   const result = { low: 0, medium: 0, high: 0, unknown: 0 }
-  if (config === undefined) {
-    result.unknown = diffs
-      .map((d) => d.diff?.length ?? 0)
-      .reduce((a, b) => a + b, 0)
-    return result
-  }
 
   for (const diff of diffs) {
-    const contract = config.getContract(diff.name)
-    if (contract === undefined || diff.diff === undefined) {
+    if (diff.diff === undefined) {
       result.unknown += 1
       continue
     }
@@ -362,15 +356,7 @@ function countSeverities(diffs: DiscoveryDiff[], config?: DiscoveryConfig) {
         continue
       }
 
-      const key = normalizeDiffPath(field.key)
-      const fields = contract.fields ?? {}
-
-      if (fields[key] === undefined) {
-        result.unknown += 1
-        continue
-      }
-
-      const severity = fields[key].severity
+      const severity = field.severity
 
       switch (severity) {
         case 'LOW':

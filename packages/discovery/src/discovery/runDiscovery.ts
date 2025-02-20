@@ -1,24 +1,25 @@
-import { DiscoveryOutput } from '@l2beat/discovery-types'
+import path from 'path'
+import type { DiscoveryOutput } from '@l2beat/discovery-types'
+import type { HttpClient } from '@l2beat/shared'
 import { providers } from 'ethers'
-
-import { Hash256 } from '@l2beat/shared-pure'
-import { DiscoveryChainConfig, DiscoveryModuleConfig } from '../config/types'
-import { HttpClient } from '../utils/HttpClient'
+import type {
+  DiscoveryChainConfig,
+  DiscoveryModuleConfig,
+} from '../config/types'
 import { printSharedModuleInfo } from '../utils/printSharedModuleInfo'
 import { DiscoveryLogger } from './DiscoveryLogger'
-import { Analysis } from './analysis/AddressAnalyzer'
-import {
-  ExecutedMatches,
-  printExecutedMatches,
-} from './analysis/TemplateService'
-import { ConfigReader } from './config/ConfigReader'
-import { DiscoveryConfig } from './config/DiscoveryConfig'
+import { OverwriteCacheWrapper } from './OverwriteCacheWrapper'
+import type { Analysis } from './analysis/AddressAnalyzer'
+import { TEMPLATES_PATH } from './analysis/TemplateService'
+import type { ConfigReader } from './config/ConfigReader'
+import type { DiscoveryConfig } from './config/DiscoveryConfig'
 import { getDiscoveryEngine } from './getDiscoveryEngine'
 import { diffDiscovery } from './output/diffDiscovery'
+import { printTemplatization } from './output/printTemplatization'
 import { saveDiscoveryResult } from './output/saveDiscoveryResult'
 import { toDiscoveryOutput } from './output/toDiscoveryOutput'
 import { SQLiteCache } from './provider/SQLiteCache'
-import { AllProviderStats, printProviderStats } from './provider/Stats'
+import { type AllProviderStats, printProviderStats } from './provider/Stats'
 
 export async function runDiscovery(
   http: HttpClient,
@@ -39,33 +40,26 @@ export async function runDiscovery(
       : undefined)
 
   const logger = DiscoveryLogger.CLI
-  const {
-    result,
-    blockNumber,
-    providerStats,
-    shapeFilesHash,
-    executedMatches,
-  } = await discover(
+  const { result, blockNumber, providerStats } = await discover(
+    configReader.rootPath,
     chainConfigs,
     projectConfig,
     logger,
     configuredBlockNumber,
     http,
+    config.overwriteCache,
   )
 
-  await saveDiscoveryResult(
-    result,
-    projectConfig,
-    blockNumber,
-    logger,
-    shapeFilesHash,
-    {
-      sourcesFolder: config.sourcesFolder,
-      flatSourcesFolder: config.flatSourcesFolder,
-      discoveryFilename: config.discoveryFilename,
-      saveSources: config.saveSources,
-    },
-  )
+  const templatesFolder = path.join(configReader.rootPath, TEMPLATES_PATH)
+
+  await saveDiscoveryResult(result, projectConfig, blockNumber, logger, {
+    sourcesFolder: config.sourcesFolder,
+    flatSourcesFolder: config.flatSourcesFolder,
+    discoveryFilename: config.discoveryFilename,
+    saveSources: config.saveSources,
+    buildModels: config.buildModels,
+    templatesFolder,
+  })
 
   if (config.project.startsWith('shared-')) {
     const allConfigs = configReader.readAllConfigsForChain(config.chain.name)
@@ -76,17 +70,14 @@ export async function runDiscovery(
   }
 
   if (config.printStats) {
-    printProviderStats(providerStats)
+    printProviderStats(logger, providerStats)
   }
-  if (config.printTemplateSimilarity) {
-    printExecutedMatches(
-      executedMatches,
-      config.templateSimilarityCutoff ?? 0.5,
-    )
-  }
+
+  printTemplatization(logger, result, !!config.verboseTemplatization)
 }
 
 export async function dryRunDiscovery(
+  discoveryPath: string,
   http: HttpClient,
   configReader: ConfigReader,
   config: DiscoveryModuleConfig,
@@ -103,8 +94,22 @@ export async function dryRunDiscovery(
   )
 
   const [discovered, discoveredYesterday] = await Promise.all([
-    justDiscover(chainConfigs, projectConfig, blockNumber, http),
-    justDiscover(chainConfigs, projectConfig, blockNumberYesterday, http),
+    justDiscover(
+      discoveryPath,
+      chainConfigs,
+      projectConfig,
+      blockNumber,
+      http,
+      config.overwriteCache,
+    ),
+    justDiscover(
+      discoveryPath,
+      chainConfigs,
+      projectConfig,
+      blockNumberYesterday,
+      http,
+      config.overwriteCache,
+    ),
   ])
 
   const diff = diffDiscovery(
@@ -120,47 +125,48 @@ export async function dryRunDiscovery(
 }
 
 async function justDiscover(
+  discoveryPath: string,
   chainConfigs: DiscoveryChainConfig[],
   config: DiscoveryConfig,
   blockNumber: number,
   http: HttpClient,
+  overwriteCache: boolean,
 ): Promise<DiscoveryOutput> {
-  const { result, shapeFilesHash } = await discover(
+  const { result } = await discover(
+    discoveryPath,
     chainConfigs,
     config,
     DiscoveryLogger.CLI,
     blockNumber,
     http,
+    overwriteCache,
   )
-  return toDiscoveryOutput(
-    config.name,
-    config.chain,
-    config.hash,
-    blockNumber,
-    result,
-    shapeFilesHash,
-  )
+  return toDiscoveryOutput(config, blockNumber, result)
 }
 
 export async function discover(
+  discoveryPath: string,
   chainConfigs: DiscoveryChainConfig[],
   config: DiscoveryConfig,
   logger: DiscoveryLogger,
   blockNumber: number | undefined,
   http: HttpClient,
+  overwriteChache: boolean,
 ): Promise<{
   result: Analysis[]
   blockNumber: number
   providerStats: AllProviderStats
-  shapeFilesHash: Hash256
-  executedMatches: ExecutedMatches
 }> {
   const sqliteCache = new SQLiteCache()
-  await sqliteCache.init()
 
-  const { allProviders, discoveryEngine, templateService } = getDiscoveryEngine(
+  const cache = overwriteChache
+    ? new OverwriteCacheWrapper(sqliteCache)
+    : sqliteCache
+
+  const { allProviders, discoveryEngine } = getDiscoveryEngine(
+    discoveryPath,
     chainConfigs,
-    sqliteCache,
+    cache,
     http,
     logger,
     config.chain,
@@ -171,7 +177,5 @@ export async function discover(
     result: await discoveryEngine.discover(provider, config),
     blockNumber,
     providerStats: allProviders.getStats(config.chain),
-    shapeFilesHash: templateService.getShapeFilesHash(),
-    executedMatches: templateService.executedMatches,
   }
 }

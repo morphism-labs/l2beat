@@ -1,8 +1,7 @@
-import { assert } from '@l2beat/backend-tools'
-import { ProxyDetails } from '@l2beat/discovery-types'
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { ProxyDetails } from '@l2beat/discovery-types'
+import { assert, type EthereumAddress } from '@l2beat/shared-pure'
 
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
 import { getModules } from '../../utils/getSafeModules'
 
 async function getMasterCopy(
@@ -65,8 +64,7 @@ export async function detectGnosisSafe(
   assert(threshold !== undefined, 'Cannot retrieve threshold')
 
   const thresholdString = `${threshold} of ${ownerCount} (${(
-    (threshold / ownerCount) *
-    100
+    (threshold / ownerCount) * 100
   ).toFixed()}%)`
 
   return {
@@ -74,12 +72,12 @@ export async function detectGnosisSafe(
     values: {
       // TODO: (sz-piotr) Is it always the case for safes?
       $immutable: false,
-      $implementation: masterCopy,
+      $implementation: masterCopy.toString(),
       // TODO: (sz-piotr) Why here, and not in the template?
       multisigThreshold: thresholdString,
       $threshold: Number(threshold),
-      $members: owners,
-      GnosisSafe_modules: modules,
+      $members: owners.map((o) => o.toString()),
+      GnosisSafe_modules: modules.map((m) => m.toString()),
     },
   }
 }

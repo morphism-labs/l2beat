@@ -1,6 +1,10 @@
-import { ContractSources } from '../discovery/source/SourceCodeService'
-import { FileContent } from './ParsedFilesManager'
+import { createHash } from 'crypto'
+import { Hash256 } from '@l2beat/shared-pure'
+import type { ContractSources } from '../discovery/source/SourceCodeService'
+import type { ContractSource } from '../utils/IEtherscanClient'
+import type { FileContent } from './ParsedFilesManager'
 import { flattenStartingFrom } from './flatten'
+import { format } from './format'
 
 export interface HashedChunks {
   content: string
@@ -12,6 +16,8 @@ export interface HashedFileContent {
   hashChunks: HashedChunks[]
   content: string
 }
+
+const cache: Map<string, Hash256> = new Map()
 
 // Flatten the first (non-proxy) source file.
 // This functions is used to find "matching" contract templates.
@@ -46,6 +52,58 @@ export function flattenFirstSource(
     source.source.remappings,
   )
   return output
+}
+
+export function contractFlatteningHash(
+  source: ContractSource,
+): string | undefined {
+  if (!source.isVerified) {
+    return undefined
+  }
+
+  const input: FileContent[] = Object.entries(source.files)
+    .map(([fileName, content]) => ({
+      path: fileName,
+      content,
+    }))
+    .filter((e) => e.path.endsWith('.sol'))
+
+  const content =
+    input.length === 0
+      ? Object.values(source.files).join('\n')
+      : flattenStartingFrom(source.name, input, source.remappings)
+
+  return flatteningHash(content)
+}
+
+export function flatteningHash(source: string): Hash256 {
+  const hashed = sha2_256bit(source)
+  const cached = cache.get(hashed)
+  if (cached !== undefined) {
+    return cached
+  }
+
+  const value = sha2_256bit(formatIntoHashable(source))
+  cache.set(hashed, value)
+  return value
+}
+
+export function formatIntoHashable(source: string) {
+  let formatted = format(source)
+
+  if (formatted.startsWith('pragma')) {
+    const firstNewlineIndex = formatted.indexOf('\n')
+    formatted =
+      firstNewlineIndex === -1
+        ? formatted
+        : formatted.slice(firstNewlineIndex + 1)
+  }
+
+  return formatted.trim()
+}
+
+export function sha2_256bit(str: string): Hash256 {
+  return Hash256(`0x${createHash('sha256').update(str).digest('hex')}`)
 }
 
 export function removeComments(source: string): string {
@@ -165,7 +223,7 @@ export function estimateSimilarity(
     lhsIndex++
   }
 
-  return sourceCopied / Math.max(lhs.content.length, rhs.content.length)
+  return (sourceCopied * 2) / (lhs.content.length + rhs.content.length)
 }
 
 function splitLineKeepingNewlines(input: string): string[] {

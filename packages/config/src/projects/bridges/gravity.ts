@@ -1,24 +1,22 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('gravity')
 
 export const gravity: Bridge = {
   type: 'bridge',
   id: ProjectId('gravity'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'Gravity',
     slug: 'gravity',
     category: 'Token Bridge',
     links: {
       websites: ['https://gravitybridge.net/'],
-      explorers: [
-        'https://mintscan.io/gravity-bridge',
-        'https://skynetexplorers.com/gravity-bridge',
-      ],
+      explorers: ['https://mintscan.io/gravity-bridge'],
       apps: [
         'https://spacestation.zone/',
         'https://bridge.blockscape.network/',
@@ -82,21 +80,25 @@ export const gravity: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'Gravity',
-        'Contract holding locked assets and handling user interactions for transfers and withdrawals.',
-      ),
-    ],
-    risks: [],
-    isIncomplete: true,
-  },
-  permissions: [
-    {
-      name: 'Cosmos Validators',
-      description:
-        'Control Gravity contract on Ethereum, funds cannot be transfer without the signature of at least 2/3 of the validators set.',
-      accounts: [],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'Gravity',
+          'Contract holding locked assets and handling user interactions for transfers and withdrawals.',
+        ),
+      ],
     },
-  ],
+    risks: [],
+  },
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Cosmos Validators',
+          [],
+          'Control Gravity contract on Ethereum, funds cannot be transfer without the signature of at least 2/3 of the validator set.',
+        ),
+      ],
+    },
+  },
 }

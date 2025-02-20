@@ -1,8 +1,8 @@
 import { inspect } from 'util'
 import chalk from 'chalk'
 
-import { LogLevel } from './LogLevel'
-import { LogEntry, LogFormatter } from './types'
+import type { LogLevel } from './LogLevel'
+import type { LogEntry, LogFormatter } from './types'
 import { toJSON } from './utils'
 
 const STYLES = {
@@ -54,7 +54,7 @@ export class LogFormatterPretty implements LogFormatter {
       this.sanitize(
         entry.resolvedError
           ? { ...entry.resolvedError, ...entry.parameters }
-          : entry.parameters ?? {},
+          : (entry.parameters ?? {}),
       ),
       this.options.colors,
     )

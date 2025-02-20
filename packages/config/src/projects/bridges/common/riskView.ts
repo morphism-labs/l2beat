@@ -1,38 +1,38 @@
-import { ScalingProjectRiskViewEntry } from '../../../common'
+import type { TableReadyValue } from '../../../types'
 
-export function NATIVE_AND_CANONICAL(
-  nativeTokens: string,
+function NATIVE_AND_CANONICAL(
+  gasTokens: string[],
   isAre: 'is' | 'are' = 'is',
-): ScalingProjectRiskViewEntry {
+): TableReadyValue {
   return {
     value: 'Native & Canonical',
-    description: `${nativeTokens} transferred via this bridge ${isAre} used to pay for gas and other tokens transferred are considered canonical on the destination chain.`,
+    description: `${gasTokens.join(', ')} transferred via this bridge ${isAre} used to pay for gas and other tokens transferred are considered canonical on the destination chain.`,
     sentiment: 'good',
   }
 }
 
-export const CANONICAL: ScalingProjectRiskViewEntry = {
+const CANONICAL: TableReadyValue = {
   value: 'Canonical',
   description:
     'Tokens transferred are considered canonical on the destination chain.',
   sentiment: 'good',
 }
 
-export const CANONICAL_OR_WRAPPED: ScalingProjectRiskViewEntry = {
+const CANONICAL_OR_WRAPPED: TableReadyValue = {
   value: 'Canonical or Wrapped',
   description:
     'Some tokens transferred are considered canonical but some tokens are not. Users who wish to obtain the canonical counterparts need to do so by trading.',
   sentiment: 'warning',
 }
 
-export const WRAPPED: ScalingProjectRiskViewEntry = {
+const WRAPPED: TableReadyValue = {
   value: 'Wrapped',
   description:
     'Tokens transferred by the bridge are not canonical. Users who wish to obtain the canonical counterparts need to do so by trading.',
   sentiment: 'bad',
 }
 
-export const UPGRADABLE_NO: ScalingProjectRiskViewEntry = {
+const UPGRADABLE_NO: TableReadyValue = {
   value: 'No',
   description: 'The code that secures the system can never change.',
   sentiment: 'good',

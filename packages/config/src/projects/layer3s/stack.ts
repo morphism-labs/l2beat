@@ -1,23 +1,31 @@
-import { ProjectId, UnixTime } from '@l2beat/shared-pure'
-
+import { UnixTime } from '@l2beat/shared-pure'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer3 } from '../../types'
 import { Badge } from '../badges'
 import { opStackL3 } from '../layer2s/templates/opStack'
-import { Layer3 } from './types'
 
 const discovery = new ProjectDiscovery('stack', 'base')
 
 export const stack: Layer3 = opStackL3({
+  addedAt: new UnixTime(1710853988), // 2024-03-19T13:13:08Z
   discovery,
-  badges: [Badge.DA.Celestia, Badge.L3ParentChain.Base, Badge.RaaS.Conduit],
-  hostChain: ProjectId('base'),
+  additionalBadges: [
+    Badge.DA.Celestia,
+    Badge.L3ParentChain.Base,
+    Badge.RaaS.Conduit,
+  ],
+  additionalPurposes: ['Social'],
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.NO_PROOFS,
+    REASON_FOR_BEING_OTHER.NO_DA_ORACLE,
+  ],
   display: {
     name: 'Stack',
     slug: 'stack',
     description:
       'Stack Chain is an Optimium settling on Base. It uses OP stack technology with Celestia for data availability. \
             Stack Chain is a blockchain for bringing points onchain, allowing brands to create and own their loyalty programs.',
-    purposes: ['Social', 'RWA'],
     links: {
       websites: ['https://stack.so/'],
       apps: ['https://bridge.stack.so'],
@@ -30,15 +38,12 @@ export const stack: Layer3 = opStackL3({
         'https://stack.mirror.xyz/',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
   rpcUrl: 'https://rpc.stack.so',
   genesisTimestamp: new UnixTime(1709683711),
+  celestiaDa: {
+    sinceBlock: 0, // Edge Case: config added @ DA Module start
+    namespace: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAADtb2kYRqm8M=',
+  },
   isNodeAvailable: 'UnderReview',
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'StackMultisig',
-      'Is the ProxyAdmin (owner).',
-    ),
-  ],
 })

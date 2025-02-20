@@ -1,4 +1,4 @@
-import { LogEntry, LogFormatter } from './types'
+import type { LogEntry, LogFormatter } from './types'
 import { toJSON } from './utils'
 
 const MAX_LENGTH = 1000
@@ -13,6 +13,13 @@ export class LogFormatterEcs implements LogFormatter {
       },
       service: {
         name: entry.service,
+      },
+      labels: {
+        feature: entry.feature,
+        module: entry.module,
+        chain: entry.chain,
+        project: entry.project,
+        source: entry.source,
       },
       message: entry.message ? truncate(entry.message) : undefined,
       error: entry.resolvedError

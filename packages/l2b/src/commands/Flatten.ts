@@ -1,20 +1,10 @@
 import { writeFileSync } from 'fs'
-import { HttpClient, flattenStartingFrom } from '@l2beat/discovery'
-import {
-  ExplorerConfig,
-  getExplorerClient,
-} from '@l2beat/discovery/dist/utils/IEtherscanClient'
+import { CliLogger } from '@l2beat/shared'
 import chalk from 'chalk'
-import {
-  boolean,
-  command,
-  flag,
-  oneOf,
-  option,
-  positional,
-  string,
-} from 'cmd-ts'
-import { EthereumAddressValue, HttpUrl } from './types'
+import { boolean, command, flag, option, positional, string } from 'cmd-ts'
+import { fetchAndFlatten } from '../implementations/flatten'
+import { explorerApiKey, explorerType, explorerUrl } from './args'
+import { EthereumAddressValue } from './types'
 
 export const Flatten = command({
   name: 'flatten',
@@ -23,19 +13,9 @@ export const Flatten = command({
   version: '1.0.0',
   args: {
     address: positional({ type: EthereumAddressValue, displayName: 'address' }),
-    rpcUrl: positional({ type: HttpUrl, displayName: 'rpcUrl' }),
-    type: option({
-      type: oneOf(['etherscan', 'blockscout']),
-      long: 'etherscan-type',
-      short: 't',
-      defaultValue: () => 'etherscan',
-    }),
-    apiKey: option({
-      type: string,
-      long: 'api-key',
-      short: 'k',
-      defaultValue: () => 'YourApiKeyToken',
-    }),
+    explorerUrl,
+    type: explorerType,
+    apiKey: explorerApiKey,
     output: option({
       type: string,
       long: 'output',
@@ -50,28 +30,17 @@ export const Flatten = command({
     }),
   },
   handler: async (args) => {
-    const httpClient = new HttpClient()
-    const client = getExplorerClient(httpClient, {
-      type: args.type as ExplorerConfig['type'],
-      url: args.rpcUrl.toString(),
-      apiKey: args.apiKey,
-    })
+    const logger: CliLogger = new CliLogger()
+    const flat = await fetchAndFlatten(
+      args.address,
+      args.explorerUrl,
+      args.apiKey,
+      args.type,
+      logger,
+      args.includeAll,
+    )
 
-    console.log('Fetching contract source code...')
-    const source = await client.getContractSource(args.address)
-
-    console.log('Flattening...')
-    const input = Object.entries(source.files)
-      .map(([fileName, content]) => ({
-        path: fileName,
-        content,
-      }))
-      .filter((e) => e.path.endsWith('.sol'))
-
-    const output = flattenStartingFrom(source.name, input, source.remappings, {
-      includeAll: args.includeAll,
-    })
     console.log(`Done, saving to ${chalk.magenta(args.output)}.`)
-    writeFileSync(args.output, output)
+    writeFileSync(args.output, flat)
   },
 })

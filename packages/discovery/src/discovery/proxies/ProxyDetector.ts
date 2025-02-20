@@ -1,14 +1,14 @@
-import {
+import type {
   ContractValue,
   ManualProxyType,
   ProxyDetails,
 } from '@l2beat/discovery-types'
-import { EthereumAddress } from '@l2beat/shared-pure'
+import type { EthereumAddress } from '@l2beat/shared-pure'
 
-import { DiscoveryLogger } from '../DiscoveryLogger'
-import { IProvider } from '../provider/IProvider'
+import type { IProvider } from '../provider/IProvider'
 import { detectArbitrumProxy } from './auto/ArbitrumProxy'
 import { detectAxelarProxy as getAxelarProxy } from './auto/AxelarProxy'
+import { detectBeaconProxy } from './auto/BeaconProxy'
 import { detectEip897Proxy } from './auto/Eip897Proxy'
 import { detectEip1967Proxy } from './auto/Eip1967Proxy'
 import { detectEip2535proxy } from './auto/Eip2535Proxy'
@@ -28,7 +28,7 @@ import { getZkSpaceProxy } from './manual/ZkSpaceProxy'
 import { getZkSyncLiteProxy } from './manual/ZkSyncLiteProxy'
 import { getImmutableProxy } from './manual/immutableProxy'
 
-export type Detector = (
+type Detector = (
   provider: IProvider,
   address: EthereumAddress,
 ) => Promise<ProxyDetails | undefined>
@@ -45,6 +45,7 @@ const DEFAULT_AUTO_DETECTORS: Detector[] = [
   detectEip897Proxy,
   detectZeppelinOSProxy,
   detectEip2535proxy,
+  detectBeaconProxy,
 ]
 
 export const MANUAL_DETECTORS: Record<ManualProxyType, Detector> = {
@@ -69,7 +70,6 @@ export class ProxyDetector {
   async detectProxy(
     provider: IProvider,
     address: EthereumAddress,
-    logger: DiscoveryLogger,
     manualProxyType?: ManualProxyType,
   ): Promise<ProxyDetails | undefined> {
     const proxy = manualProxyType
@@ -77,10 +77,9 @@ export class ProxyDetector {
       : await this.getAutoProxy(provider, address)
 
     if (proxy) {
-      logger.logProxyDetected(proxy.type)
       adjust$Arrays(proxy.values)
     } else if (manualProxyType) {
-      logger.logProxyDetectionFailed(manualProxyType)
+      throw new Error(`Manual proxy detection failed: ${manualProxyType}`)
     }
 
     return proxy

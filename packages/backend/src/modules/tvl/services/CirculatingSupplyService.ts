@@ -1,12 +1,17 @@
-import { assert } from '@l2beat/backend-tools'
-
-import { AmountRecord } from '@l2beat/database'
-import { CoingeckoQueryService } from '@l2beat/shared'
-import { CirculatingSupplyEntry, UnixTime } from '@l2beat/shared-pure'
+import type { AmountRecord } from '@l2beat/database'
+import {
+  type CirculatingSupplyProvider,
+  CoingeckoQueryService,
+} from '@l2beat/shared'
+import {
+  assert,
+  type CirculatingSupplyEntry,
+  UnixTime,
+} from '@l2beat/shared-pure'
 import { isInteger } from 'lodash'
 
 export interface CirculatingSupplyServiceDependencies {
-  readonly coingeckoQueryService: CoingeckoQueryService
+  readonly circulatingSupplyProvider: CirculatingSupplyProvider
 }
 
 export class CirculatingSupplyService {
@@ -18,10 +23,9 @@ export class CirculatingSupplyService {
     configuration: CirculatingSupplyEntry & { id: string },
   ): Promise<AmountRecord[]> {
     const circulatingSupplies =
-      await this.$.coingeckoQueryService.getCirculatingSupplies(
+      await this.$.circulatingSupplyProvider.getCirculatingSupplies(
         configuration.coingeckoId,
         { from, to },
-        undefined,
       )
 
     return circulatingSupplies.map((circulatingSupply) => {
@@ -37,7 +41,7 @@ export class CirculatingSupplyService {
   }
 
   getAdjustedTo(from: number, to: number): UnixTime {
-    return CoingeckoQueryService.getAdjustedTo(
+    return CoingeckoQueryService.calculateAdjustedTo(
       new UnixTime(from),
       new UnixTime(to),
     )

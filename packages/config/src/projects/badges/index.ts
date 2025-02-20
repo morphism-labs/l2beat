@@ -1,7 +1,7 @@
 /**
  * In order to add a new badge, you need to:
  * - add it to the const badges object below, specifying the type and display properties
- * - add images to the respective folder in frontend2 (packages/frontend2/public/images/badges)
+ * - add images to the respective folder in frontend (packages/frontend/public/images/badges)
  *
  * In order to add a new badge type, you need to:
  * - add it to the BadgeType object below & that's it
@@ -89,6 +89,22 @@ export const badges = {
     },
     type: BadgeType.RaaS,
   },
+  Alchemy: {
+    display: {
+      name: 'Alchemy',
+      description:
+        'This project was deployed via the rollup-as-a-service provider Alchemy',
+    },
+    type: BadgeType.RaaS,
+  },
+  Zeeve: {
+    display: {
+      name: 'Zeeve',
+      description:
+        'This project was deployed via the rollup-as-a-service provider Zeeve',
+    },
+    type: BadgeType.RaaS,
+  },
   // DA
   Avail: {
     display: {
@@ -101,6 +117,14 @@ export const badges = {
     display: {
       name: 'Celestia',
       description: 'This project is posting its data to Celestia',
+    },
+    type: BadgeType.DA,
+  },
+  CelestiaBlobstream: {
+    display: {
+      name: 'Celestia with Blobstream',
+      description:
+        'This project utilizes Celestia and has Blobstream enabled, facilitating the bridging of data availability commitments between Celestia and Ethereum.',
     },
     type: BadgeType.DA,
   },
@@ -143,7 +167,7 @@ export const badges = {
     display: {
       name: 'Data Availability Committee',
       description:
-        'There is a Data Availability Commitee that provides/attests to data availability',
+        'There is a Data Availability Committee that provides/attests to data availability',
     },
     type: BadgeType.DA,
   },
@@ -169,6 +193,14 @@ export const badges = {
       name: 'CairoVM',
       description:
         'This project uses the Cairo Virtual Machine to run its smart contracts and supports the Cairo programming language',
+    },
+    type: BadgeType.VM,
+  },
+  CartesiVM: {
+    display: {
+      name: 'CartesiVM',
+      description:
+        'This project uses the Cartesi Machine to run its smart contracts and supports any programming language that can be ported to RISC-V architecture',
     },
     type: BadgeType.VM,
   },
@@ -204,11 +236,11 @@ export const badges = {
     },
     type: BadgeType.VM,
   },
-  CustomVM: {
+  WasmVM: {
     display: {
-      name: 'Custom',
+      name: 'WasmVM',
       description:
-        'This project uses a custom-built virtual machine suitable for its own needs',
+        'This project uses a WebAssembly Virtual Machine to run its smart contracts',
     },
     type: BadgeType.VM,
   },
@@ -223,14 +255,15 @@ export const badges = {
   Superchain: {
     display: {
       name: 'Part of the Superchain',
-      description: 'The project is part of the Superchain',
+      description:
+        "The project is part of the Superchain, meaning it's included in the Superchain registry or uses the Superchain config",
     },
     type: BadgeType.Infra,
   },
   SHARP: {
     display: {
       name: 'Uses SHARP',
-      description: 'The project uses a shared prover - SHARP',
+      description: 'The project uses a shared prover contract - SHARP',
     },
     type: BadgeType.Infra,
   },
@@ -244,7 +277,8 @@ export const badges = {
   ElasticChain: {
     display: {
       name: 'Part of the Elastic Chain',
-      description: 'The project is part of the Elastic Chain',
+      description:
+        "The project is part of the Elastic Chain, meaning it's based on the ZK stack and uses the shared contracts",
     },
     type: BadgeType.Infra,
   },
@@ -296,6 +330,13 @@ export const badges = {
     display: {
       name: 'Built on the Cartesi stack',
       description: 'The project is built on the Cartesi stack',
+    },
+    type: BadgeType.Stack,
+  },
+  SNStack: {
+    display: {
+      name: 'Built on the SN Stack',
+      description: 'The project is built on the SN Stack',
     },
     type: BadgeType.Stack,
   },
@@ -363,7 +404,7 @@ export const badges = {
     },
     type: BadgeType.L3ParentChain,
   },
-  Optimism: {
+  OpMainnet: {
     display: {
       name: 'Built on top of OP Mainnet',
       description: 'The project has OP Mainnet as its host chain',
@@ -378,7 +419,6 @@ export const badges = {
     },
     type: BadgeType.Other,
   },
-  //should we add link to the forum/dao website?
   Governance: {
     display: {
       name: 'Governance',
@@ -386,7 +426,6 @@ export const badges = {
     },
     type: BadgeType.Other,
   },
-  //we should probably add some logic here to show which exact L3s are builded on top of this project while hovering over the badge
   L3HostChain: {
     display: {
       name: 'L3 Host Chain',
@@ -398,7 +437,15 @@ export const badges = {
     display: {
       name: 'Based Sequencing',
       description:
-        'This project is ordering its transactions through Ethereum block proposers.',
+        'This project is ordering its transactions through Ethereum block proposers',
+    },
+    type: BadgeType.Other,
+  },
+  EspressoPreconfs: {
+    display: {
+      name: 'Espresso Preconfs',
+      description:
+        'The project integrates with Espresso preconfirmations. The chain batch poster publishes blocks to Espresso Network and runs in a Trusted Execution Environment (TEE) programmed to verify that only Espresso-validated batches reach the host chain.',
     },
     type: BadgeType.Other,
   },
@@ -406,20 +453,19 @@ export const badges = {
     display: {
       name: 'Migrated from L1 to Ethereum L2',
       description:
-        'This project has migrated from being a standalone L1 blockchain to an Ethereum L2.',
+        'This project has migrated from being a standalone L1 blockchain to an Ethereum L2',
     },
     type: BadgeType.Other,
   },
-} as const satisfies Record<
-  string,
-  {
-    display: {
-      name: string
-      description: string
-    }
-    type: BadgeType
+} as const satisfies Record<string, BadgeInfo>
+
+export type BadgeInfo = {
+  display: {
+    name: string
+    description: string
   }
->
+  type: BadgeType
+}
 
 export const Badge: {
   [T in BadgeType]: {

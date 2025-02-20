@@ -1,7 +1,6 @@
+import type { RpcClient } from '@l2beat/shared'
 import { Bytes, EthereumAddress } from '@l2beat/shared-pure'
 import { expect, mockObject } from 'earl'
-import { RpcClient } from '../rpcclient/RpcClient'
-import { BlockTag } from '../rpcclient/types'
 import { MulticallClient } from './MulticallClient'
 import {
   decodeMulticallV1,
@@ -10,7 +9,7 @@ import {
   encodeMulticallV2,
   multicallInterface,
 } from './MulticallConfig'
-import { MulticallConfigEntry } from './types'
+import type { MulticallConfigEntry } from './types'
 
 describe(MulticallClient.name, () => {
   const ADDRESS_A = EthereumAddress('0x' + 'a'.repeat(40))
@@ -45,7 +44,7 @@ describe(MulticallClient.name, () => {
   interface Call {
     to?: EthereumAddress
     data?: Bytes
-    blockTag: BlockTag
+    blockTag: number | 'latest'
   }
 
   it('falls back to individual requests for old block numbers', async () => {

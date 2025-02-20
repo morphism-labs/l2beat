@@ -1,14 +1,15 @@
 import { hashJson } from '@l2beat/shared'
 import { EthereumAddress } from '@l2beat/shared-pure'
 import { expect } from 'earl'
-
 import { DiscoveryConfig } from './DiscoveryConfig'
-import type { RawDiscoveryConfig } from './RawDiscoveryConfig'
+import {
+  DiscoveryContract,
+  type RawDiscoveryConfig,
+} from './RawDiscoveryConfig'
 import { getDiscoveryConfigEntries } from './getDiscoveryConfigEntries'
 
 const ADDRESS_A = EthereumAddress.random()
 const ADDRESS_B = EthereumAddress.random()
-const ADDRESS_C = EthereumAddress.random()
 
 const OVERRIDE_A = {
   ignoreInWatchMode: ['b', 'a'],
@@ -18,44 +19,36 @@ const OVERRIDE_A = {
 const OVERRIDE_B = {
   ignoreDiscovery: true,
 }
-const CONFIG = new DiscoveryConfig(
-  {
-    name: 'a',
-    chain: 'ethereum',
-    initialAddresses: [ADDRESS_A],
-    maxAddresses: 1,
-    maxDepth: 1,
-    names: {
-      [ADDRESS_A.toString()]: 'A',
-      [ADDRESS_B.toString()]: 'B',
-    },
-    overrides: {
-      A: OVERRIDE_A,
-      [ADDRESS_B.toString()]: OVERRIDE_B,
-    },
+const CONFIG = new DiscoveryConfig({
+  name: 'a',
+  chain: 'ethereum',
+  initialAddresses: [ADDRESS_A],
+  maxAddresses: 1,
+  maxDepth: 1,
+  names: {
+    [ADDRESS_A.toString()]: 'A',
+    [ADDRESS_B.toString()]: 'B',
   },
-  {
-    [ADDRESS_B.toString()]: 'B Common Name',
-    [ADDRESS_C.toString()]: 'C Common Name',
+  overrides: {
+    A: DiscoveryContract.parse(OVERRIDE_A),
+    [ADDRESS_B.toString()]: DiscoveryContract.parse(OVERRIDE_B),
   },
-)
+})
 
 describe(DiscoveryConfig.name, () => {
   describe('overrides', () => {
     it('gets override for given address, ignoring common name since it is already named', () => {
-      const result = CONFIG.overrides.get(ADDRESS_B)
-      expect(result).toEqual({ ...OVERRIDE_B, address: ADDRESS_B, name: 'B' })
-    })
-    it('gets name from commonAddressNames if exists and not already named', () => {
-      const result = CONFIG.overrides.get(ADDRESS_C)
-      expect(result).toEqual({ address: ADDRESS_C, name: 'C Common Name' })
+      const result = CONFIG.for(ADDRESS_B)
+      expect(result.name).toEqual('B')
+      expect(result.address).toEqual(ADDRESS_B)
     })
     it('gets override for given name', () => {
-      const result = CONFIG.overrides.get('A')
-      expect(result).toEqual({ ...OVERRIDE_A, address: ADDRESS_A, name: 'A' })
+      const result = CONFIG.for('A')
+      expect(result.name).toEqual('A')
+      expect(result.address).toEqual(ADDRESS_A)
     })
     it('throws if override is not found', () => {
-      expect(() => CONFIG.overrides.get('C')).toThrow()
+      expect(() => CONFIG.for('C')).toThrow()
     })
   })
 

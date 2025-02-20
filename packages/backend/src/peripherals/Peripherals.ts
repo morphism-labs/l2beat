@@ -1,10 +1,8 @@
-import { Logger } from '@l2beat/backend-tools'
-import { HttpClient } from '@l2beat/shared'
+import type { Logger } from '@l2beat/backend-tools'
+import type { HttpClient } from '@l2beat/shared'
 import { isEqual } from 'lodash'
 
-import { Database } from '@l2beat/database'
-import { LegacyDatabase } from '@l2beat/database-legacy'
-
+import type { Database } from '@l2beat/database'
 export interface ClientClass<T, O> {
   create(services: { httpClient: HttpClient; logger: Logger }, options: O): T
 }
@@ -20,9 +18,8 @@ export class Peripherals {
   > = new Map()
 
   constructor(
-    public readonly legacyDatabase: LegacyDatabase,
     public readonly database: Database,
-    private readonly httpClient: HttpClient,
+    public readonly httpClient: HttpClient,
     private readonly logger: Logger,
   ) {}
 

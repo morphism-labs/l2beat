@@ -1,11 +1,11 @@
-import { AmountRecord, PriceRecord, ValueRecord } from '@l2beat/database'
+import type { AmountRecord, PriceRecord, ValueRecord } from '@l2beat/database'
 import {
   AssetId,
   CoingeckoId,
-  CoingeckoPriceConfigEntry,
+  type CoingeckoPriceConfigEntry,
   EthereumAddress,
   ProjectId,
-  TotalSupplyEntry,
+  type TotalSupplyEntry,
   UnixTime,
 } from '@l2beat/shared-pure'
 import { mockObject } from 'earl'
@@ -41,6 +41,7 @@ function amountConfiguration(v: Partial<TotalSupplyEntry>) {
     sinceTimestamp: UnixTime.ZERO,
     includeInTotal: true,
     decimals: DECIMALS,
+    assetId: AssetId.create(v.chain ?? 'chain', v.address),
     symbol: 'SYMBOL',
     isAssociated: false,
     category: 'other',
@@ -58,7 +59,7 @@ function priceRecord(id: string, timestamp: number): PriceRecord {
 
 function priceConfiguration(v: Partial<CoingeckoPriceConfigEntry>) {
   return mockObject<CoingeckoPriceConfigEntry>({
-    assetId: AssetId('AssetId'),
+    assetId: AssetId.create(v.chain ?? 'chain', v.address),
     address: EthereumAddress.ZERO,
     chain: 'chain',
     sinceTimestamp: UnixTime.ZERO,

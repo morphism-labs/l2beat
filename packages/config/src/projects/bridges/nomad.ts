@@ -7,8 +7,8 @@ import {
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('nomad')
 const challengeWindowSeconds = discovery.getContractValue<number>(
@@ -19,6 +19,7 @@ const challengeWindowSeconds = discovery.getContractValue<number>(
 export const nomad: Bridge = {
   type: 'bridge',
   id: ProjectId('nomad'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   isArchived: true,
   display: {
     name: 'Nomad',
@@ -92,7 +93,6 @@ export const nomad: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'destination token contract is maliciously upgraded.',
-          isCritical: true,
         },
       ],
       isIncomplete: true,
@@ -114,64 +114,72 @@ export const nomad: Bridge = {
     destinationToken: RISK_VIEW.WRAPPED,
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('HomeBeaconProxy', {
-        description:
-          'Optics Home. This contract is used to send x-chain messages, such as deposit requests. Messages are regularly signed by the Updater.',
-      }),
-      discovery.getContractDetails('ReplicaBeaconProxy', {
-        description:
-          'Optics Replica. This contract is used to receive x-chain messages, such as withdrawal requests, from Relayers.',
-      }),
-      discovery.getContractDetails('BridgeRouterBeaconProxy', {
-        description: 'Optics Governance Router. Manages all Optics components.',
-      }),
-      discovery.getContractDetails('XAppConnectionManager', {
-        description:
-          'Contract managing list of connections to other chains (domains) and list of watchers.',
-      }),
-      discovery.getContractDetails('GovernanceRouterBeaconProxy', {
-        description: 'Optics Governance Router. Manages all Optics components.',
-      }),
-      discovery.getContractDetails('UpdaterManager', {
-        description:
-          'Contract allowing Home to slash Updater. Currently does nothing, intended for future functionality.',
-      }),
-      discovery.getContractDetails('UpgradeBeaconController', {
-        description: 'Contract managing Beacons.',
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('HomeBeaconProxy', {
+          description:
+            'Optics Home. This contract is used to send x-chain messages, such as deposit requests. Messages are regularly signed by the Updater.',
+        }),
+        discovery.getContractDetails('ReplicaBeaconProxy', {
+          description:
+            'Optics Replica. This contract is used to receive x-chain messages, such as withdrawal requests, from Relayers.',
+        }),
+        discovery.getContractDetails('BridgeRouterBeaconProxy', {
+          description:
+            'Optics Governance Router. Manages all Optics components.',
+        }),
+        discovery.getContractDetails('XAppConnectionManager', {
+          description:
+            'Contract managing list of connections to other chains (domains) and list of watchers.',
+        }),
+        discovery.getContractDetails('GovernanceRouterBeaconProxy', {
+          description:
+            'Optics Governance Router. Manages all Optics components.',
+        }),
+        discovery.getContractDetails('UpdaterManager', {
+          description:
+            'Contract allowing Home to slash Updater. Currently does nothing, intended for future functionality.',
+        }),
+        discovery.getContractDetails('UpgradeBeaconController', {
+          description: 'Contract managing Beacons.',
+        }),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'Governor',
-      'Manages Optics V1 bridge components via GovernanceRouter contract.',
-    ),
-    ...discovery.getMultisigPermission(
-      'RecoveryManager',
-      'Manages Optics V1 bridge recovery via GovernanceRouter contract.',
-    ),
-    {
-      name: 'Updater',
-      accounts: [discovery.getPermissionedAccount('UpdaterManager', 'updater')],
-      description: 'Permissioned account that can update message roots.',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'Governor',
+          'Manages Optics V1 bridge components via GovernanceRouter contract.',
+        ),
+        discovery.getMultisigPermission(
+          'RecoveryManager',
+          'Manages Optics V1 bridge recovery via GovernanceRouter contract.',
+        ),
+        discovery.getPermissionDetails(
+          'Updater',
+          discovery.getPermissionedAccounts('UpdaterManager', 'updater'),
+          'Permissioned account that can update message roots.',
+        ),
+        discovery.getPermissionDetails(
+          'XAppConnectionManager Watchers',
+          discovery.getPermissionedAccounts(
+            'XAppConnectionManager',
+            'watchers',
+          ),
+          'Watchers can unenroll, i.e. stop receiving messages, from a given Replica.',
+        ),
+      ],
     },
-    {
-      name: 'XAppConnectionManager Watchers',
-      accounts: discovery.getPermissionedAccounts(
-        'XAppConnectionManager',
-        'watchers',
-      ),
-      description:
-        'Watchers can unenroll, i.e. stop receiving messages, from a given Replica.',
-    },
-  ],
+  },
   milestones: [
     {
-      name: 'Contracts hacked for $190M',
+      title: 'Contracts hacked for $190M',
       date: '2022-08-02T00:00:00.00Z',
-      link: 'https://rekt.news/nomad-rekt/',
+      url: 'https://rekt.news/nomad-rekt/',
+      type: 'incident',
     },
   ],
 }

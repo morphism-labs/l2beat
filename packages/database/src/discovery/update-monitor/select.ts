@@ -1,11 +1,10 @@
-import { UpdateMonitor } from '../../kysely/generated/types'
+import type { UpdateMonitor } from '../../kysely/generated/types'
 
 export const selectUpdateMonitor = [
-  'project_name',
-  'chain_id',
-  'block_number',
-  'unix_timestamp',
-  'discovery_json_blob',
-  'config_hash',
-  'version',
+  'projectName',
+  'chainId',
+  'blockNumber',
+  'timestamp',
+  'discoveryJsonBlob',
+  'configHash',
 ] as const satisfies (keyof UpdateMonitor)[]

@@ -1,10 +1,10 @@
-import { EthereumAddress } from '@l2beat/shared-pure'
-import { providers, utils } from 'ethers'
+import { assert, EthereumAddress } from '@l2beat/shared-pure'
+import { type providers, utils } from 'ethers'
 import * as z from 'zod'
 
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
-import { Handler, HandlerResult } from '../Handler'
+import type { ContractValue } from '@l2beat/discovery-types'
+import type { IProvider } from '../../provider/IProvider'
+import type { Handler, HandlerResult } from '../Handler'
 
 export type AccessControlHandlerDefinition = z.infer<
   typeof AccessControlHandlerDefinition
@@ -14,6 +14,7 @@ export const AccessControlHandlerDefinition = z.strictObject({
   roleNames: z.optional(
     z.record(z.string().regex(/^0x[a-f\d]{64}$/i), z.string()),
   ),
+  pickRoleMembers: z.optional(z.string()),
   ignoreRelative: z.optional(z.boolean()),
 })
 
@@ -33,7 +34,6 @@ export class AccessControlHandler implements Handler {
     readonly field: string,
     readonly definition: AccessControlHandlerDefinition,
     abi: string[],
-    readonly logger: DiscoveryLogger,
   ) {
     this.knownNames.set(DEFAULT_ADMIN_ROLE_BYTES, 'DEFAULT_ADMIN_ROLE')
     for (const [hash, name] of Object.entries(definition.roleNames ?? {})) {
@@ -57,21 +57,32 @@ export class AccessControlHandler implements Handler {
     provider: IProvider,
     address: EthereumAddress,
   ): Promise<HandlerResult> {
-    this.logger.logExecution(this.field, ['Checking AccessControl'])
     const unnamedRoles = await fetchAccessControl(provider, address)
+
+    const roles = Object.fromEntries(
+      Object.entries(unnamedRoles).map(([role, { adminRole, members }]) => {
+        return [
+          this.getRoleName(role),
+          { adminRole: this.getRoleName(adminRole), members },
+        ]
+      }),
+    )
 
     return {
       field: this.field,
-      value: Object.fromEntries(
-        Object.entries(unnamedRoles).map(([role, { adminRole, members }]) => {
-          return [
-            this.getRoleName(role),
-            { adminRole: this.getRoleName(adminRole), members },
-          ]
-        }),
-      ),
+      value: this.getValue(roles),
       ignoreRelative: this.definition.ignoreRelative,
     }
+  }
+
+  getValue(roles: Record<string, { members: string[] }>): ContractValue {
+    if (this.definition.pickRoleMembers !== undefined) {
+      const role = this.definition.pickRoleMembers
+      assert(roles[role] !== undefined, `No role (${role}) found`)
+      return roles[role]['members']
+    }
+
+    return roles
   }
 }
 

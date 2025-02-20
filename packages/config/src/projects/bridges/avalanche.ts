@@ -1,11 +1,15 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { NUGGETS } from '../../common'
-import { Bridge } from './types'
+import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
+
+const discovery = new ProjectDiscovery('avalanche')
 
 export const avalanche: Bridge = {
   type: 'bridge',
   id: ProjectId('avalanche'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'Avalanche Bridge',
     slug: 'avalanche',
@@ -78,6 +82,19 @@ export const avalanche: Bridge = {
       },
     ],
   },
+  chainConfig: {
+    name: 'avalanche',
+    chainId: 43114,
+    explorerUrl: 'https://snowtrace.io',
+    multicallContracts: [
+      {
+        address: EthereumAddress('0xcA11bde05977b3631167028862bE2a173976CA11'),
+        batchSize: 150,
+        sinceBlock: 11907934,
+        version: '3',
+      },
+    ],
+  },
   riskView: {
     validatedBy: {
       value: 'Third Party',
@@ -115,22 +132,18 @@ export const avalanche: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'wardens decide to maliciously takeover them or there is an external exploit which will result in signing malicious transaction.',
-          isCritical: true,
         },
         {
           category: 'Users can be censored if',
           text: 'wardens decide to censor certain transactions.',
-          isCritical: true,
         },
         {
           category: 'Funds can be lost if',
           text: 'wardens loose the private key.',
-          isCritical: true,
         },
         {
           category: 'Funds can be frozen if',
           text: 'wardens decide to stop processing transfers.',
-          isCritical: true,
         },
       ],
       isIncomplete: true,
@@ -145,24 +158,22 @@ export const avalanche: Bridge = {
     },
   },
   contracts: {
-    addresses: [],
+    addresses: {},
     risks: [],
   },
-  permissions: [
-    {
-      name: 'Bridge Wardens',
-      description:
-        'Off-chain Multisig 6/8 using Intel SGX, which controls all the funds deposited to the bridge. There is no possibility to verify whether Intel SGX technology is being used.',
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x8EB8a3b98659Cce290402893d0123abb75E3ab28',
-          ),
-          type: 'EOA',
-        },
+  permissions: {
+    ethereum: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Bridge Wardens',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x8EB8a3b98659Cce290402893d0123abb75E3ab28'),
+          ]),
+          'Off-chain Multisig 6/8 using Intel SGX, which controls all the funds deposited to the bridge. There is no possibility to verify whether Intel SGX technology is being used.',
+        ),
       ],
     },
-  ],
+  },
   knowledgeNuggets: [
     {
       title: 'Avalanche Bridge deep dive',

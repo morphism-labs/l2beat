@@ -1,20 +1,23 @@
-import { assert, Logger } from '@l2beat/backend-tools'
-import { DiscoveryDiff } from '@l2beat/discovery'
+import type { Logger } from '@l2beat/backend-tools'
+import { type DiscoveryDiff, discoveryDiffToMarkdown } from '@l2beat/discovery'
 import {
-  ChainConverter,
-  ChainId,
-  EthereumAddress,
+  assert,
+  type ChainConverter,
+  type ChainId,
+  type EthereumAddress,
   UnixTime,
   formatAsAsciiTable,
 } from '@l2beat/shared-pure'
 import { isEmpty } from 'lodash'
 
-import { Database } from '@l2beat/database'
+import { isDiscoveryDriven, layer2s, layer3s } from '@l2beat/config'
+import type { Database } from '@l2beat/database'
 import {
-  Channel,
-  DiscordClient,
+  type Channel,
+  type DiscordClient,
   MAX_MESSAGE_LENGTH,
 } from '../../peripherals/discord/DiscordClient'
+import type { UpdateMessagesService } from './UpdateMessagesService'
 import { fieldThrottleDiff } from './fieldThrottleDiff'
 import { diffToMessage } from './utils/diffToMessage'
 import { filterDiff } from './utils/filterDiff'
@@ -39,6 +42,7 @@ export class UpdateNotifier {
     private readonly discordClient: DiscordClient | undefined,
     private readonly chainConverter: ChainConverter,
     private readonly logger: Logger,
+    private readonly updateMessagesService: UpdateMessagesService,
   ) {
     this.logger = this.logger.for(this)
   }
@@ -50,6 +54,7 @@ export class UpdateNotifier {
     chainId: ChainId,
     dependents: string[],
     unknownContracts: EthereumAddress[],
+    timestamp: UnixTime,
   ) {
     const nonce = await this.getInternalMessageNonce()
     await this.db.updateNotifier.insert({
@@ -104,6 +109,17 @@ export class UpdateNotifier {
       dependents,
     )
     await this.notify(filteredMessage, 'PUBLIC')
+
+    const filteredWebMessage = discoveryDiffToMarkdown(filteredDiff)
+
+    await this.updateMessagesService.storeAndPrune({
+      projectName: name,
+      chain: this.chainConverter.toName(chainId),
+      blockNumber,
+      message: filteredWebMessage,
+      timestamp,
+    })
+
     this.logger.info('Updates detected, notification sent [PUBLIC]', {
       name,
       amount: countDiff(filteredDiff),
@@ -237,8 +253,69 @@ function flattenReminders(
   return entries
 }
 
+export function generateTemplatizedStatus(): string {
+  const stacks: string[] = [
+    ...new Set(
+      layer2s
+        .filter((l2) => !l2.isUpcoming && !l2.isArchived && !l2.isUnderReview)
+        .map((l2) => l2.display.stack?.toString())
+        .concat(
+          layer3s
+            .filter(
+              (l3) => !l3.isUpcoming && !l3.isArchived && !l3.isUnderReview,
+            )
+            .map((l3) => l3.display.stack?.toString()),
+        )
+        .filter((p) => p !== undefined),
+    ),
+  ]
+
+  const entries: {
+    stack: string
+    projectCount: number
+    fullyTemplatizedCount: number
+  }[] = []
+
+  for (const stack of stacks) {
+    const isFullyTemplatizedL2 = layer2s
+      .filter((l2) => l2.display.stack === stack)
+      .filter((l2) => !l2.isUpcoming && !l2.isArchived && !l2.isUnderReview)
+      .map((l2) => isDiscoveryDriven(l2))
+    const isFullyTemplatizedL3 = layer3s
+      .filter((l3) => l3.display.stack === stack)
+      .filter((l3) => !l3.isUpcoming && !l3.isArchived && !l3.isUnderReview)
+      .map((l3) => isDiscoveryDriven(l3))
+    const isFullyTemplatized = isFullyTemplatizedL2.concat(isFullyTemplatizedL3)
+
+    const fullyTemplatizedCount = isFullyTemplatized.filter((t) => t).length
+    entries.push({
+      stack,
+      projectCount: isFullyTemplatized.length,
+      fullyTemplatizedCount,
+    })
+  }
+
+  const headers = ['Provider', 'Templatization status']
+  const rows = []
+  for (const e of entries.sort((a, b) => b.projectCount - a.projectCount)) {
+    const percentage = (
+      (e.fullyTemplatizedCount / e.projectCount) *
+      100
+    ).toFixed()
+    const templatizationString = `${e.fullyTemplatizedCount}/${e.projectCount} (${percentage}%)`
+
+    rows.push([e.stack, templatizationString])
+  }
+
+  const table = formatAsAsciiTable(headers, rows)
+
+  return `\n### Templatized projects:\n\`\`\`${table}\`\`\`\n`
+}
+
 function getDailyReminderHeader(timestamp: UnixTime): string {
-  return `# Daily bot report @ ${timestamp.toYYYYMMDD()}\n\n:x: Detected changes with following severities :x:`
+  const templatizedProjectsString = generateTemplatizedStatus()
+
+  return `# Daily bot report @ ${timestamp.toYYYYMMDD()}\n${templatizedProjectsString}\n:x: Detected changes with following severities :x:`
 }
 
 function countDiff(diff: DiscoveryDiff[]): number {

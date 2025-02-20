@@ -1,9 +1,8 @@
-import { assert } from '@l2beat/backend-tools'
-import { EthereumAddress } from '@l2beat/shared-pure'
+import { assert, EthereumAddress } from '@l2beat/shared-pure'
 
-import { Semver } from '../../../utils/semver'
+import type { Semver } from '../../../utils/semver'
 import { fetchAccessControl } from '../../handlers/user/AccessControlHandler'
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
 
 export async function getProxyGovernance(
   provider: IProvider,

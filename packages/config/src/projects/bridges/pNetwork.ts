@@ -2,19 +2,20 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('pNetwork')
 
 export const pNetwork: Bridge = {
   type: 'bridge',
   id: ProjectId('pNetwork'),
+  addedAt: new UnixTime(1674472649), // 2023-01-23T11:17:29Z
   display: {
     name: 'pNetwork',
     slug: 'pnetwork',
     warning:
-      'TVL of the bridge does not take into the account pTokens minted on Ethereum. These are wrapped tokens that should be backed 1:1 with their native counterparts on\
+      'TVS of the bridge does not take into the account pTokens minted on Ethereum. These are wrapped tokens that should be backed 1:1 with their native counterparts on\
     other chains, for example pBTC being backed by BTC on  Bitcoin or pFTM backed by FTM on Fantom.',
     category: 'Token Bridge',
     links: {
@@ -104,17 +105,14 @@ export const pNetwork: Bridge = {
         {
           category: 'Users can be censored if',
           text: 'validators decide to stop processing certain transactions.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'validators allow to mint more tokens than there are locked on Ethereum thus preventing some existing holders from being able to bring their funds back to Ethereum.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'validators sign a fraudulent message allowing themselves to withdraw all locked funds.',
-          isCritical: true,
         },
       ],
     },
@@ -128,88 +126,93 @@ export const pNetwork: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'destination token contract is maliciously upgraded.',
-          isCritical: true,
         },
       ],
     },
   },
 
   contracts: {
-    isIncomplete: true,
-    addresses: [
-      discovery.getContractDetails(
-        'ERC20 Vault V2',
-        'Has special logic for handling inflation of PNT token.',
-      ),
-      discovery.getContractDetails('ERC20 Vault V1'),
-      discovery.getContractDetails('UOS Vault'),
-      discovery.getContractDetails(
-        'PProxyAdmin',
-        'Proxy owner of ERC20 Vault v2.',
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'ERC20 Vault V2',
+          'Has special logic for handling inflation of PNT token.',
+        ),
+        discovery.getContractDetails('ERC20 Vault V1'),
+        discovery.getContractDetails('UOS Vault'),
+        discovery.getContractDetails(
+          'PProxyAdmin',
+          'Proxy owner of ERC20 Vault v2.',
+        ),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
 
-  permissions: [
-    {
-      name: 'PNETWORK',
-      description:
-        'A set of EOA addresses (different ones for different Vault contracts) that can transfer tokens and perform admin functions. It is supposed to be controlled by a group of Validator nodes in a MPC network.',
-      accounts: [
-        discovery.getPermissionedAccount('ERC20 Vault V2', 'PNETWORK'),
-        discovery.getPermissionedAccount('ERC20 Vault V1', 'PNETWORK'),
-        discovery.getPermissionedAccount('UOS Vault', 'PNETWORK'),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'PNETWORK',
+          [
+            ...discovery.getPermissionedAccounts('ERC20 Vault V2', 'PNETWORK'),
+            ...discovery.getPermissionedAccounts('ERC20 Vault V1', 'PNETWORK'),
+            ...discovery.getPermissionedAccounts('UOS Vault', 'PNETWORK'),
+          ],
+          'A set of EOA addresses (different ones for different Vault contracts) that can transfer tokens and perform admin functions. It is supposed to be controlled by a group of Validator nodes in an MPC network.',
+        ),
+        discovery.getPermissionDetails(
+          'pNetwork DAO',
+          discovery.getPermissionedAccounts('EthPntv2', 'inflationOwner'),
+          'A voting contract that controls the inflation withdrawal logic of PNT token.',
+        ),
+        discovery.getMultisigPermission(
+          'pNetwork Multisig',
+          'Can upgrade ERC20 Vault V2.',
+        ),
       ],
     },
-    {
-      name: 'pNetwork DAO',
-      description:
-        'A voting contract that controls the inflation withdrawal logic of PNT token.',
-      accounts: [
-        discovery.getPermissionedAccount('EthPntv2', 'inflationOwner'),
-      ],
-    },
-    ...discovery.getMultisigPermission(
-      'pNetwork Multisig',
-      'Can upgrade ERC20 Vault V2.',
-    ),
-  ],
+  },
 
   milestones: [
     {
-      name: 'Mainnet Launch of pNetwork v2',
-      link: 'https://medium.com/pnetwork/ptokens-to-ptokens-bridge-now-live-8329dd93dd28',
+      title: 'Mainnet Launch of pNetwork v2',
+      url: 'https://medium.com/pnetwork/ptokens-to-ptokens-bridge-now-live-8329dd93dd28',
       date: '2022-10-18T00:00:00Z',
       description:
         'Whitelist got removed, there are no restrictions on who can transact with the network.',
+      type: 'general',
     },
     {
-      name: 'pGALA token on BSC exploit',
-      link: 'https://medium.com/pnetwork/pgala-post-mortem-measures-taken-to-safeguard-the-ecosystem-from-malicious-actors-and-recovery-6407048f4497',
+      title: 'pGALA token on BSC exploit',
+      url: 'https://medium.com/pnetwork/pgala-post-mortem-measures-taken-to-safeguard-the-ecosystem-from-malicious-actors-and-recovery-6407048f4497',
       date: '2022-11-05T00:00:00Z',
       description:
         'Due to the misconfiguration of BSC the exploiter took over the control of pGALA tokens.',
+      type: 'general',
     },
     {
-      name: 'pBTC token on BSC exploit',
-      link: 'https://medium.com/pnetwork/pnetwork-post-mortem-pbtc-on-bsc-exploit-170890c58d5f',
+      title: 'pBTC token on BSC exploit',
+      url: 'https://medium.com/pnetwork/pnetwork-post-mortem-pbtc-on-bsc-exploit-170890c58d5f',
       date: '2021-09-21T00:00:00Z',
       description:
         'Due to the bug in the validators code, unauthorized token transfers were processed on BTC.',
+      type: 'general',
     },
     {
-      name: 'pNetwork rebranding',
-      link: 'https://medium.com/pnetwork/were-all-in-for-pnetwork-bdf511410cc9',
+      title: 'pNetwork rebranding',
+      url: 'https://medium.com/pnetwork/were-all-in-for-pnetwork-bdf511410cc9',
       date: '2020-09-16T00:00:00Z',
       description:
         'Provable Things, pTokens and Eidoo gets rebranded as pNetwork.',
+      type: 'general',
     },
     {
-      name: 'pBTC launch on Ethereum',
-      link: 'https://www.coindesk.com/tech/2020/03/05/new-cross-chain-network-plans-to-bring-bitcoins-liquidity-to-the-defi-space/',
+      title: 'pBTC launch on Ethereum',
+      url: 'https://www.coindesk.com/tech/2020/03/05/new-cross-chain-network-plans-to-bring-bitcoins-liquidity-to-the-defi-space/',
       date: '2020-03-05T00:00:00Z',
       description: 'Launch of the first pToken, pBTC on Ethereum.',
+      type: 'general',
     },
   ],
 }

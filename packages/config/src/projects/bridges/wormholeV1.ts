@@ -1,11 +1,12 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 export const wormholeV1: Bridge = {
   type: 'bridge',
   id: ProjectId('wormholeV1'),
+  addedAt: new UnixTime(1663149233), // 2022-09-14T09:53:53Z
   isArchived: true,
   display: {
     name: 'Wormhole V1',

@@ -1,12 +1,12 @@
 import {
-  AmountConfigEntry,
+  type AmountConfigEntry,
   AssetId,
   CoingeckoId,
-  CoingeckoPriceConfigEntry,
+  type CoingeckoPriceConfigEntry,
   EthereumAddress,
-  PriceConfigEntry,
+  type PriceConfigEntry,
   ProjectId,
-  TotalSupplyEntry,
+  type TotalSupplyEntry,
   UnixTime,
 } from '@l2beat/shared-pure'
 import { expect } from 'earl'
@@ -31,8 +31,8 @@ describe(getValuesConfigHash.name, () => {
       mockAmount(),
     ]
 
-    const hash = getValuesConfigHash(amountConfigs, priceConfigs)
-    const hash2 = getValuesConfigHash(reorderedAmountConfigs, priceConfigs)
+    const hash = getValuesConfigHash(amountConfigs, priceConfigs, 1)
+    const hash2 = getValuesConfigHash(reorderedAmountConfigs, priceConfigs, 1)
 
     expect(hash).toEqual(hash2)
   })
@@ -40,6 +40,7 @@ describe(getValuesConfigHash.name, () => {
 
 function mockAmount(v?: Partial<TotalSupplyEntry>): TotalSupplyEntry {
   return {
+    assetId: AssetId.create(v?.chain ?? 'chain', v?.address),
     chain: 'chain',
     dataSource: 'chain',
     project: ProjectId('project'),
@@ -59,12 +60,12 @@ function mockAmount(v?: Partial<TotalSupplyEntry>): TotalSupplyEntry {
 
 function mockPrice(v?: Partial<PriceConfigEntry>): PriceConfigEntry {
   return {
+    assetId: AssetId.create(v?.chain ?? 'chain', v?.address),
     address: EthereumAddress.ZERO,
     chain: 'chain',
     type: 'coingecko',
     coingeckoId: CoingeckoId('id'),
     sinceTimestamp: UnixTime.ZERO,
-    assetId: AssetId.ARB,
     ...v,
   }
 }

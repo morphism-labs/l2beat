@@ -13,6 +13,7 @@ describe(getStage.name, () => {
           rollupNodeSourceAvailable: true,
         },
         stage1: {
+          principle: true,
           stateVerificationOnL1: true,
           fraudProofSystemAtLeast5Outsiders: true,
           usersHave7DaysToExit: true,
@@ -27,16 +28,26 @@ describe(getStage.name, () => {
       },
       {
         rollupNodeLink: 'randomlink',
+        additionalConsiderations: {
+          short: 'short notice',
+          long: 'long notice',
+        },
       },
     )
     expect(result).toEqual({
       message: undefined,
+      additionalConsiderations: {
+        short: 'short notice',
+        long: 'long notice',
+      },
+      downgradePending: undefined,
       missing: {
         nextStage: 'Stage 2',
+        principle: undefined,
         requirements: [
           'Fraud proof submission is open only to whitelisted actors.',
-          'Upgrades unrelated to on-chain provable bugs provide less than 30d to exit.',
-          "The Security Council's actions are not confined to on-chain provable bugs.",
+          'Upgrades unrelated to onchain provable bugs provide less than 30d to exit.',
+          "The Security Council's actions are not confined to onchain provable bugs.",
         ],
       },
       stage: 'Stage 1',
@@ -48,21 +59,22 @@ describe(getStage.name, () => {
               satisfied: true,
             },
             {
-              description: 'L2 state roots are posted to Ethereum L1.',
+              description: 'State roots are posted to Ethereum L1.',
               satisfied: true,
             },
             {
               description:
-                'Inputs for the state transition function are posted to L1.',
+                'Inputs for the state transition function are posted to Ethereum L1.',
               satisfied: true,
             },
             {
               description:
-                'A source-available node exists that can recreate the state from L1 data. Please note that the L2BEAT team has not verified the validity of the node source code. [View code](randomlink)',
+                'A source-available node exists that can recreate the state from Ethereum L1 data. Please note that the L2BEAT team has not verified the validity of the node source code. [View code](randomlink)',
               satisfied: true,
             },
           ],
           stage: 'Stage 0',
+          principle: undefined,
         },
         {
           requirements: [
@@ -92,6 +104,11 @@ describe(getStage.name, () => {
             },
           ],
           stage: 'Stage 1',
+          principle: {
+            description:
+              'Compromising ≥75% of the Security Council is the only way (other than bugs) for a rollup to indefinitely block an L2→L1 message (e.g. a withdrawal) or push an invalid L2→L1 message (e.g. an invalid withdrawal).',
+            satisfied: true,
+          },
         },
         {
           requirements: [
@@ -102,16 +119,17 @@ describe(getStage.name, () => {
             },
             {
               description:
-                'Upgrades unrelated to on-chain provable bugs provide less than 30d to exit.',
+                'Upgrades unrelated to onchain provable bugs provide less than 30d to exit.',
               satisfied: false,
             },
             {
               description:
-                "The Security Council's actions are not confined to on-chain provable bugs.",
+                "The Security Council's actions are not confined to onchain provable bugs.",
               satisfied: false,
             },
           ],
           stage: 'Stage 2',
+          principle: undefined,
         },
       ],
     })
@@ -127,6 +145,7 @@ describe(getStage.name, () => {
           rollupNodeSourceAvailable: true,
         },
         stage1: {
+          principle: true,
           stateVerificationOnL1: true,
           fraudProofSystemAtLeast5Outsiders: true,
           usersHave7DaysToExit: true,

@@ -2,14 +2,15 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS, NUGGETS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('aptos')
 
 export const aptos: Bridge = {
   type: 'bridge',
   id: ProjectId('aptos'),
+  addedAt: new UnixTime(1667124468), // 2022-10-30T10:07:48Z
   display: {
     name: 'Aptos (LayerZero)',
     slug: 'aptos',
@@ -22,7 +23,12 @@ export const aptos: Bridge = {
         'https://github.com/LayerZero-Labs/LayerZero-Aptos-Contract',
         'https://github.com/aptos-labs',
       ],
-      socialMedia: ['https://twitter.com/Aptos_Network'],
+      socialMedia: [
+        'https://x.com/Aptos',
+        'https://discord.com/invite/aptosnetwork',
+        'https://linkedin.com/company/aptos-foundation/',
+        'https://t.me/aptos',
+      ],
     },
     description:
       'Aptos Bridge is built on top of LayerZero protocol and is a token bridge for transferring assets from Ethereum to Aptos. It leverages an oracle and relayer for cross-chain security for the protocol.',
@@ -63,22 +69,18 @@ export const aptos: Bridge = {
         {
           category: 'Users can be censored if',
           text: 'oracles or relayers fail to facilitate the transfer.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'oracles and relayers collude to submit fraudulent block hash and relay fraudulent transfer .',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'token bridge owner (currently EOA) enables emergency withdrawal and users do not exit with their funds within a week.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: "token bridge owner (currently EOA) sets WETH contract address to a malicious contract that will allow the owner to steal user's ETH.",
-          isCritical: true,
         },
       ],
       isIncomplete: true,
@@ -100,95 +102,60 @@ export const aptos: Bridge = {
     ],
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('TokenBridge', 'Aptos Token Bridge.'),
-      {
-        address: EthereumAddress('0x902F09715B6303d4173037652FA7377e5b98089E'),
-        name: 'LayerZero Relayer',
-        upgradeability: {
-          proxyType: 'EIP1967 proxy',
-          admins: [
-            EthereumAddress('0xA658742d33ebd2ce2F0bdFf73515Aa797Fd161D9'),
-          ],
-          implementations: [
-            EthereumAddress('0x76A15d86FbBe691557C8b7A9C4BebF1d8AFE00A7'),
-          ],
-        },
-      },
-      {
-        address: EthereumAddress('0x5a54fe5234E811466D5366846283323c954310B2'),
-        name: 'LayerZero Oracle',
-        upgradeability: {
-          proxyType: 'EIP1967 proxy',
-          admins: [
-            EthereumAddress('0x967bAf657ec4d4b1cb00b06f7Cc6E8BA604e3AC8'),
-          ],
-          implementations: [
-            EthereumAddress('0xA0Cc33Dd6f4819D473226257792AFe230EC3c67f'),
-          ],
-        },
-      },
-      discovery.getContractDetails('Endpoint', 'LayerZero Ethereum Endpoint.'),
-      discovery.getContractDetails(
-        'UltraLightNodeV2',
-        'LayerZero UltraLight Node V2. Used by oracles to checkpoint source chain block hashes.',
-      ),
-      discovery.getContractDetails('TreasuryV2', 'LayerZero Treasury.'),
-      {
-        address: EthereumAddress('0x07245eEa05826F5984c7c3C8F478b04892e4df89'),
-        name: 'LayerZero Proof Library',
-      },
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('TokenBridge', 'Aptos Token Bridge.'),
+        discovery.getContractDetails('LayerZero Relayer'),
+        discovery.getContractDetails('LayerZero Oracle'),
+        discovery.getContractDetails(
+          'Endpoint',
+          'LayerZero Ethereum Endpoint.',
+        ),
+        discovery.getContractDetails(
+          'UltraLightNodeV2',
+          'LayerZero UltraLight Node V2. Used by oracles to checkpoint source chain block hashes.',
+        ),
+        discovery.getContractDetails('TreasuryV2', 'LayerZero Treasury.'),
+        discovery.getContractDetails('LayerZero Proof Library'),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
-    isIncomplete: true,
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'Aptos Multisig',
-      'Bridge owner, can setup tokens, fees, WETH token address (potentially malicious). Can withdraw all the funds from the Escrow after unlocking emergency withdrawal with 1 week delay.',
-    ),
-    {
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x902F09715B6303d4173037652FA7377e5b98089E',
-          ),
-          type: 'Contract',
-        },
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'Aptos Multisig',
+          'Bridge owner, can setup tokens, fees, WETH token address (potentially malicious). Can withdraw all the funds from the Escrow after unlocking emergency withdrawal with 1 week delay.',
+        ),
+        discovery.getPermissionDetails(
+          'LayerZero Relayer',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x902F09715B6303d4173037652FA7377e5b98089E'),
+          ]),
+          'Contract authorized to relay messages and - as a result - withdraw funds from the bridge.',
+        ),
+        discovery.getPermissionDetails(
+          'LayerZero Relayer Admin owner',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x76F6d257CEB5736CbcAAb5c48E4225a45F74d6e5'),
+          ]),
+          'Can upgrade LayerZero relayer contract with no delay.',
+        ),
+        discovery.getPermissionDetails(
+          'LayerZero Oracle Admin owner',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x7B80f2924E3Ad59a55f4bcC38AB63480599Be6c8'),
+          ]),
+          'Can upgrade LayerZero oracle contract with no delay.',
+        ),
+        discovery.getMultisigPermission(
+          'LayerZero Multisig',
+          'The owner of Endpoint, UltraLightNode and Treasury contracts. Can switch to a new UltraLightNode for an Endpoint. Can switch proof library for an UltraLightNode and change Treasury.',
+        ),
       ],
-      name: 'LayerZero Relayer',
-      description:
-        'Contract authorized to relay messages and - as a result - withdraw funds from the bridge.',
     },
-    {
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x76F6d257CEB5736CbcAAb5c48E4225a45F74d6e5',
-          ),
-          type: 'EOA',
-        },
-      ],
-      name: 'LayerZero Relayer Admin owner',
-      description: 'Can upgrade LayerZero relayer contract with no delay.',
-    },
-    {
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x7B80f2924E3Ad59a55f4bcC38AB63480599Be6c8',
-          ),
-          type: 'EOA',
-        },
-      ],
-      name: 'LayerZero Oracle Admin owner',
-      description: 'Can upgrade LayerZero oracle contract with no delay.',
-    },
-    ...discovery.getMultisigPermission(
-      'LayerZero Multisig',
-      'The owner of Endpoint, UltraLightNode and Treasury contracts. Can switch to a new UltraLightNode for an Endpoint. Can switch proof library for an UltraLightNode and change Treasury.',
-    ),
-  ],
+  },
   knowledgeNuggets: [
     {
       title: 'Security models: isolated vs shared',

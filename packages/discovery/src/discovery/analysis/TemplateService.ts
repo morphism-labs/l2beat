@@ -1,53 +1,59 @@
-import { createHash } from 'crypto'
 import { existsSync, readFileSync, readdirSync } from 'fs'
 import path, { join } from 'path'
-import chalk from 'chalk'
 
+import type { DiscoveryOutput } from '@l2beat/discovery-types'
 import { hashJson } from '@l2beat/shared'
-import { Hash256, json, stripAnsiEscapeCodes } from '@l2beat/shared-pure'
 import {
-  HashedFileContent,
-  buildSimilarityHashmap,
-  estimateSimilarity,
+  assert,
+  EthereumAddress,
+  Hash256,
+  type json,
+} from '@l2beat/shared-pure'
+import {
   flattenFirstSource,
-  removeComments,
+  flatteningHash,
+  formatIntoHashable,
+  sha2_256bit,
 } from '../../flatten/utils'
-import { ContractOverrides } from '../config/DiscoveryOverrides'
-import {
-  DiscoveryContract,
-  RawDiscoveryConfig,
-} from '../config/RawDiscoveryConfig'
-import { ContractSources } from '../source/SourceCodeService'
+import { fileExistsCaseSensitive } from '../../utils/fsLayer'
+import type { DiscoveryConfig } from '../config/DiscoveryConfig'
+import { DiscoveryContract } from '../config/RawDiscoveryConfig'
+import type { ContractSources } from '../source/SourceCodeService'
 import { readJsonc } from '../utils/readJsonc'
 
-const TEMPLATES_PATH = path.join('discovery', '_templates')
+export const TEMPLATES_PATH = path.join('discovery', '_templates')
 const TEMPLATE_SHAPE_FOLDER = 'shape'
-const TEMPLATE_SIMILARITY_THRESHOLD = 0.999 // TODO: why two identical files are not 1.0?
 
-export interface MatchResult {
-  similarity: number
-  templateId: string
+interface ShapeCriteria {
+  validAddresses?: string[]
 }
 
-export type ExecutedMatches = Record<string, MatchResult[]>
+export interface Shape {
+  criteria?: ShapeCriteria
+  hashes: Hash256[]
+}
 
 export class TemplateService {
   private readonly loadedTemplates: Record<string, DiscoveryContract> = {}
-  readonly executedMatches: ExecutedMatches = {}
+  private shapeHashes: Record<string, Shape> | undefined
+  private allTemplateHashes: Record<string, Hash256> | undefined
 
-  constructor(
-    private readonly rootPath: string = '',
-    private readonly similarityThreshold: number = TEMPLATE_SIMILARITY_THRESHOLD,
-  ) {}
+  constructor(private readonly rootPath: string = '') {}
 
   /**
    * @returns A record where the keys are template IDs (relative paths from the templates
    *          root directory) and the values are arrays of paths to the Solidity shape
    *          files for each template.
    */
-  listAllTemplates(): Record<string, string[]> {
-    const result: Record<string, string[]> = {}
+  listAllTemplates() {
+    const result: Record<
+      string,
+      { criteria?: ShapeCriteria; paths: string[] }
+    > = {}
     const resolvedRootPath = path.join(this.rootPath, TEMPLATES_PATH)
+    if (!fileExistsCaseSensitive(resolvedRootPath)) {
+      return {}
+    }
     const templatePaths = listAllPaths(resolvedRootPath)
     for (const path of templatePaths) {
       if (!existsSync(join(path, 'template.jsonc'))) {
@@ -62,60 +68,61 @@ export class TemplateService {
           })
             .filter((x) => x.isFile() && x.name.endsWith('.sol'))
             .map((x) => join(shapePath, x.name))
+      const criteriaPath = join(shapePath, 'criteria.json')
+      const criteria = existsSync(criteriaPath)
+        ? JSON.parse(readFileSync(criteriaPath, 'utf8'))
+        : undefined
+      criteria?.validAddresses?.map((a: string) => EthereumAddress(a))
 
       const templateId = path.substring(resolvedRootPath.length + 1)
-      result[templateId] = solidityShapeFiles
+      result[templateId] = { criteria, paths: solidityShapeFiles }
     }
     return result
   }
 
   findMatchingTemplates(
-    name: string,
     sources: ContractSources,
-  ): Record<string, number> {
-    const result: Record<string, number> = {}
-    if (!sources.isVerified) {
-      return result
+    address: EthereumAddress,
+  ): string[] {
+    const sourceHash = hashFirstSource(sources)
+    if (sourceHash === undefined) {
+      return []
     }
+    return this.findMatchingTemplatesByHash(sourceHash, address)
+  }
 
-    const flatSource = flattenFirstSource(sources)
-    if (flatSource === undefined) {
-      return result
-    }
+  findMatchingTemplatesByHash(
+    sourcesHash: Hash256,
+    address: EthereumAddress,
+  ): string[] {
+    const result: [string, number][] = []
 
-    const processedSource = removeComments(flatSource)
-    const sourceHashed: HashedFileContent = {
-      path: '',
-      hashChunks: buildSimilarityHashmap(processedSource),
-      content: processedSource,
-    }
-
-    const allTemplates = this.listAllTemplates()
-    for (const [templateId, shapeFilePaths] of Object.entries(allTemplates)) {
-      const similarities: number[] = []
-      for (const shapeFilePath of shapeFilePaths) {
-        const shapeFileContent = removeComments(
-          readFileSync(shapeFilePath, 'utf8'),
-        )
-        const shapeFileHashed: HashedFileContent = {
-          path: shapeFilePath,
-          hashChunks: buildSimilarityHashmap(shapeFileContent),
-          content: shapeFileContent,
+    const allShapes = this.getAllShapes()
+    for (const [templateId, shape] of Object.entries(allShapes)) {
+      const criteriaMatches: string[] = []
+      if (shape.criteria && shape.criteria.validAddresses) {
+        if (!shape.criteria.validAddresses.includes(address)) {
+          continue
+        } else {
+          criteriaMatches.push('validAddress')
         }
-        const similarity = estimateSimilarity(sourceHashed, shapeFileHashed)
-        similarities.push(similarity)
       }
-      const maxSimilarity = Math.max(...similarities)
-      this.executedMatches[name] ??= []
-      this.executedMatches[name]?.push({
-        templateId,
-        similarity: maxSimilarity,
-      })
-      if (maxSimilarity >= this.similarityThreshold) {
-        result[templateId] = maxSimilarity
+      if (shape.hashes.includes(sourcesHash)) {
+        criteriaMatches.push('implementation')
+        result.push([templateId, criteriaMatches.length])
       }
     }
-    return result
+
+    const maxMatches = Math.max(...result.map(([, matches]) => matches))
+
+    // remove results that have less than maxMatches
+    // so that more specific match trumps more general ones
+    const filteredResult = result
+      .filter(([, matches]) => matches === maxMatches)
+      .map(([templateId]) => templateId)
+    filteredResult.sort()
+
+    return filteredResult
   }
 
   loadContractTemplate(template: string): DiscoveryContract {
@@ -136,69 +143,99 @@ export class TemplateService {
     return hashJson(templateJson as json)
   }
 
+  getAllShapes(): Record<string, Shape> {
+    if (this.shapeHashes !== undefined) {
+      return this.shapeHashes
+    }
+
+    const result: Record<string, Shape> = {}
+    const allTemplates = this.listAllTemplates()
+    for (const [templateId, shapeFilePaths] of Object.entries(allTemplates)) {
+      const haystackHashes = shapeFilePaths.paths.map((p) =>
+        flatteningHash(readFileSync(p, 'utf8')),
+      )
+      result[templateId] = {
+        criteria: shapeFilePaths.criteria,
+        hashes: haystackHashes,
+      }
+    }
+
+    this.shapeHashes = result
+    return result
+  }
+
   getAllTemplateHashes(): Record<string, Hash256> {
+    if (this.allTemplateHashes !== undefined) {
+      return this.allTemplateHashes
+    }
     const result: Record<string, Hash256> = {}
     const allTemplates = this.listAllTemplates()
     for (const templateId of Object.keys(allTemplates)) {
       result[templateId] = this.getTemplateHash(templateId)
     }
+    this.allTemplateHashes = result
     return result
   }
 
-  getShapeFilesHash(): Hash256 {
-    const hash = createHash('sha256')
-    const allTemplates = this.listAllTemplates()
+  // returns reason or undefined
+  discoveryNeedsRefresh(discovery: DiscoveryOutput, config: DiscoveryConfig) {
+    const allTemplateHashes = this.getAllTemplateHashes()
+    const allShapes = this.getAllShapes()
 
-    const sortedTemplateIds = Object.keys(allTemplates)
-    sortedTemplateIds.sort()
+    for (const contract of discovery.contracts) {
+      if (contract.sourceHashes === undefined) {
+        continue
+      }
+      const hashes =
+        contract.sourceHashes.length === 1
+          ? contract.sourceHashes
+          : contract.sourceHashes.slice(1)
 
-    for (const templateId of sortedTemplateIds) {
-      const sortedShapeFilePaths = allTemplates[templateId] ?? []
-      sortedShapeFilePaths.sort()
-      for (const shapeFilePath of sortedShapeFilePaths) {
-        const shapeFileContent = readFileSync(shapeFilePath, 'utf8')
-        hash.update(templateId)
-        hash.update('\0') // null byte separator
-        hash.update(shapeFileContent)
-        hash.update('\0') // null byte separator
+      if (hashes.length > 1) {
+        // NOTE(radomski): Diamonds don't really work well with templates right now
+        continue
+      }
+
+      const hash = hashes[0]
+      assert(hash !== undefined)
+      const sourcesHash = Hash256(hash)
+      const matchingTemplates = this.findMatchingTemplatesByHash(
+        sourcesHash,
+        contract.address,
+      )
+
+      if (
+        contract.template !== undefined &&
+        (allShapes[contract.template]?.hashes.length ?? 0) > 0
+      ) {
+        if (config.for(contract.address).extends === undefined) {
+          if (matchingTemplates.length === 0) {
+            return `A contract "${contract.name}" with template "${contract.template}", no longer matches any template`
+          }
+          if (contract.template !== matchingTemplates[0]) {
+            return `A contract "${contract.name}" matches a different template: "${contract.template} -> ${matchingTemplates.join(', ')}"`
+          }
+        }
+      } else if (matchingTemplates.length > 0) {
+        return `A contract "${contract.name}" without template now matches: "${matchingTemplates.join(', ')}"`
       }
     }
-    return Hash256('0x' + hash.digest('hex'))
-  }
 
-  applyTemplateOnContractOverrides(
-    contractOverrides: ContractOverrides,
-    template: string,
-  ): ContractOverrides {
-    return {
-      name: contractOverrides.name,
-      address: contractOverrides.address,
-      ...this.applyTemplate(contractOverrides, template),
+    if (discovery.configHash !== config.hash) {
+      return 'project config or used template has changed'
     }
-  }
 
-  applyTemplate(
-    contract: DiscoveryContract,
-    template: string,
-  ): DiscoveryContract {
-    const templateJson = this.loadContractTemplate(template)
-    return DiscoveryContract.parse({
-      ...templateJson,
-      ...contract,
-    })
-  }
-
-  inlineTemplates(rawConfig: RawDiscoveryConfig): void {
-    if (rawConfig.overrides === undefined) {
-      return
-    }
-    for (const [name, contract] of Object.entries(rawConfig.overrides)) {
-      if (contract.extends !== undefined) {
-        rawConfig.overrides[name] = this.applyTemplate(
-          contract,
-          contract.extends,
-        )
+    const outdatedTemplates = []
+    for (const [templateId, templateHash] of Object.entries(
+      discovery.usedTemplates,
+    )) {
+      if (templateHash !== allTemplateHashes[templateId]) {
+        outdatedTemplates.push(templateId)
       }
+    }
+
+    if (outdatedTemplates.length > 0) {
+      return `template configs has changed: ${outdatedTemplates.join(', ')}`
     }
   }
 }
@@ -214,67 +251,14 @@ function listAllPaths(path: string): string[] {
   return result
 }
 
-function formatRow(entry: MatchResult, longestTemplateId: number): string {
-  return `${entry.templateId.padStart(longestTemplateId)} : ${colorMap(
-    entry.similarity,
-  )}`
-}
-
-export function printExecutedMatches(
-  executedMatches: ExecutedMatches,
-  similarityCutoff: number,
-) {
-  let longestTemplateId = Number.MIN_SAFE_INTEGER
-  for (const entries of Object.values(executedMatches)) {
-    const filtered = entries.filter((e) => e.similarity >= similarityCutoff)
-    longestTemplateId = Math.max(
-      longestTemplateId,
-      ...filtered.map((e) => e.templateId.length),
-    )
+export function hashFirstSource(sources: ContractSources): Hash256 | undefined {
+  if (!sources.isVerified || sources.sources.length < 1) {
+    return
   }
 
-  const phantomRow = formatRow(
-    { similarity: 1, templateId: 'a' },
-    longestTemplateId,
-  )
-  const rowLength = stripAnsiEscapeCodes(phantomRow).length
-
-  for (const [key, entries] of Object.entries(executedMatches)) {
-    const filtered = entries
-      .filter((e) => e.similarity >= similarityCutoff)
-      .sort((a, b) => b.similarity - a.similarity)
-
-    console.log(`${`=== ${key} ===`.padEnd(rowLength, '=')}\n`)
-    if (filtered.length === 0) {
-      console.log(chalk.yellow('No entries\n'))
-      continue
-    }
-
-    for (const entry of filtered) {
-      console.log(formatRow(entry, longestTemplateId))
-    }
-    console.log('')
+  const flattenedSource = flattenFirstSource(sources)
+  if (flattenedSource === undefined) {
+    return
   }
-}
-
-export function colorMap(value: number): string {
-  const valueString = value.toFixed(2)
-
-  if (value < 0.125) {
-    return chalk.grey(valueString)
-  } else if (value < 0.25) {
-    return chalk.red(valueString)
-  } else if (value < 0.375) {
-    return chalk.redBright(valueString)
-  } else if (value < 0.5) {
-    return chalk.magenta(valueString)
-  } else if (value < 0.625) {
-    return chalk.magentaBright(valueString)
-  } else if (value < 0.75) {
-    return chalk.yellow(valueString)
-  } else if (value < 0.875) {
-    return chalk.yellowBright(valueString)
-  } else {
-    return chalk.greenBright(valueString)
-  }
+  return sha2_256bit(formatIntoHashable(flattenedSource))
 }

@@ -1,17 +1,23 @@
-import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
-
 import {
+  EthereumAddress,
+  ProjectId,
+  UnixTime,
+  formatSeconds,
+} from '@l2beat/shared-pure'
+import {
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   FORCE_TRANSACTIONS,
   NEW_CRYPTOGRAPHY,
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
+import { generateDiscoveryDrivenContracts } from './templates/generateDiscoveryDrivenSections'
 
 const discovery = new ProjectDiscovery('aztec')
 
@@ -36,24 +42,28 @@ function getRollupProviders() {
   return [...providers, deployer]
 }
 
+const escapeBlockUpperBound = 4800 // in blocks, immutable
+const escapeBlockLowerBound = 4560 // in blocks, immutable
+const assumedBlockTime = 12 // in seconds
+
 export const aztecV1: Layer2 = {
-  isArchived: true,
   type: 'layer2',
   id: ProjectId('aztec'),
+  addedAt: new UnixTime(1623153328), // 2021-06-08T11:55:28Z
+  capability: 'appchain',
   display: {
     name: 'Zk.Money v1 (Aztec v1)',
+    shortName: 'Zk.Money v1',
     slug: 'aztecv1',
     warning:
       'EOL: Ownership of the rollup contract is irrevocably renounced and Aztec is not running a rollup processor (operator). Users or third parties have to [run the rollup system by themselves](https://github.com/AztecProtocol/aztec-v2-ejector/) to withdraw or transact.',
     description:
-      'Zk.Money v1 is an open source layer 2 network that aims to enable affordable, private crypto payments via zero-knowledge proofs.',
-    purposes: ['Private payments'],
+      'Zk.Money v1 (Aztec v1, or sometimes called Aztec 2.0) is an open source layer 2 network that aims to enable affordable, private crypto payments via zero-knowledge proofs.',
+    purposes: ['Payments', 'Privacy'],
     category: 'ZK Rollup',
     links: {
       websites: ['https://aztec.network/'],
       apps: ['https://old.zk.money'],
-      documentation: ['https://developers.aztec.network/'],
-      explorers: ['https://explorer.aztec.network/'],
       repositories: ['https://github.com/AztecProtocol/aztec-2-bug-bounty'],
       socialMedia: [
         'https://twitter.com/aztecnetwork',
@@ -62,7 +72,6 @@ export const aztecV1: Layer2 = {
         'https://plonk.cafe/',
       ],
     },
-    activityDataSource: 'Explorer API',
   },
   config: {
     escrows: [
@@ -73,76 +82,78 @@ export const aztecV1: Layer2 = {
         tokens: ['ETH', 'DAI', 'renBTC', 'USDT'],
       },
     ],
+    trackedTxs: [
+      {
+        uses: [
+          {
+            type: 'liveness',
+            subtype: 'stateUpdates',
+          },
+          {
+            type: 'l2costs',
+            subtype: 'stateUpdates',
+          },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba',
+          ),
+          selector: '0x06011a46',
+          functionSignature:
+            'function processRollup(bytes proofData, bytes signatures, bytes viewingKeys, bytes providerSignature, address provider, address feeReceiver, uint256 feeLimit)',
+          sinceTimestamp: new UnixTime(1614799636),
+        },
+      },
+      {
+        uses: [
+          {
+            type: 'liveness',
+            subtype: 'stateUpdates',
+          },
+          {
+            type: 'l2costs',
+            subtype: 'stateUpdates',
+          },
+        ],
+        query: {
+          formula: 'functionCall',
+          address: EthereumAddress(
+            '0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba',
+          ),
+          selector: '0xd1c65264',
+          functionSignature:
+            'function escapeHatch(bytes proofData, bytes signatures, bytes viewingKeys)',
+          sinceTimestamp: new UnixTime(1614799636),
+        },
+      },
+    ],
+    liveness: {
+      duplicateData: {
+        from: 'stateUpdates',
+        to: 'proofSubmissions',
+      },
+    },
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'State diffs',
-  }),
-  riskView: makeBridgeCompatible({
-    stateValidation: {
-      ...RISK_VIEW.STATE_ZKP_SN,
-      sources: [
-        {
-          contract: 'RollupProcessor',
-          references: [
-            'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L395',
-          ],
-        },
-        {
-          contract: 'TurboVerifier',
-          references: [
-            'https://etherscan.io/address/0x48Cb7BA00D087541dC8E2B3738f80fDd1FEe8Ce8#code#F1#L37',
-          ],
-        },
-      ],
-    },
-    dataAvailability: {
-      ...RISK_VIEW.DATA_ON_CHAIN,
-      sources: [
-        {
-          contract: 'RollupProcessor',
-          references: [
-            'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L359',
-          ],
-        },
-      ],
-    },
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.STATE_DIFFS,
+  },
+  riskView: {
+    stateValidation: RISK_VIEW.STATE_ZKP_SN,
+    dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
     exitWindow: RISK_VIEW.EXIT_WINDOW_NON_UPGRADABLE,
-    sequencerFailure: {
-      ...RISK_VIEW.SEQUENCER_SELF_SEQUENCE_ZK(),
-      sources: [
-        {
-          contract: 'RollupProcessor',
-          references: [
-            'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L347',
-            'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L168',
-          ],
-        },
-      ],
-    },
-    proposerFailure: {
-      ...RISK_VIEW.PROPOSER_SELF_PROPOSE_ZK,
-      sources: [
-        {
-          contract: 'RollupProcessor',
-          references: [
-            'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L347',
-            'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L168',
-          ],
-        },
-      ],
-    },
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-  }),
+    sequencerFailure: RISK_VIEW.SEQUENCER_SELF_SEQUENCE_ZK(),
+    proposerFailure: RISK_VIEW.PROPOSER_SELF_PROPOSE_ZK,
+  },
   stateDerivation: {
     nodeSoftware:
-      'There are three ways to run a node and use the escape hatch: By running the [Aztec v2 Ejector](https://github.com/AztecProtocol/aztec-v2-ejector/) during the escape hatch window, 2) by running [falafel](https://github.com/AztecProtocol/aztec-2.0/tree/master/falafel), 3) by running the [SDK](https://developers.aztec.network/#/A%20Private%20Layer%202/zkAssets/emergencyWithdraw) in escape hatch mode and connecting to an [escape hatch server](https://github.com/AztecProtocol/aztec-v2-escape-hatch-server). The two latter methods are no longer recommended by the aztec team.',
+      'There are three ways to run a node and use the escape hatch: By running the [Aztec v2 Ejector](https://github.com/AztecProtocol/aztec-v2-ejector/) during the escape hatch window, 2) by running [falafel](https://github.com/AztecProtocol/aztec-2.0/tree/master/falafel), 3) by running the [SDK](https://developers.aztec.network/#/A%20Private%20Layer%202/zkAssets/emergencyWithdraw) in escape hatch mode and connecting to an [escape hatch server](https://github.com/AztecProtocol/aztec-v2-escape-hatch-server). The two latter methods are no longer recommended by the Aztec team.',
     compressionScheme: 'No compression scheme is used.',
     genesisState: 'No genesis state is used.',
     dataFormat:
-      'The data format used can be found [here](https://github.com/AztecProtocol/aztec-2.0/blob/master/blockchain/contracts/Decoder.sol)',
+      'The data format used can be found [here](https://github.com/AztecProtocol/aztec-2.0/blob/master/blockchain/contracts/Decoder.sol).',
   },
   stage: getStage(
     {
@@ -153,6 +164,7 @@ export const aztecV1: Layer2 = {
         rollupNodeSourceAvailable: true,
       },
       stage1: {
+        principle: true,
         stateVerificationOnL1: true,
         fraudProofSystemAtLeast5Outsiders: null,
         usersHave7DaysToExit: true,
@@ -162,10 +174,12 @@ export const aztecV1: Layer2 = {
       stage2: {
         proofSystemOverriddenOnlyInCaseOfABug: null,
         fraudProofSystemIsPermissionless: null,
-        delayWith30DExitWindow: [
-          true,
-          'Users can exit through the escape hatch mechanism and the rollup contract is immutable.',
-        ],
+        delayWith30DExitWindow: {
+          satisfied: true,
+          message:
+            'Users can exit through the escape hatch mechanism and the rollup contract is immutable.',
+          mode: 'replace',
+        },
       },
     },
     {
@@ -178,8 +192,8 @@ export const aztecV1: Layer2 = {
       ...STATE_CORRECTNESS.VALIDITY_PROOFS,
       references: [
         {
-          text: 'RollupProcessor.sol#L395 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L395',
+          title: 'RollupProcessor.sol#L395 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L395',
         },
       ],
     },
@@ -187,8 +201,8 @@ export const aztecV1: Layer2 = {
       ...NEW_CRYPTOGRAPHY.ZK_SNARKS,
       references: [
         {
-          text: 'TurboVerifier.sol#L37 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x48Cb7BA00D087541dC8E2B3738f80fDd1FEe8Ce8#code#F1#L37',
+          title: 'TurboVerifier.sol#L37 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x48Cb7BA00D087541dC8E2B3738f80fDd1FEe8Ce8#code#F1#L37',
         },
       ],
     },
@@ -196,24 +210,23 @@ export const aztecV1: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CALLDATA,
       references: [
         {
-          text: 'RollupProcessor.sol#L359 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L359',
+          title: 'RollupProcessor.sol#L359 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L359',
         },
       ],
     },
     operator: {
-      name: 'No operator',
+      name: 'No regular operators',
       risks: [],
-      description:
-        'Only specific addresses appointed by the owner were permitted to propose new blocks during regular rollup operation. Since EOL, these operators are not processing the rollup anymore. Periodically a special window (escape hatch) is open during which anyone can propose new blocks.',
+      description: `Only specific addresses appointed by the owner are permitted to propose new blocks during regular rollup operations. Since EOL, these operators are not regularly processing the rollup anymore.`,
       references: [
         {
-          text: 'RollupProcessor.sol#L97 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L97',
+          title: 'RollupProcessor.sol#L97 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L97',
         },
         {
-          text: 'RollupProcessor.sol#L369 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L369',
+          title: 'RollupProcessor.sol#L369 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L369',
         },
       ],
     },
@@ -221,30 +234,23 @@ export const aztecV1: Layer2 = {
       ...FORCE_TRANSACTIONS.PROPOSE_OWN_BLOCKS,
       description:
         FORCE_TRANSACTIONS.PROPOSE_OWN_BLOCKS.description +
-        ' Periodically the rollup opens a special window (escape hatch) during which anyone can propose new blocks.',
+        `The private key of one of the permissioned operators is public (first Anvil address), therefore anyone can in principle resume regular operations. No funds need to be deposited to that address since submitting signatures is enough. Every ${formatSeconds(escapeBlockUpperBound * assumedBlockTime)} a special ${formatSeconds((escapeBlockUpperBound - escapeBlockLowerBound) * assumedBlockTime)} window (escape hatch) is open during which any address can propose new blocks.`,
       references: [
         {
-          text: 'RollupProcessor.sol#L347 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L347',
+          title: 'Anvil - a local testnet node toolchain',
+          url: 'https://book.getfoundry.sh/anvil/',
         },
         {
-          text: 'RollupProcessor.sol#L168 - Etherscan source code',
-          href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L168',
+          title: 'RollupProcessor.sol#L347 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L347',
+        },
+        {
+          title: 'RollupProcessor.sol#L168 - Etherscan source code',
+          url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L168',
         },
       ],
     },
     exitMechanisms: [
-      {
-        name: 'EOL: Manual withdrawal using Aztec v2 Ejector',
-        description: `EOL: Ownership of the rollup contract is irrevocably renounced and operators are not processing the rollup. Assets in the escrow can be manually withdrawn with the [Aztec v2 Ejector](https://github.com/AztecProtocol/aztec-v2-ejector/).`,
-        risks: [],
-        references: [
-          {
-            text: 'Aztec v2 Ejector - Codespace template for running the Aztec v2 rollup.',
-            href: 'https://github.com/AztecProtocol/aztec-v2-ejector/',
-          },
-        ],
-      },
       {
         name: 'Regular withdraw (deprecated)',
         description:
@@ -252,8 +258,20 @@ export const aztecV1: Layer2 = {
         risks: [],
         references: [
           {
-            text: 'RollupProcessor.sol#LL396 - Etherscan source code',
-            href: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L396',
+            title: 'RollupProcessor.sol#LL396 - Etherscan source code',
+            url: 'https://etherscan.io/address/0x737901bea3eeb88459df9ef1BE8fF3Ae1B42A2ba#code#F1#L396',
+          },
+        ],
+      },
+      {
+        name: 'EOL: Manual withdrawal using Aztec v2 Ejector',
+        description: `EOL: Ownership of the rollup contract is irrevocably renounced and operators are not processing the rollup. Assets in the escrow can be manually withdrawn with the [Aztec v2 Ejector](https://github.com/AztecProtocol/aztec-v2-ejector/).`,
+        risks: [],
+        references: [
+          {
+            title:
+              'Aztec v2 Ejector - Codespace template for running the Aztec v2 rollup.',
+            url: 'https://github.com/AztecProtocol/aztec-v2-ejector/',
           },
         ],
       },
@@ -266,53 +284,48 @@ export const aztecV1: Layer2 = {
         risks: [],
         references: [
           {
-            text: 'Fast Privacy, Now - Aztec Medium Blog',
-            href: 'https://medium.com/aztec-protocol/aztec-zkrollup-layer-2-privacy-1978e90ee3b6#3b25',
+            title: 'Fast Privacy, Now - Aztec Medium Blog',
+            url: 'https://medium.com/aztec-protocol/aztec-zkrollup-layer-2-privacy-1978e90ee3b6#3b25',
           },
         ],
       },
     ],
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'RollupProcessor',
-        'Main Rollup contract responsible for deposits, withdrawals and accepting transaction batches alongside a ZK proof.',
-      ),
-      discovery.getContractDetails(
-        'AztecFeeDistributor',
-        'Contract responsible for distributing fees and reimbursing gas to Rollup Providers.',
-      ),
-      discovery.getContractDetails('TurboVerifier', {
-        description: 'Turbo Plonk zkSNARK Verifier.',
-      }),
-    ],
+    addresses: generateDiscoveryDrivenContracts([discovery]),
     risks: [],
   },
-  permissions: [
-    {
-      name: 'Rollup Providers',
-      description:
-        'Addresses that can propose new blocks during regular rollup operation.',
-      accounts: getRollupProviders().map((account) =>
-        discovery.formatPermissionedAccount(account),
-      ),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Rollup Providers',
+          discovery.formatPermissionedAccounts(getRollupProviders()),
+          `Addresses that can propose new blocks during regular rollup operation. Since the private key of one of them is public (first Anvil address), anyone can in principle resume regular operations. Every ${formatSeconds(escapeBlockUpperBound * assumedBlockTime)} a special ${formatSeconds((escapeBlockUpperBound - escapeBlockLowerBound) * assumedBlockTime)} window (escape hatch) is open during which anyone can propose new blocks.`,
+        ),
+        discovery.getMultisigPermission(
+          'AztecMultisig',
+          "Can update parameters related to the reimbursement of gas to permissioned rollup providers. It doesn't affect the escape hatch mechanism, but it can halt regular operations by setting a reimbursement constant that is too high.",
+        ),
+      ],
     },
-  ],
+  },
   milestones: [
     {
-      name: 'Aztec operator sunset',
+      title: 'Aztec operator sunset',
       date: '2023-07-08T00:00:00Z',
-      link: 'https://github.com/AztecProtocol/aztec-v2-ejector/',
+      url: 'https://github.com/AztecProtocol/aztec-v2-ejector/',
       description:
         'Aztec stops their rollup operators. Users now have to run the Rollup manually.',
+      type: 'general',
     },
     {
-      name: 'Aztec 2.0',
+      title: 'Aztec 2.0',
       date: '2021-03-15T00:00:00Z',
-      link: 'https://medium.com/aztec-protocol/launching-aztec-2-0-rollup-ac7db8012f4b',
+      url: 'https://medium.com/aztec-protocol/launching-aztec-2-0-rollup-ac7db8012f4b',
       description:
         'Private Rollup is live on mainnet, allowing user to access DeFi.',
+      type: 'general',
     },
   ],
 }

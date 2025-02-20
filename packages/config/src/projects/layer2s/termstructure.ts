@@ -1,9 +1,5 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
-import {
-  CONTRACTS,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
-} from '../../common'
+import { CONTRACTS, DA_BRIDGES, DA_LAYERS, DA_MODES } from '../../common'
 import { EXITS } from '../../common/exits'
 import { FORCE_TRANSACTIONS } from '../../common/forceTransactions'
 import { NEW_CRYPTOGRAPHY } from '../../common/newCryptography'
@@ -12,9 +8,9 @@ import { RISK_VIEW } from '../../common/riskView'
 import { STATE_CORRECTNESS } from '../../common/stateCorrectness'
 import { TECHNOLOGY_DATA_AVAILABILITY } from '../../common/technologyDataAvailability'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
 import { getStage } from './common/stages/getStage'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('termstructure')
 
@@ -24,8 +20,7 @@ const expirationPeriod = discovery.getContractValue<number>(
 )
 
 const upgrades = {
-  upgradableBy: ['TermStructureMultisig'],
-  upgradeDelay: 'None',
+  upgradableBy: [{ name: 'TermStructureMultisig', delay: 'no' }],
 }
 
 const treasuryWeight =
@@ -48,11 +43,13 @@ const vaultWeight =
 
 export const termstructure: Layer2 = {
   id: ProjectId('termstructure'),
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['Ethereum (calldata)'],
-    bridge: { type: 'Enshrined' },
-    mode: 'State diffs',
-  }),
+  capability: 'appchain',
+  addedAt: new UnixTime(1709724246), // 2024-03-06T11:24:06Z
+  dataAvailability: {
+    layer: DA_LAYERS.ETH_CALLDATA,
+    bridge: DA_BRIDGES.ENSHRINED,
+    mode: DA_MODES.STATE_DIFFS,
+  },
   badges: [
     Badge.VM.AppChain,
     Badge.DA.EthereumCalldata,
@@ -63,9 +60,9 @@ export const termstructure: Layer2 = {
     slug: 'termstructure',
     description:
       'Term Structure introduces a distinct ZK Rollup solution democratizing fixed-rate and fixed-term borrowing and lending as well as fixed income trading by offering low transaction fees and enabling forced withdrawals.',
-    purposes: ['DeFi', 'Lending'],
+    purposes: ['Payments', 'Exchange', 'Lending'],
     category: 'ZK Rollup',
-    provider: 'ZKsync Lite',
+    stack: 'ZKsync Lite',
     links: {
       websites: ['https://ts.finance/'],
       apps: ['https://app.ts.finance/'],
@@ -144,35 +141,13 @@ export const termstructure: Layer2 = {
     ],
   },
   type: 'layer2',
-  riskView: makeBridgeCompatible({
-    stateValidation: {
-      ...RISK_VIEW.STATE_ZKP_SN,
-      sources: [
-        {
-          contract: 'Verifier',
-          references: [
-            'https://etherscan.io/address/0x23369A60E5A8f422E38d799eD55e7AD8Ed4A86cE',
-          ],
-        },
-      ],
-    },
-    dataAvailability: {
-      ...RISK_VIEW.DATA_ON_CHAIN,
-      sources: [
-        {
-          contract: 'RollupFacet',
-          references: [
-            'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#writeContract',
-          ],
-        },
-      ],
-    },
+  riskView: {
+    stateValidation: RISK_VIEW.STATE_ZKP_SN,
+    dataAvailability: RISK_VIEW.DATA_ON_CHAIN,
     exitWindow: RISK_VIEW.EXIT_WINDOW(0, expirationPeriod),
     sequencerFailure: RISK_VIEW.SEQUENCER_FORCE_VIA_L1(expirationPeriod),
     proposerFailure: RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_ZK,
-    destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   stage: getStage({
     stage0: {
       callsItselfRollup: true,
@@ -181,6 +156,7 @@ export const termstructure: Layer2 = {
       rollupNodeSourceAvailable: 'UnderReview',
     },
     stage1: {
+      principle: false,
       stateVerificationOnL1: true,
       fraudProofSystemAtLeast5Outsiders: null,
       usersHave7DaysToExit: false,
@@ -198,8 +174,9 @@ export const termstructure: Layer2 = {
       ...STATE_CORRECTNESS.VALIDITY_PROOFS,
       references: [
         {
-          text: 'RollupFacet.sol - Etherscan source code, verifyOneBlock function',
-          href: 'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#code',
+          title:
+            'RollupFacet.sol - Etherscan source code, verifyOneBlock function',
+          url: 'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#code',
         },
       ],
     },
@@ -207,12 +184,12 @@ export const termstructure: Layer2 = {
       ...NEW_CRYPTOGRAPHY.ZK_SNARKS,
       references: [
         {
-          text: 'Verifier.sol - Etherscan source code',
-          href: 'https://etherscan.io/address/0x23369A60E5A8f422E38d799eD55e7AD8Ed4A86cE',
+          title: 'Verifier.sol - Etherscan source code',
+          url: 'https://etherscan.io/address/0x23369A60E5A8f422E38d799eD55e7AD8Ed4A86cE',
         },
         {
-          text: 'EvacuVerifier.sol - Etherscan source code',
-          href: 'https://etherscan.io/address/0x9c7Df3981A89eD04588907843fe2a6c1BcCc4467#code',
+          title: 'EvacuVerifier.sol - Etherscan source code',
+          url: 'https://etherscan.io/address/0x9c7Df3981A89eD04588907843fe2a6c1BcCc4467#code',
         },
       ],
     },
@@ -220,8 +197,9 @@ export const termstructure: Layer2 = {
       ...TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CALLDATA,
       references: [
         {
-          text: 'RollupFacet.sol - Etherscan source code, _commitOneBlock function',
-          href: 'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#code',
+          title:
+            'RollupFacet.sol - Etherscan source code, _commitOneBlock function',
+          url: 'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#code',
         },
       ],
     },
@@ -229,8 +207,9 @@ export const termstructure: Layer2 = {
       ...OPERATOR.CENTRALIZED_OPERATOR,
       references: [
         {
-          text: 'RollupFacet.sol - Etherscan source code, onlyRole in commit, verify, execute functions',
-          href: 'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#code',
+          title:
+            'RollupFacet.sol - Etherscan source code, onlyRole in commit, verify, execute functions',
+          url: 'https://etherscan.io/address/0x955cdD2E56Ca2776a101a552A318d28fe311398D#code',
         },
       ],
     },
@@ -238,39 +217,43 @@ export const termstructure: Layer2 = {
       ...FORCE_TRANSACTIONS.WITHDRAW_OR_HALT(),
       references: [
         {
-          text: 'AccountFacet.sol - Etherscan source code, forceWithdraw function',
-          href: 'https://etherscan.io/address/0x8D0fc76595E42f38c771ecEE627DA5654Ca2E75A#code',
+          title:
+            'AccountFacet.sol - Etherscan source code, forceWithdraw function',
+          url: 'https://etherscan.io/address/0x8D0fc76595E42f38c771ecEE627DA5654Ca2E75A#code',
         },
         {
-          text: 'Force Withdrawal and Evacuation Mode - Term Structure documentation',
-          href: 'https://docs.ts.finance/zktrue-up/zk-architecture/forced-withdrawal-and-evacuation-mode',
+          title:
+            'Force Withdrawal and Evacuation Mode - Term Structure documentation',
+          url: 'https://docs.ts.finance/zktrue-up/zk-architecture/forced-withdrawal-and-evacuation-mode',
         },
       ],
     },
     exitMechanisms: [
       {
-        ...EXITS.REGULAR('zk', 'no proof'),
+        ...EXITS.REGULAR_WITHDRAWAL('zk'),
         references: [
           {
-            text: 'AccountFacet.sol - Etherscan source code, withdraw function',
-            href: 'https://etherscan.io/address/0x8D0fc76595E42f38c771ecEE627DA5654Ca2E75A#code',
+            title:
+              'AccountFacet.sol - Etherscan source code, withdraw function',
+            url: 'https://etherscan.io/address/0x8D0fc76595E42f38c771ecEE627DA5654Ca2E75A#code',
           },
           {
-            text: 'Withdraw - Term Structure documentation',
-            href: 'https://docs.ts.finance/protocol-spec/general/withdraw',
+            title: 'Withdraw - Term Structure documentation',
+            url: 'https://docs.ts.finance/protocol-spec/general/withdraw',
           },
         ],
       },
       {
-        ...EXITS.FORCED(),
+        ...EXITS.FORCED_WITHDRAWAL(),
         references: [
           {
-            text: 'AccountFacet.sol - Etherscan source code, forceWithdraw function',
-            href: 'https://etherscan.io/address/0x8D0fc76595E42f38c771ecEE627DA5654Ca2E75A#code',
+            title:
+              'AccountFacet.sol - Etherscan source code, forceWithdraw function',
+            url: 'https://etherscan.io/address/0x8D0fc76595E42f38c771ecEE627DA5654Ca2E75A#code',
           },
           {
-            text: 'Forced Withdrawal - Term Structure documentation',
-            href: 'https://docs.ts.finance/zktrue-up/zk-architecture/forced-withdrawal-and-evacuation-mode#forced-withdrawal',
+            title: 'Forced Withdrawal - Term Structure documentation',
+            url: 'https://docs.ts.finance/zktrue-up/zk-architecture/forced-withdrawal-and-evacuation-mode#forced-withdrawal',
           },
         ],
       },
@@ -278,8 +261,8 @@ export const termstructure: Layer2 = {
         ...EXITS.EMERGENCY('Evacuation Mode', 'zero knowledge proof'),
         references: [
           {
-            text: 'Evacuation Mode - Term Structure documentation',
-            href: 'https://docs.ts.finance/zktrue-up/zk-architecture/forced-withdrawal-and-evacuation-mode#evacuation-mode',
+            title: 'Evacuation Mode - Term Structure documentation',
+            url: 'https://docs.ts.finance/zktrue-up/zk-architecture/forced-withdrawal-and-evacuation-mode#evacuation-mode',
           },
         ],
       },
@@ -291,8 +274,9 @@ export const termstructure: Layer2 = {
           'The protocol allows flashloans with the funds locked with the bridge, for a fee.',
         references: [
           {
-            text: 'FlashloanFacet.sol - Etherscan source code, flashLoan function',
-            href: 'https://etherscan.io/address/0xbb629c830a4d153CDE43Cb127b5aff60d1185B8c#code',
+            title:
+              'FlashloanFacet.sol - Etherscan source code, flashLoan function',
+            url: 'https://etherscan.io/address/0xbb629c830a4d153CDE43Cb127b5aff60d1185B8c#code',
           },
         ],
         risks: [
@@ -305,78 +289,70 @@ export const termstructure: Layer2 = {
       },
     ],
   },
-  permissions: [
-    {
-      name: 'Admins',
-      accounts: discovery.getAccessControlRolePermission(
-        'ZkTrueUp',
-        'ADMIN_ROLE',
-      ),
-      description:
-        'Can update the main verifier, the evacuation verifier, can set the flash loan premium, set the half liquidation threshold, the liquidation factor, the borrow rate, the rollover fee, the withdraw protocol fee, the price feed, the stablecoin used, the minimum deposit amount and it can pause the system.',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Admins',
+          discovery.getAccessControlRolePermission('ZkTrueUp', 'ADMIN_ROLE'),
+          'Can update the main verifier, the evacuation verifier, can set the flash loan premium, set the half liquidation threshold, the liquidation factor, the borrow rate, the rollover fee, the withdraw protocol fee, the price feed, the stablecoin used, the minimum deposit amount and it can pause the system.',
+        ),
+        discovery.getMultisigPermission(
+          'TermStructureMultisig',
+          'Owner of the protocol, meaning it can upgrade the project implementation potentially gaining access to all funds.',
+        ),
+        discovery.getPermissionDetails(
+          'Operators',
+          discovery.getAccessControlRolePermission('ZkTrueUp', 'OPERATOR_ROLE'),
+          'Can add tokens to the system.',
+        ),
+        discovery.getPermissionDetails(
+          'Committers',
+          discovery.getAccessControlRolePermission(
+            'ZkTrueUp',
+            'COMMITTER_ROLE',
+          ),
+          'Can commit blocks on L1 and revert pending (i.e. not yet executed) blocks.',
+        ),
+        discovery.getPermissionDetails(
+          'Verifiers',
+          discovery.getAccessControlRolePermission('ZkTrueUp', 'VERIFIER_ROLE'),
+          'Can verify blocks on L1.',
+        ),
+        discovery.getPermissionDetails(
+          'Executers',
+          discovery.getAccessControlRolePermission('ZkTrueUp', 'EXECUTER_ROLE'),
+          'Can execute blocks on L1.',
+        ),
+        discovery.getMultisigPermission(
+          'VaultMultisig',
+          `Address collecting a portion of protocol fees. Currently set to ${vaultWeight}% of the fees.`,
+        ),
+        discovery.getMultisigPermission(
+          'InsuranceMultisig',
+          `Address collecting a portion of protocol fees. Currently set to ${insuranceWeight}% of the fees.`,
+        ),
+        discovery.getMultisigPermission(
+          'TreasuryMultisig',
+          `Address collecting a portion of protocol fees. Currently set to ${treasuryWeight}% of the fees.`,
+        ),
+      ],
     },
-    ...discovery.getMultisigPermission(
-      'TermStructureMultisig',
-      'Owner of the protocol, meaning it can upgrade the project implementation potentially gaining access to all funds.',
-    ),
-    {
-      name: 'Operators',
-      accounts: discovery.getAccessControlRolePermission(
-        'ZkTrueUp',
-        'OPERATOR_ROLE',
-      ),
-      description: 'Can add tokens to the system.',
-    },
-    {
-      name: 'Committers',
-      accounts: discovery.getAccessControlRolePermission(
-        'ZkTrueUp',
-        'COMMITTER_ROLE',
-      ),
-      description:
-        'Can commit blocks on L1 and revert pending (i.e. not yet executed) blocks.',
-    },
-    {
-      name: 'Verifiers',
-      accounts: discovery.getAccessControlRolePermission(
-        'ZkTrueUp',
-        'VERIFIER_ROLE',
-      ),
-      description: 'Can verify blocks on L1.',
-    },
-    {
-      name: 'Executers',
-      accounts: discovery.getAccessControlRolePermission(
-        'ZkTrueUp',
-        'EXECUTER_ROLE',
-      ),
-      description: 'Can execute blocks on L1.',
-    },
-    ...discovery.getMultisigPermission(
-      'VaultMultisig',
-      `Address collecting a portion of protocol fees. Currently set to ${vaultWeight}% of the fees.`,
-    ),
-    ...discovery.getMultisigPermission(
-      'InsuranceMultisig',
-      `Address collecting a portion of protocol fees. Currently set to ${insuranceWeight}% of the fees.`,
-    ),
-    ...discovery.getMultisigPermission(
-      'TreasuryMultisig',
-      `Address collecting a portion of protocol fees. Currently set to ${treasuryWeight}% of the fees.`,
-    ),
-  ],
+  },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('ZkTrueUp', {
-        description:
-          'Main contract of the system. It manages deposits, withdrawals, verification, permissions and DeFi operations.',
-        ...upgrades,
-      }),
-      discovery.getContractDetails('Verifier', {
-        description: 'Verifier contract used to verify the SNARK proofs.',
-        ...upgrades,
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('ZkTrueUp', {
+          description:
+            'Main contract of the system. It manages deposits, withdrawals, verification, permissions and DeFi operations.',
+          ...upgrades,
+        }),
+        discovery.getContractDetails('Verifier', {
+          description: 'Verifier contract used to verify the SNARK proofs.',
+          ...upgrades,
+        }),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
 }

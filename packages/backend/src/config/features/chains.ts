@@ -1,9 +1,14 @@
-import { Env } from '@l2beat/backend-tools'
-import { ChainConfig, chains, layer2s, layer3s } from '@l2beat/config'
-import { ChainId, ProjectId, Token, UnixTime } from '@l2beat/shared-pure'
+import type { Env } from '@l2beat/backend-tools'
+import { type ChainConfig, layer2s, layer3s } from '@l2beat/config'
+import {
+  ChainId,
+  ProjectId,
+  type Token,
+  type UnixTime,
+} from '@l2beat/shared-pure'
 
 import { toMulticallConfigEntry } from '../../peripherals/multicall/MulticallConfig'
-import { ChainTvlConfig } from '../Config'
+import type { ChainTvlConfig } from '../Config'
 
 export function getChainsWithTokens(tokenList: Token[], chains: ChainConfig[]) {
   const results = new Set<string>()
@@ -22,6 +27,7 @@ export function getChainTvlConfig(
   isEnabled: boolean,
   env: Env,
   chain: string,
+  chains: ChainConfig[],
   options?: {
     minTimestamp?: UnixTime
   },
@@ -34,8 +40,8 @@ export function getChainTvlConfig(
   const projectId =
     chain === 'ethereum'
       ? ProjectId.ETHEREUM
-      : layer2s.find((layer2) => layer2.chainConfig?.name === chain)?.id ??
-        layer3s.find((layer3) => layer3.chainConfig?.name === chain)?.id
+      : (layer2s.find((layer2) => layer2.chainConfig?.name === chain)?.id ??
+        layer3s.find((layer3) => layer3.chainConfig?.name === chain)?.id)
   if (!projectId) {
     throw new Error('Missing project for chain: ' + chain)
   }
@@ -75,15 +81,15 @@ export function getChainTvlConfig(
         ? chainConfig.explorerApi.type === 'etherscan'
           ? {
               type: chainConfig.explorerApi.type,
-              etherscanApiKey: env.string([
+              apiKey: env.string([
                 `${ENV_NAME}_ETHERSCAN_API_KEY_FOR_TVL`,
                 `${ENV_NAME}_ETHERSCAN_API_KEY`,
               ]),
-              etherscanApiUrl: chainConfig.explorerApi.url,
+              url: chainConfig.explorerApi.url,
             }
           : {
               type: chainConfig.explorerApi.type,
-              blockscoutApiUrl: chainConfig.explorerApi.url,
+              url: chainConfig.explorerApi.url,
             }
         : undefined,
       minBlockTimestamp:

@@ -2,14 +2,15 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { NUGGETS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('stargate')
 
 export const stargate: Bridge = {
   type: 'bridge',
   id: ProjectId('stargate'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'StarGate (LayerZero)',
     slug: 'stargate',
@@ -69,12 +70,10 @@ export const stargate: Bridge = {
         {
           category: 'Users can be censored if',
           text: 'oracles or relayers fail to facilitate the transfer.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'oracles and relayers collude to submit fraudulent block hash and relay fraudulent transfer .',
-          isCritical: true,
         },
       ],
       isIncomplete: true,
@@ -155,78 +154,70 @@ export const stargate: Bridge = {
     ],
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'Router',
-        'Entry point for the user interaction with StarGate Bridge, handles the logic of swaps and adding liquidity, send messages to the bridge.',
-      ),
-      discovery.getContractDetails(
-        'Bridge',
-        'Main bridge contract, receives messages from LayerZero Endpoint, stores bridge configuration.',
-      ),
-      discovery.getContractDetails(
-        'Factory',
-        'Factory contract managing all liquidity pools.',
-      ),
-      discovery.getContractDetails('TSS Oracle'),
-      discovery.getContractDetails('Google Cloud Oracle'),
-      discovery.getContractDetails('LayerZero Relayer'),
-      discovery.getContractDetails('Endpoint', 'LayerZero Ethereum Endpoint.'),
-      discovery.getContractDetails(
-        'UltraLightNodeV2',
-        'LayerZero UltraLight Node. Used by oracles to checkpoint source chain block hashes.',
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'Router',
+          'Entry point for the user interaction with StarGate Bridge, handles the logic of swaps and adding liquidity, send messages to the bridge.',
+        ),
+        discovery.getContractDetails(
+          'Bridge',
+          'Main bridge contract, receives messages from LayerZero Endpoint, stores bridge configuration.',
+        ),
+        discovery.getContractDetails(
+          'Factory',
+          'Factory contract managing all liquidity pools.',
+        ),
+        discovery.getContractDetails('TSS Oracle'),
+        discovery.getContractDetails('Google Cloud Oracle'),
+        discovery.getContractDetails('LayerZero Relayer'),
+        discovery.getContractDetails(
+          'Endpoint',
+          'LayerZero Ethereum Endpoint.',
+        ),
+        discovery.getContractDetails(
+          'UltraLightNodeV2',
+          'LayerZero UltraLight Node. Used by oracles to checkpoint source chain block hashes.',
+        ),
+      ],
+    },
     risks: [],
-    isIncomplete: true,
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'StarGate Multisig',
-      'Bridge owner, can create new pools, chainpaths, set fees.',
-    ),
-    ...discovery.getMultisigPermission(
-      'LayerZero Multisig',
-      'The owner of Endpoint, UltraLightNode and Treasury contracts. Can switch to a new UltraLightNode for an Endpoint. Can switch proof library for an UltraLightNode and change Treasury.',
-    ),
-    {
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x902F09715B6303d4173037652FA7377e5b98089E',
-          ),
-          type: 'Contract',
-        },
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'StarGate Multisig',
+          'Bridge owner, can create new pools, chainpaths, set fees.',
+        ),
+        discovery.getMultisigPermission(
+          'LayerZero Multisig',
+          'The owner of Endpoint, UltraLightNode and Treasury contracts. Can switch to a new UltraLightNode for an Endpoint. Can switch proof library for an UltraLightNode and change Treasury.',
+        ),
+        discovery.getPermissionDetails(
+          'LayerZero Relayer',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x902F09715B6303d4173037652FA7377e5b98089E'),
+          ]),
+          'Contract authorized to relay messages and - as a result - withdraw funds from the bridge.',
+        ),
+        discovery.getPermissionDetails(
+          'LayerZero Relayer Admin owner',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x76F6d257CEB5736CbcAAb5c48E4225a45F74d6e5'),
+          ]),
+          'Can upgrade LayerZero relayer contract with no delay.',
+        ),
+        discovery.getPermissionDetails(
+          'LayerZero Oracle Admin owner',
+          discovery.formatPermissionedAccounts([
+            EthereumAddress('0x7B80f2924E3Ad59a55f4bcC38AB63480599Be6c8'),
+          ]),
+          'Can upgrade LayerZero oracle contract with no delay.',
+        ),
       ],
-      name: 'LayerZero Relayer',
-      description:
-        'Contract authorized to relay messages and - as a result - withdraw funds from the bridge.',
     },
-    {
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x76F6d257CEB5736CbcAAb5c48E4225a45F74d6e5',
-          ),
-          type: 'EOA',
-        },
-      ],
-      name: 'LayerZero Relayer Admin owner',
-      description: 'Can upgrade LayerZero relayer contract with no delay.',
-    },
-    {
-      accounts: [
-        {
-          address: EthereumAddress(
-            '0x7B80f2924E3Ad59a55f4bcC38AB63480599Be6c8',
-          ),
-          type: 'EOA',
-        },
-      ],
-      name: 'LayerZero Oracle Admin owner',
-      description: 'Can upgrade LayerZero oracle contract with no delay.',
-    },
-  ],
+  },
   knowledgeNuggets: [
     {
       title: 'Security models: isolated vs shared',

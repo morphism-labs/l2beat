@@ -1,6 +1,6 @@
-import { ProjectId, UnixTime } from '@l2beat/shared-pure'
+import type { ProjectId, UnixTime } from '@l2beat/shared-pure'
 import { BaseRepository } from '../../BaseRepository'
-import { AnomalyRecord, toRecord, toRow } from './entity'
+import { type AnomalyRecord, toRecord, toRow } from './entity'
 import { selectAnomaly } from './select'
 
 export class AnomaliesRepository extends BaseRepository {
@@ -14,11 +14,11 @@ export class AnomaliesRepository extends BaseRepository {
     const rows = records.map(toRow)
     await this.batch(rows, 1_000, async (batch) => {
       await this.db
-        .insertInto('public.anomalies')
+        .insertInto('Anomaly')
         .values(batch)
         .onConflict((cb) =>
           cb
-            .columns(['timestamp', 'project_id', 'subtype'])
+            .columns(['timestamp', 'projectId', 'subtype'])
             .doUpdateSet((eb) => ({
               duration: eb.ref('excluded.duration'),
             })),
@@ -29,15 +29,13 @@ export class AnomaliesRepository extends BaseRepository {
   }
 
   async deleteAll(): Promise<number> {
-    const result = await this.db
-      .deleteFrom('public.anomalies')
-      .executeTakeFirst()
+    const result = await this.db.deleteFrom('Anomaly').executeTakeFirst()
     return Number(result.numDeletedRows)
   }
 
   async getAll(): Promise<AnomalyRecord[]> {
     const rows = await this.db
-      .selectFrom('public.anomalies')
+      .selectFrom('Anomaly')
       .select(selectAnomaly)
       .execute()
 
@@ -49,9 +47,9 @@ export class AnomaliesRepository extends BaseRepository {
     from: UnixTime,
   ): Promise<AnomalyRecord[]> {
     const rows = await this.db
-      .selectFrom('public.anomalies')
+      .selectFrom('Anomaly')
       .select(selectAnomaly)
-      .where('project_id', '=', projectId)
+      .where('projectId', '=', projectId)
       .where('timestamp', '>=', from.toDate())
       .execute()
     return rows.map(toRecord)
@@ -62,9 +60,9 @@ export class AnomaliesRepository extends BaseRepository {
     from: UnixTime,
   ): Promise<AnomalyRecord[]> {
     const rows = await this.db
-      .selectFrom('public.anomalies')
+      .selectFrom('Anomaly')
       .select(selectAnomaly)
-      .where('project_id', 'in', projectIds)
+      .where('projectId', 'in', projectIds)
       .where('timestamp', '>=', from.toDate())
       .execute()
     return rows.map(toRecord)

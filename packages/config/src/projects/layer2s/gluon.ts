@@ -8,15 +8,18 @@ import {
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  makeBridgeCompatible,
 } from '../../common'
-import { Layer2 } from './types'
+import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 
 const upgradeDelay = 0
+const discovery = new ProjectDiscovery('gluon')
 
 export const gluon: Layer2 = {
   type: 'layer2',
   id: ProjectId('gluon'),
+  capability: 'universal',
+  addedAt: new UnixTime(1623332638), // 2021-06-10T13:43:58Z
   isArchived: true,
   display: {
     name: 'Gluon',
@@ -30,9 +33,8 @@ export const gluon: Layer2 = {
     links: {
       websites: ['https://gluon.network/', 'https://leverj.io/'],
       apps: ['https://live.leverj.io/'],
-      documentation: ['https://leverj.io/assets/documents/Gluon-Layer2.pdf'],
+      documentation: ['https://leverj.github.io/claim-gluon-balances/'],
       explorers: ['https://gluon.leverj.io/'],
-      repositories: [],
       socialMedia: [
         'https://twitter.com/Leverj_io',
         'https://t.me/leverj',
@@ -62,7 +64,7 @@ export const gluon: Layer2 = {
       },
     ],
   },
-  riskView: makeBridgeCompatible({
+  riskView: {
     stateValidation: {
       value: 'Fraud proofs (!)',
       description:
@@ -73,9 +75,7 @@ export const gluon: Layer2 = {
     exitWindow: RISK_VIEW.EXIT_WINDOW(upgradeDelay, 0),
     sequencerFailure: RISK_VIEW.SEQUENCER_FORCE_VIA_L1(),
     proposerFailure: RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_MP,
-    destinationToken: RISK_VIEW.CANONICAL,
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-  }),
+  },
   technology: {
     stateCorrectness: {
       ...STATE_CORRECTNESS.FRAUD_PROOFS,
@@ -114,88 +114,20 @@ export const gluon: Layer2 = {
     },
   },
   contracts: {
-    addresses: [
-      {
-        name: 'Gluon',
-        address: EthereumAddress('0x75ACe7a086eA0FB1a79e43Cc6331Ad053d8C67cB'),
-      },
-      {
-        name: 'RegistryLogic',
-        address: EthereumAddress('0x385827aC8d1AC7B2960D4aBc303c843D9f87Bb0C'),
-        upgradeability: {
-          proxyType: 'Reference',
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'RegistryData',
-        address: EthereumAddress('0x0fC25C7931679B838209c484d49Df0Cb9E633C41'),
-        upgradeability: {
-          proxyType: 'Reference', // RegistryLogic.data()
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'StakeLogic',
-        address: EthereumAddress('0x84e34fD82FC368F1a072075114AdC4b552a7a1F4'),
-        upgradeability: {
-          proxyType: 'Reference', // Gluon.current(1)
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'StakeData',
-        address: EthereumAddress('0xaB3AC436D66CBEeDc734ed2c1562c3a213c9bc77'),
-        upgradeability: {
-          proxyType: 'Reference', // StakeLogic.data()
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'SpotLogic',
-        address: EthereumAddress('0x2D627FF93d32f5FEBb04d68409A889895B4aef2D'),
-        upgradeability: {
-          proxyType: 'Reference', // Gluon.current(2)
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'SpotData',
-        address: EthereumAddress('0x0d283D685F0A741C463846176e4c8EFF90D3F9EC'),
-        upgradeability: {
-          proxyType: 'Reference', // SpotLogic.data()
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'DerivativesLogic',
-        address: EthereumAddress('0xDfBFe895e07e5115773Cb9631CB2148114589caC'),
-        upgradeability: {
-          proxyType: 'Reference', // Gluon.current(3)
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'DerivativesData',
-        address: EthereumAddress('0x563052914Fd973a2305763269A106a7B0B6D50Cc'),
-        upgradeability: {
-          proxyType: 'Reference', // DerivativesLogic.data()
-          admins: [],
-          implementations: [],
-        },
-      },
-      {
-        name: 'LegacyTokensExtension',
-        address: EthereumAddress('0xDA88EfA53c85Afa30564bb651A2E76b99a232082'),
-      },
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('Gluon'),
+        discovery.getContractDetails('RegistryLogic'),
+        discovery.getContractDetails('RegistryData'),
+        discovery.getContractDetails('StakeLogic'),
+        discovery.getContractDetails('StakeData'),
+        discovery.getContractDetails('SpotLogic'),
+        discovery.getContractDetails('SpotData'),
+        discovery.getContractDetails('DerivativesLogic'),
+        discovery.getContractDetails('DerivativesData'),
+        discovery.getContractDetails('LegacyTokensExtension'),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
 }

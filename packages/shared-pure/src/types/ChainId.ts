@@ -1,4 +1,4 @@
-export interface ChainId extends Number {
+export type ChainId = number & {
   _ChainIdBrand: number
 }
 
@@ -11,6 +11,7 @@ export function ChainId(value: number): ChainId {
 
 ChainId.ETHEREUM = ChainId(1)
 ChainId.ARBITRUM = ChainId(42161)
+ChainId.NOVA = ChainId(42170)
 ChainId.OPTIMISM = ChainId(10)
 ChainId.BASE = ChainId(8453)
 ChainId.POLYGONPOS = ChainId(137)

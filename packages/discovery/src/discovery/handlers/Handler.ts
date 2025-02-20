@@ -1,9 +1,8 @@
-import { ContractValue } from '@l2beat/discovery-types'
-import { EthereumAddress } from '@l2beat/shared-pure'
-import { utils } from 'ethers'
+import type { ContractValue } from '@l2beat/discovery-types'
+import type { EthereumAddress } from '@l2beat/shared-pure'
+import type { utils } from 'ethers'
 
-import { DiscoveryLogger } from '../DiscoveryLogger'
-import { IProvider } from '../provider/IProvider'
+import type { IProvider } from '../provider/IProvider'
 
 export interface HandlerResult {
   field: string
@@ -16,7 +15,6 @@ export interface HandlerResult {
 export interface Handler {
   field: string
   dependencies: string[]
-  logger?: DiscoveryLogger
   execute(
     provider: IProvider,
     address: EthereumAddress,

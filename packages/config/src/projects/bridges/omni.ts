@@ -2,8 +2,8 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('omni')
 const threshold = discovery.getContractValue<number>(
@@ -17,8 +17,7 @@ const size = discovery.getContractValue<number>(
 const validatorsString = `${threshold} / ${size}`
 
 const upgrades = {
-  upgradableBy: ['BridgeGovernance'],
-  upgradeDelay: 'No delay',
+  upgradableBy: [{ name: 'OmniBridgeGovernance', delay: 'no' }],
 }
 
 const paused =
@@ -27,12 +26,13 @@ const warningText = paused ? 'The bridge is currently paused.' : undefined
 
 const pausable = {
   paused,
-  pausableBy: ['BridgeGovernance'],
+  pausableBy: ['OmniBridgeGovernance'],
 }
 
 export const omni: Bridge = {
   type: 'bridge',
   id: ProjectId('omni'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'Omnibridge',
     slug: 'omni',
@@ -81,14 +81,6 @@ export const omni: Bridge = {
       value: 'Third Party',
       description: `${validatorsString} Validator MultiSig`,
       sentiment: 'bad',
-      sources: [
-        {
-          contract: 'ForeignAMB',
-          references: [
-            'https://etherscan.io/address/0x82b67a43b69914e611710c62e629dabb2f7ac6ab#code#L1608',
-          ],
-        },
-      ],
     },
     sourceUpgradeability: {
       value: 'Yes',
@@ -117,30 +109,26 @@ export const omni: Bridge = {
       description: `Incoming messages to Ethereum are managed by the Arbitrary Message Bridge (AMB), a trusted message relaying mechanism currently validated by a ${validatorsString} Validator MultiSig. The GovernanceMultisig is used for updating validator set, signature thresholds, bridge parameters and bridge contracts. For Omnibridge, messages are passed between "Mediator" contracts deployed on both chains. When user deposits a token to Mediator escrow on Ethereum, an AMB message is passed to Mediator on Gnosis chain, which mints a "representation token", optionally deploying a necessary token contract on Gnosis chain if this is the first time this token is transferred. Transfers from Gnosis chain to Ethereum use the same mechanism in the opposite direction but tokens on Gnosis are burned and tokens on Ethereum are released from escrow. Outgoing messages are verified on the Gnosis chain using a ZK Ethereum light client.`,
       references: [
         {
-          text: 'Omnibridge documentation',
-          href: 'https://docs.gnosischain.com/bridges/tokenbridge/omnibridge',
+          title: 'Omnibridge documentation',
+          url: 'https://docs.gnosischain.com/bridges/tokenbridge/omnibridge',
         },
       ],
       risks: [
         {
           category: 'Users can be censored if',
           text: 'validators decide to not pass selected messages between chains.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'validators relay a fake message to Gnosis chain to mint more tokens than there are locked on Ethereum thus preventing some existing holders from being able to bring their funds back to Ethereum.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'validators relay a fake message to Ethereum chain allowing a user to withdraw tokens from Ethereum escrow when equivalent amount of tokens has not been deposited and burned on Gnosis chain.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: "there's an exploit in contracts that invest user deposit.",
-          isCritical: true,
         },
         {
           category: 'Funds can be frozen if',
@@ -161,40 +149,47 @@ export const omni: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('ForeignAMB', {
-        description:
-          'Arbitrary Message Bridge validated by the BridgeValidators.',
-        ...upgrades,
-        pausable,
-      }),
-      discovery.getContractDetails('MultiTokenMediator', {
-        description: 'Mediator contract and escrow.',
-        ...upgrades,
-      }),
-      discovery.getContractDetails('BridgeValidators', {
-        description: `Bridge validators contract, acts as a ${validatorsString} multisig.`,
-        ...upgrades,
-      }),
-      discovery.getContractDetails('AAVEInterestERC20', {
-        description: 'Contract that was used to invest token deposits to Aave.',
-        ...upgrades,
-      }),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('ForeignAMB', {
+          description:
+            'Arbitrary Message Bridge validated by the BridgeValidators.',
+          ...upgrades,
+          pausable,
+        }),
+        discovery.getContractDetails('MultiTokenMediator', {
+          description: 'Mediator contract and escrow.',
+          ...upgrades,
+        }),
+        discovery.getContractDetails('BridgeValidators', {
+          description: `Bridge validators contract, acts as a ${validatorsString} multisig.`,
+          ...upgrades,
+        }),
+        discovery.getContractDetails('AAVEInterestERC20', {
+          description:
+            'Contract that was used to invest token deposits to Aave.',
+          ...upgrades,
+        }),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'BridgeGovernance',
-      'Can update the contracts and parameters of the bridge.',
-    ),
-    {
-      name: 'Bridge validators',
-      accounts: discovery.getPermissionedAccounts(
-        'BridgeValidators',
-        'validatorList',
-      ),
-      description: 'List of actors that can validate incoming messages.',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'OmniBridgeGovernance',
+          'Can update the contracts and parameters of the bridge.',
+        ),
+        discovery.getPermissionDetails(
+          'Bridge validators',
+          discovery.getPermissionedAccounts(
+            'BridgeValidators',
+            'validatorList',
+          ),
+          'List of actors that can validate incoming messages.',
+        ),
+      ],
     },
-  ],
+  },
 }

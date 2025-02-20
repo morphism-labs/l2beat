@@ -1,18 +1,18 @@
 import { UnixTime } from '@l2beat/shared-pure'
 
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('lambda')
 
-const upgradeability = {
-  upgradableBy: ['ProxyAdmin'],
-  upgradeDelay: 'No delay',
-}
-
 export const lambda: Layer2 = opStackL2({
+  addedAt: new UnixTime(1718703383), // 2024-06-18T09:36:23Z
   discovery,
+  additionalPurposes: ['Storage'],
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.NO_PROOFS],
+  isArchived: true,
   display: {
     name: 'Lambda Chain',
     slug: 'lambda',
@@ -20,7 +20,6 @@ export const lambda: Layer2 = opStackL2({
       'Critical contracts can be upgraded by an EOA which could result in the loss of all funds.',
     description:
       'Lambda Chain is an OP Stack Rollup on Ethereum, focusing on long-term data storage and -availability.',
-    purposes: ['Universal', 'Storage'],
     links: {
       websites: ['https://lambda.im/'],
       apps: ['https://portal.lambda.im/bridge/'],
@@ -33,20 +32,18 @@ export const lambda: Layer2 = opStackL2({
         'https://t.me/HelloLambda',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  usesBlobs: true,
   associatedTokens: ['LAMB'],
-  upgradeability,
   rpcUrl: 'https://nrpc.lambda.im',
   genesisTimestamp: new UnixTime(1713345623),
   isNodeAvailable: true,
   milestones: [
     {
-      name: 'Lambda Chain Mainnet Launch',
-      link: 'https://lambdanetwork.medium.com/lambda-is-about-to-launch-a-permanent-storage-da-network-leveraging-das-technology-to-provide-data-cdc80c8f69d1',
+      title: 'Lambda Chain Mainnet Launch',
+      url: 'https://lambdanetwork.medium.com/lambda-is-about-to-launch-a-permanent-storage-da-network-leveraging-das-technology-to-provide-data-cdc80c8f69d1',
       date: '2024-04-17T00:00:00.00Z',
       description: 'Lambda Chain is live on mainnet.',
+      type: 'general',
     },
   ],
   chainConfig: {
@@ -67,21 +64,6 @@ export const lambda: Layer2 = opStackL2({
       //   sinceBlock: 1423879,
       //   version: '3',
       // },
-    ],
-  },
-  nonTemplateNativePermissions: {
-    lambda: [
-      {
-        name: 'Lambda Admin EOA',
-        accounts: [
-          {
-            address: discovery.getAddressFromValue('SystemConfig', 'owner'),
-            type: 'EOA',
-          },
-        ],
-        description:
-          "EOA address that can upgrade the rollup's smart contract system (via UpgradeExecutor) and gain access to all funds.",
-      },
     ],
   },
 })

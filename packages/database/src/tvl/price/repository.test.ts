@@ -2,7 +2,7 @@ import { UnixTime } from '@l2beat/shared-pure'
 import { expect } from 'earl'
 import { describeDatabase } from '../../test/database'
 import { testDeletingArchivedRecords } from '../../utils/deleteArchivedRecords.test'
-import { PriceRecord } from './entity'
+import type { PriceRecord } from './entity'
 import { PriceRepository } from './repository'
 
 describeDatabase(PriceRepository.name, (db) => {
@@ -58,6 +58,31 @@ describeDatabase(PriceRepository.name, (db) => {
         saved('a', new UnixTime(300), 100),
         saved('b', new UnixTime(300), 100),
       ])
+    })
+  })
+
+  describe(PriceRepository.prototype.getLatestPrice.name, () => {
+    it('finds latest price for configurations', async () => {
+      await repository.insertMany([
+        saved('a', new UnixTime(100), 100),
+        saved('a', new UnixTime(200), 200),
+
+        saved('b', new UnixTime(100), 100),
+        saved('b', new UnixTime(200), 200),
+        saved('b', new UnixTime(300), 300),
+
+        saved('c', new UnixTime(100), 100),
+        saved('c', new UnixTime(200), 200),
+        saved('c', new UnixTime(300), 300),
+        saved('c', new UnixTime(400), 300),
+      ])
+
+      const result = await repository.getLatestPrice([
+        'a'.repeat(12),
+        'b'.repeat(12),
+      ])
+
+      expect(result).toEqual(saved('b', new UnixTime(300), 300))
     })
   })
 

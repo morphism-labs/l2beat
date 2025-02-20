@@ -1,11 +1,10 @@
-import { EthereumAddress, Hash256 } from '@l2beat/shared-pure'
-import { providers, utils } from 'ethers'
+import { type EthereumAddress, Hash256 } from '@l2beat/shared-pure'
+import { type providers, utils } from 'ethers'
 import * as z from 'zod'
 
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { DebugTransactionCall } from '../../provider/DebugTransactionTrace'
-import { IProvider } from '../../provider/IProvider'
-import { Handler, HandlerResult } from '../Handler'
+import type { DebugTransactionCall } from '../../provider/DebugTransactionTrace'
+import type { IProvider } from '../../provider/IProvider'
+import type { Handler, HandlerResult } from '../Handler'
 
 export type ArbitrumActorsHandlerDefinition = z.infer<
   typeof ArbitrumActorsHandlerDefinition
@@ -34,19 +33,12 @@ export class ArbitrumActorsHandler implements Handler {
   constructor(
     readonly field: string,
     readonly definition: ArbitrumActorsHandlerDefinition,
-    readonly logger: DiscoveryLogger,
   ) {}
 
   async execute(
     provider: IProvider,
     address: EthereumAddress,
   ): Promise<HandlerResult> {
-    this.logger.logExecution(this.field, [
-      this.definition.actorType === 'validator'
-        ? 'Fetching Arbitrum Validators'
-        : 'Fetching Arbitrum Batch Posters',
-    ])
-
     // Find transactions in which setValidator/setIsBatchPoster was called
     const logs = await this.getRelevantLogs(provider, address)
     const txHashes = logs.map((log) => Hash256(log.transactionHash))

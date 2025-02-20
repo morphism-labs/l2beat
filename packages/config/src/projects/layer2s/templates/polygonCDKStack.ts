@@ -1,7 +1,4 @@
-import {
-  ContractParameters,
-  get$Implementations,
-} from '@l2beat/discovery-types'
+import type { ContractParameters } from '@l2beat/discovery-types'
 import {
   assert,
   EthereumAddress,
@@ -9,58 +6,73 @@ import {
   UnixTime,
   formatSeconds,
 } from '@l2beat/shared-pure'
-
 import {
   CONTRACTS,
-  ChainConfig,
-  DataAvailabilityBridge,
-  DataAvailabilityLayer,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
+  type DaProjectTableValue,
   EXITS,
   FORCE_TRANSACTIONS,
   FRONTRUNNING_RISK,
-  KnowledgeNugget,
-  Milestone,
   RISK_VIEW,
   SEQUENCER_NO_MECHANISM,
   STATE_CORRECTNESS,
-  ScalingProjectContract,
-  ScalingProjectEscrow,
-  ScalingProjectPermission,
-  ScalingProjectRiskViewEntry,
+  TECHNOLOGY_DATA_AVAILABILITY,
+} from '../../../common'
+import { formatExecutionDelay } from '../../../common/formatDelays'
+import { ProjectDiscovery } from '../../../discovery/ProjectDiscovery'
+import type {
+  ChainConfig,
+  CustomDa,
+  KnowledgeNugget,
+  Layer2,
+  Layer2Display,
+  Layer2TxConfig,
+  Milestone,
+  ProjectContract,
+  ProjectEscrow,
+  ProjectPermissions,
+  ProjectTechnologyChoice,
+  ReasonForBeingInOther,
+  ScalingProjectCapability,
+  ScalingProjectPurpose,
   ScalingProjectStateDerivation,
   ScalingProjectStateValidation,
   ScalingProjectTechnology,
-  ScalingProjectTechnologyChoice,
-  ScalingProjectTransactionApi,
-  TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
-} from '../../../common'
-import { ProjectDiscovery } from '../../../discovery/ProjectDiscovery'
-import { Badge, BadgeId, badges } from '../../badges'
+  TableReadyValue,
+  TransactionApiConfig,
+} from '../../../types'
+import { Badge, type BadgeId, badges } from '../../badges'
+import { EXPLORER_URLS } from '../../chains/explorerUrls'
 import { getStage } from '../common/stages/getStage'
-import { Layer2, Layer2Display, Layer2TxConfig } from '../types'
-import { mergeBadges } from './utils'
+import {
+  generateDiscoveryDrivenContracts,
+  generateDiscoveryDrivenPermissions,
+} from './generateDiscoveryDrivenSections'
+import { explorerReferences, mergeBadges, safeGetImplementation } from './utils'
 
 export interface DAProvider {
-  name: DataAvailabilityLayer
-  fallback?: DataAvailabilityLayer
-  riskView: ScalingProjectRiskViewEntry
-  technology: ScalingProjectTechnologyChoice
-  bridge: DataAvailabilityBridge
+  layer: DaProjectTableValue
+  riskView: TableReadyValue
+  technology: ProjectTechnologyChoice
+  bridge: TableReadyValue
 }
 
 export interface PolygonCDKStackConfig {
+  addedAt: UnixTime
+  capability?: ScalingProjectCapability
   daProvider?: DAProvider
+  customDa?: CustomDa
   discovery: ProjectDiscovery
-  display: Omit<Layer2Display, 'provider' | 'category' | 'dataAvailabilityMode'>
+  display: Omit<Layer2Display, 'provider' | 'category' | 'purposes'>
   rpcUrl?: string
-  transactionApi?: ScalingProjectTransactionApi
+  transactionApi?: TransactionApiConfig
   chainConfig?: ChainConfig
   stateDerivation?: ScalingProjectStateDerivation
-  nonTemplatePermissions?: ScalingProjectPermission[]
-  nonTemplateContracts?: ScalingProjectContract[]
-  nonTemplateEscrows: ScalingProjectEscrow[]
+  nonTemplatePermissions?: Record<string, ProjectPermissions>
+  nonTemplateContracts?: ProjectContract[]
+  nonTemplateEscrows: ProjectEscrow[]
   nonTemplateTechnology?: Partial<ScalingProjectTechnology>
   nonTemplateTrackedTxs?: Layer2TxConfig[]
   milestones: Milestone[]
@@ -71,91 +83,83 @@ export interface PolygonCDKStackConfig {
   upgradesAndGovernance?: string
   stateValidation?: ScalingProjectStateValidation
   associatedTokens?: string[]
-  badges?: BadgeId[]
+  additionalBadges?: BadgeId[]
+  additionalPurposes?: ScalingProjectPurpose[]
+  overridingPurposes?: ScalingProjectPurpose[]
+  gasTokens?: string[]
+  isArchived?: boolean
+  reasonsForBeingOther?: ReasonForBeingInOther[]
+  architectureImage?: string
 }
 
 export function polygonCDKStack(templateVars: PolygonCDKStackConfig): Layer2 {
+  const explorerUrl = EXPLORER_URLS['ethereum']
   const daProvider = templateVars.daProvider
   const shared = new ProjectDiscovery('shared-polygon-cdk')
   const rollupManagerContract = shared.getContract('PolygonRollupManager')
   if (daProvider !== undefined) {
     assert(
-      templateVars.badges?.find((b) => badges[b].type === 'DA') !== undefined,
+      templateVars.additionalBadges?.find((b) => badges[b].type === 'DA') !==
+        undefined,
       'DA badge is required for external DA',
     )
   }
 
   const upgradeDelay = shared.getContractValue<number>(
-    'Timelock',
+    'PolygonZkEVMTimelock',
     'getMinDelay',
   )
   const upgradeDelayString = formatSeconds(upgradeDelay)
-  const trustedAggregatorTimeout = shared.getContractValue<number>(
-    rollupManagerContract.name,
-    'trustedAggregatorTimeout',
-  )
-  const trustedAggregatorTimeoutString = formatSeconds(trustedAggregatorTimeout)
-  const pendingStateTimeout = shared.getContractValue<number>(
-    rollupManagerContract.name,
-    'pendingStateTimeout',
-  )
-  const pendingStateTimeoutString = formatSeconds(pendingStateTimeout)
-
-  const _HALT_AGGREGATION_TIMEOUT = formatSeconds(
-    shared.getContractValue<number>(
-      rollupManagerContract.name,
-      '_HALT_AGGREGATION_TIMEOUT',
-    ),
-  )
-
-  const forceBatchTimeout = templateVars.discovery.getContractValue<number>(
-    templateVars.rollupModuleContract.name,
-    'forceBatchTimeout',
+  const emergencyActivatedCount = shared.getContractValue<number>(
+    'PolygonRollupManager',
+    'emergencyStateCount',
   )
 
   const exitWindowRisk = {
-    ...RISK_VIEW.EXIT_WINDOW(
-      upgradeDelay,
-      trustedAggregatorTimeout + pendingStateTimeout + forceBatchTimeout,
-      0,
-    ),
-    description: `Even though there is a ${upgradeDelayString} Timelock for upgrades, forced transactions are disabled. Even if they were to be enabled, user withdrawals can be censored up to ${formatSeconds(
-      trustedAggregatorTimeout + pendingStateTimeout + forceBatchTimeout,
-    )}.`,
+    value: 'None',
+    description: `Even though there is a ${upgradeDelayString} Timelock for upgrades, forced transactions are disabled.`,
+    sentiment: 'bad',
+    orderHint: -1, // worse than forced tx available but instantly upgradable
     warning: {
       value: 'The Security Council can remove the delay on upgrades.',
       sentiment: 'bad',
     },
   } as const
 
-  const sharedUpgradeability = {
-    upgradableBy: ['RollupManagerAdminMultisig'],
-    upgradeDelay: exitWindowRisk.value,
-    upgradeConsiderations: exitWindowRisk.description,
-  }
-
   assert(
     rollupManagerContract.address ===
       EthereumAddress('0x5132A183E9F3CB7C848b0AAC5Ae0c4f0491B7aB2'),
     'Polygon rollup manager address does not match with the one in the shared Polygon CDK discovery. Tracked transactions would be misconfigured, bailing.',
   )
-  const bridge = shared.getContract('Bridge')
+  const bridge = shared.getContract('PolygonZkEVMBridgeV2')
+
+  const finalizationPeriod =
+    templateVars.display.finality?.finalizationPeriod ?? 0
 
   return {
     type: 'layer2',
+    addedAt: templateVars.addedAt,
     id: ProjectId(templateVars.discovery.projectName),
+    capability: templateVars.capability ?? 'universal',
+    isArchived: templateVars.isArchived,
     display: {
       ...templateVars.display,
+      upgradesAndGovernanceImage: 'polygoncdk',
+      purposes: templateVars.overridingPurposes ?? [
+        'Universal',
+        ...(templateVars.additionalPurposes ?? []),
+      ],
       category:
         templateVars.daProvider !== undefined ? 'Validium' : 'ZK Rollup',
-      provider: 'Polygon',
-      tvlWarning: templateVars.display.tvlWarning ?? {
-        content:
-          'The TVL is currently shared among all projects using the shared Polygon CDK contracts.',
-        sentiment: 'warning',
-      },
+      architectureImage:
+        (templateVars.architectureImage ??
+        templateVars.daProvider !== undefined)
+          ? 'polygon-cdk-validium'
+          : 'polygon-cdk-rollup',
+      stack: 'Polygon',
+      tvlWarning: templateVars.display.tvlWarning,
       finality: templateVars.display.finality ?? {
-        finalizationPeriod: 0,
+        finalizationPeriod,
         warnings: {
           timeToInclusion: {
             sentiment: 'neutral',
@@ -166,6 +170,7 @@ export function polygonCDKStack(templateVars: PolygonCDKStackConfig): Layer2 {
     },
     config: {
       associatedTokens: templateVars.associatedTokens,
+      gasTokens: templateVars.gasTokens,
       escrows: templateVars.nonTemplateEscrows,
       transactionApi:
         templateVars.transactionApi ??
@@ -307,76 +312,24 @@ export function polygonCDKStack(templateVars: PolygonCDKStackConfig): Layer2 {
             },
     },
     chainConfig: templateVars.chainConfig,
-    dataAvailability:
-      daProvider !== undefined
-        ? addSentimentToDataAvailability({
-            layers: daProvider.fallback
-              ? [daProvider.name, daProvider.fallback]
-              : [daProvider.name],
-            bridge: daProvider.bridge,
-            mode: 'Transaction data',
-          })
-        : addSentimentToDataAvailability({
-            layers: ['Ethereum (calldata)'],
-            bridge: { type: 'Enshrined' },
-            mode: 'Transaction data',
-          }),
-    riskView: makeBridgeCompatible({
+    dataAvailability: {
+      layer: daProvider?.layer ?? DA_LAYERS.ETH_CALLDATA,
+      bridge: daProvider?.bridge ?? DA_BRIDGES.ENSHRINED,
+      mode: DA_MODES.TRANSACTION_DATA,
+    },
+    riskView: {
       stateValidation: {
-        ...RISK_VIEW.STATE_ZKP_SN,
-        sources: [
-          {
-            contract: rollupManagerContract.name,
-            references: [
-              `https://etherscan.io/address/${safeGetImplementation(
-                rollupManagerContract,
-              )}`,
-            ],
-          },
-        ],
+        ...RISK_VIEW.STATE_ZKP_ST_SN_WRAP,
+        secondLine: formatExecutionDelay(finalizationPeriod),
       },
-      dataAvailability: {
-        ...riskViewDA(daProvider),
-        sources: [
-          {
-            contract: templateVars.rollupModuleContract.name,
-            references: [],
-          },
-        ],
-      },
+      dataAvailability: riskViewDA(daProvider),
       exitWindow: exitWindowRisk,
       // this will change once the isForcedBatchDisallowed is set to false inside Polygon ZkEvm contract (if they either lower timeouts or increase the timelock delay)
-      sequencerFailure: {
-        ...SEQUENCER_NO_MECHANISM(templateVars.isForcedBatchDisallowed),
-        sources: [
-          {
-            contract: templateVars.rollupModuleContract.name,
-            references: [],
-          },
-        ],
-      },
-      proposerFailure: {
-        ...RISK_VIEW.PROPOSER_SELF_PROPOSE_ZK,
-        description:
-          RISK_VIEW.PROPOSER_SELF_PROPOSE_ZK.description +
-          ` There is a ${trustedAggregatorTimeoutString} delay for proving and a ${pendingStateTimeoutString} delay for finalizing state proven in this way. These delays can only be lowered except during the emergency state.`,
-        sources: [
-          {
-            contract: rollupManagerContract.name,
-            references: [
-              `https://etherscan.io/address/${safeGetImplementation(
-                rollupManagerContract,
-              )}`,
-              `https://etherscan.io/address/${safeGetImplementation(
-                rollupManagerContract,
-              )}`,
-            ],
-          },
-        ],
-      },
-      destinationToken: RISK_VIEW.NATIVE_AND_CANONICAL(),
-      validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-    }),
+      sequencerFailure: SEQUENCER_NO_MECHANISM(
+        templateVars.isForcedBatchDisallowed,
+      ),
+      proposerFailure: RISK_VIEW.PROPOSER_CANNOT_WITHDRAW,
+    },
     stage:
       daProvider !== undefined
         ? { stage: 'NotApplicable' }
@@ -389,14 +342,16 @@ export function polygonCDKStack(templateVars: PolygonCDKStackConfig): Layer2 {
                 rollupNodeSourceAvailable: true,
               },
               stage1: {
+                principle: false,
                 stateVerificationOnL1: true,
                 fraudProofSystemAtLeast5Outsiders: null,
                 usersHave7DaysToExit: false,
                 usersCanExitWithoutCooperation: false,
-                securityCouncilProperlySetUp: [
-                  false,
-                  'Security Council members are not publicly known.',
-                ],
+                securityCouncilProperlySetUp: {
+                  satisfied: false,
+                  message: 'Security Council members are not publicly known.',
+                  mode: 'replace',
+                },
               },
               stage2: {
                 proofSystemOverriddenOnlyInCaseOfABug: false,
@@ -413,14 +368,13 @@ export function polygonCDKStack(templateVars: PolygonCDKStackConfig): Layer2 {
       stateCorrectness: templateVars.nonTemplateTechnology
         ?.stateCorrectness ?? {
         ...STATE_CORRECTNESS.VALIDITY_PROOFS,
-        references: [
+        references: explorerReferences(explorerUrl, [
           {
-            text: 'PolygonRollupManager.sol - Etherscan source code, _verifyAndRewardBatches function',
-            href: `https://etherscan.io/address/${safeGetImplementation(
-              rollupManagerContract,
-            )}`,
+            title:
+              'PolygonRollupManager.sol - source code, _verifyAndRewardBatches function',
+            address: safeGetImplementation(rollupManagerContract),
           },
-        ],
+        ]),
       },
       dataAvailability:
         templateVars.nonTemplateTechnology?.dataAvailability ??
@@ -437,171 +391,78 @@ export function polygonCDKStack(templateVars: PolygonCDKStackConfig): Layer2 {
             isCritical: true,
           },
         ],
-        references: [
+        references: explorerReferences(explorerUrl, [
           {
-            text: `${templateVars.rollupModuleContract.name}.sol - Etherscan source code, onlyTrustedSequencer modifier`,
-            href: `https://etherscan.io/address/${safeGetImplementation(
-              templateVars.rollupModuleContract,
-            )}`,
+            title: `${templateVars.rollupModuleContract.name}.sol - source code, onlyTrustedSequencer modifier`,
+            address: safeGetImplementation(templateVars.rollupModuleContract),
           },
-        ],
+        ]),
       },
       forceTransactions: templateVars.nonTemplateTechnology
         ?.forceTransactions ?? {
         ...FORCE_TRANSACTIONS.SEQUENCER_NO_MECHANISM,
         description:
           'The mechanism for allowing users to submit their own transactions is currently disabled.',
-        references: [
+        references: explorerReferences(explorerUrl, [
           {
-            text: `${templateVars.rollupModuleContract.name}.sol - Etherscan source code, forceBatchAddress address`,
-            href: `https://etherscan.io/address/${safeGetImplementation(
-              templateVars.rollupModuleContract,
-            )}`,
+            title: `${templateVars.rollupModuleContract.name}.sol - source code, forceBatchAddress address`,
+            address: safeGetImplementation(templateVars.rollupModuleContract),
           },
-        ],
+        ]),
       },
       exitMechanisms: templateVars.nonTemplateTechnology?.exitMechanisms ?? [
         {
-          ...EXITS.REGULAR('zk', 'merkle proof'),
-          references: [
+          ...EXITS.REGULAR_MESSAGING('zk'),
+          references: explorerReferences(explorerUrl, [
             {
-              text: 'PolygonZkEvmBridgeV2.sol - Etherscan source code, claimAsset function',
-              href: `https://etherscan.io/address/${safeGetImplementation(
-                bridge,
-              )}`,
+              title:
+                'PolygonZkEvmBridgeV2.sol - source code, claimAsset function',
+              address: safeGetImplementation(bridge),
             },
-          ],
+          ]),
         },
       ],
+      sequencing: templateVars.nonTemplateTechnology?.sequencing,
     },
     stateDerivation: templateVars.stateDerivation,
     stateValidation: templateVars.stateValidation,
-    permissions: [
-      {
-        name: 'Sequencer',
-        accounts: [
-          templateVars.discovery.getPermissionedAccount(
-            templateVars.rollupModuleContract.name,
-            'trustedSequencer',
-          ),
-        ],
-        description:
-          'Its sole purpose and ability is to submit transaction batches. In case they are unavailable users cannot rely on the force batch mechanism because it is currently disabled.',
-      },
-      {
-        name: 'Proposer (Trusted Aggregator)',
-        accounts: shared.getAccessControlRolePermission(
-          rollupManagerContract.name,
-          'TRUSTED_AGGREGATOR',
-        ),
-        description: `The trusted proposer (called Aggregator) provides ZK proofs for all the supported systems. In case they are unavailable a mechanism for users to submit proofs on their own exists, but is behind a ${trustedAggregatorTimeoutString} delay for proving and a ${pendingStateTimeoutString} delay for finalizing state proven in this way. These delays can only be lowered except during the emergency state.`,
-      },
-      ...shared.getMultisigPermission(
-        'SecurityCouncil',
-        'The Security Council is a multisig that can be used to trigger the emergency state which pauses bridge functionality, restricts advancing system state and removes the upgradeability delay.',
-      ),
-      {
-        name: 'Forced Batcher',
-        accounts: [
-          templateVars.discovery.getPermissionedAccount(
-            templateVars.rollupModuleContract.name,
-            'forceBatchAddress',
-          ),
-        ],
-        description:
-          'Sole account allowed to submit forced transactions. If this address is the zero address, anyone can submit forced transactions.',
-      },
-      ...shared.getMultisigPermission(
-        'RollupManagerAdminMultisig',
-        `Admin of the PolygonRollupManager contract, can set core system parameters like timeouts and aggregator as well as deactivate emergency state. They can also upgrade the ${
-          templateVars.rollupModuleContract.name
-        } contracts, but are restricted by a ${formatSeconds(
-          upgradeDelay,
-        )} delay unless rollup is put in the Emergency State.`,
-      ),
-      ...(templateVars.nonTemplatePermissions ?? []),
-    ],
+    permissions: generateDiscoveryDrivenPermissions([templateVars.discovery]),
     contracts: {
-      addresses: [
-        ...(templateVars.nonTemplateContracts ?? []),
-        templateVars.discovery.getContractDetails(
-          templateVars.rollupModuleContract.name,
-          {
-            description: `The main contract of the ${templateVars.display.name}. Contains sequenced transaction batch hashes and forced transaction logic.`,
-            ...sharedUpgradeability,
-          },
-        ),
-        templateVars.discovery.getContractDetails(
-          templateVars.rollupVerifierContract.name,
-          {
-            description:
-              'An autogenerated contract that verifies ZK proofs in the PolygonRollupManager system.',
-          },
-        ),
-        shared.getContractDetails(rollupManagerContract.name, {
-          description: `It defines the rules of the system including core system parameters, permissioned actors as well as emergency procedures. The emergency state can be activated either by the Security Council, by proving a soundness error or by presenting a sequenced batch that has not been aggregated before a ${_HALT_AGGREGATION_TIMEOUT} timeout. This contract receives L2 state roots as well as ZK proofs.`,
-          ...sharedUpgradeability,
-        }),
-        shared.getContractDetails('Bridge', {
-          description:
-            'The escrow contract for user funds. It is mirrored on the L2 side and can be used to transfer both ERC20 assets and arbitrary messages. To transfer funds a user initiated transaction on both sides is required.',
-          ...sharedUpgradeability,
-        }),
-        shared.getContractDetails('GlobalExitRootV2', {
-          description:
-            'Synchronizes deposit and withdraw merkle trees across L1 and the L2s. The global root from this contract is injected into the L2 contracts.',
-          ...sharedUpgradeability,
-        }),
-        shared.getContractDetails(
-          'Timelock',
-          (() => {
-            const timelockAdmin = shared.getAccessControlField(
-              'Timelock',
-              'TIMELOCK_ADMIN_ROLE',
-            ).members[1]
-            const timelockProposer = shared.getAccessControlField(
-              'Timelock',
-              'PROPOSER_ROLE',
-            ).members[0]
-            const timelockExecutor = shared.getAccessControlField(
-              'Timelock',
-              'EXECUTOR_ROLE',
-            ).members[0]
-            const timelockCanceller = shared.getAccessControlField(
-              'Timelock',
-              'CANCELLER_ROLE',
-            ).members[0]
-            assert(
-              timelockAdmin === timelockProposer &&
-                timelockProposer === timelockExecutor &&
-                timelockExecutor === timelockCanceller,
-              'Timelock roles have changed, update Timelock description.',
-            )
-            return `Contract upgrades have to go through a ${upgradeDelayString} timelock unless the Emergency State is activated. It can also add rollup types that can be used to upgrade verifier contracts of existing systems. It is controlled by the ProxyAdminOwner.`
-          })(),
+      addresses: generateDiscoveryDrivenContracts([templateVars.discovery]),
+      risks: [
+        CONTRACTS.UPGRADE_WITH_DELAY_RISK_WITH_EXCEPTION(
+          upgradeDelayString,
+          'PolygonSecurityCouncil',
         ),
       ],
-      references: [
-        {
-          text: 'State injections - stateRoot and exitRoot are part of the validity proof input.',
-          href: `https://etherscan.io/address/${safeGetImplementation(
-            rollupManagerContract,
-          )}`,
-        },
-      ],
-      risks: [CONTRACTS.UPGRADE_WITH_DELAY_RISK(upgradeDelayString)],
     },
-    upgradesAndGovernance: templateVars.upgradesAndGovernance,
+    upgradesAndGovernance:
+      templateVars.upgradesAndGovernance ??
+      `
+    The regular upgrade process for all system contracts (shared and L2-specific) starts at the PolygonAdminMultisig. For the shared contracts, they schedule a transaction that targets the ProxyAdmin via the Timelock, wait for ${upgradeDelayString} and then execute the upgrade. An upgrade of the Layer 2 specific rollup- or validium contract requires first adding a new rollupType through the Timelock and the RollupManager (defining the new implementation and verifier contracts). Now that the rollupType is created, either the local admin or the PolygonAdminMultisig can immediately upgrade the local system contracts to it.
+
+
+    The PolygonSecurityCouncil can expedite the upgrade process by declaring an emergency state. This state pauses both the shared bridge and the PolygonRollupManager and allows for instant upgrades through the timelock. Accordingly, instant upgrades for all system contracts are possible with the cooperation of the SecurityCouncil. The emergency state has been activated ${emergencyActivatedCount} time(s) since inception.
+
+
+    Furthermore, the PolygonAdminMultisig is permissioned to manage the shared trusted aggregator (proposer and prover) for all participating Layer 2s, deactivate the emergency state, obsolete rolupTypes and manage operational parameters and fees in the PolygonRollupManager directly. The local admin of a specific Layer 2 can manage their chain by choosing the trusted sequencer, manage forced batches and set the data availability config. Creating new Layer 2s (of existing rollupType) is outsourced to the PolygonCreateRollupMultisig but can also be done by the PolygonAdminMultisig. Custom non-shared bridge escrows have their custom upgrade admins listed in the permissions section.`,
     milestones: templateVars.milestones,
     knowledgeNuggets: templateVars.knowledgeNuggets,
     badges: mergeBadges(
-      [Badge.Stack.PolygonCDK, Badge.VM.EVM, Badge.DA.EthereumCalldata],
-      templateVars.badges ?? [],
+      [
+        Badge.Stack.PolygonCDK,
+        Badge.VM.EVM,
+        Badge.DA.EthereumCalldata,
+        Badge.Infra.AggLayer,
+      ],
+      templateVars.additionalBadges ?? [],
     ),
+    customDa: templateVars.customDa,
+    reasonsForBeingOther: templateVars.reasonsForBeingOther,
   }
 }
 
-function riskViewDA(DA: DAProvider | undefined): ScalingProjectRiskViewEntry {
+function riskViewDA(DA: DAProvider | undefined): TableReadyValue {
   return DA === undefined
     ? {
         ...RISK_VIEW.DATA_ON_CHAIN,
@@ -612,20 +473,10 @@ function riskViewDA(DA: DAProvider | undefined): ScalingProjectRiskViewEntry {
     : DA.riskView
 }
 
-function technologyDA(
-  DA: DAProvider | undefined,
-): ScalingProjectTechnologyChoice {
+function technologyDA(DA: DAProvider | undefined): ProjectTechnologyChoice {
   if (DA !== undefined) {
     return DA.technology
   }
 
   return TECHNOLOGY_DATA_AVAILABILITY.ON_CHAIN_CALLDATA
-}
-
-function safeGetImplementation(contract: ContractParameters): string {
-  const implementation = get$Implementations(contract.values)[0]
-  if (!implementation) {
-    throw new Error(`No implementation found for ${contract.name}`)
-  }
-  return implementation.toString()
 }

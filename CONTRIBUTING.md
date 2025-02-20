@@ -24,14 +24,56 @@ To do any development work, even simple config changes you probably want to have
 locally. To install dependencies do the following.
 
 1. Install [node.js](https://nodejs.org/en/) version 18. To easily manage node versions we recommend
-   [fnm](https://github.com/Schniz/fnm)
-2. Install [yarn](https://classic.yarnpkg.com/en/docs/install#debian-stable), preferably through
-   `npm i -g yarn`
-3. In the repository root run `yarn` to install project specific dependencies
+   [fnm](https://github.com/Schniz/fnm).
+2. In the repository root, run `node --version > .node-version` to set the node version. Please do not commit this file.
+3. Install [pnpm](https://pnpm.io/installation#using-corepack), preferably using Corepack
+   `corepack enable pnpm`
+4. In the repository root, run `pnpm install` to install project specific dependencies.
+5. In the repository root, run `pnpm build:dependencies` to build the dependencies.
+
+Please note that you will want to run `pnpm install` after you perform a `git pull` on your cloned repository. You may also need to run `pnpm build:dependencies` if new dependencies have been added. Failure to do this may result in errors that are difficult to diagnose.
 
 ## Running the website locally
 
-We currently have two frontend apps because we're migrating to Next.js, so working on the website part of L2BEAT may be a bit confusing. Some pages are still in the `frontend` package, while some have been added and/or migrated to `frontend2`. For the list of pages that are present in `frontend2` and instructions on running it, check [packages/frontend2/README.md](./packages/frontend2/README.md). For the instructions how to run the legacy frontend, go to [packages/frontend/README.md](./packages/frontend/README.md).
+If you're planning working only on the frontend part of the website (i.e. you don't care what data
+is actually displayed) then it's quite easy. Just run the following commands after having cloned the
+repository:
+
+```
+pnpm install
+pnpm build:dependencies
+cd packages/frontend
+pnpm dev:mock
+```
+
+Once you have the frontend website running, you will probably wish to explore the `discovery` tool described in its [README](packages/discovery/README.md).
+
+To explore the projects currently tracked, see the TypeScript files under [packages/config/src/projects](packages/config/src/projects).
+
+The website will be available on http://localhost:3000/
+
+## Running the website with data
+
+Running the website with data requires a database. Setting up that database is complicated and underdocumented for the moment. Please raise an issue or contact L2Beat support if you require assistance.
+
+If you are a member of the L2Beat organization on GitHub, opening a pull request will prompt [vercel](https://vercel.com) to run a container including live data. Vercel will comment on your PR with the container's URL. NB: Vercel's post-commit hook will also respond to _draft_ PRs so you may wish to use a draft PR to avoid spamming administrators until you are ready for their review.
+
+## Add tokens to a project
+
+If while adding your project you find that some of the tokens locked in it are missing from our
+token list do not worry.
+
+General token prerequisites (without these your token CANNOT be added):
+* Price data on Coingecko: Every token needs to be listed with current price data on Coingecko. (Not just as preview, not just on CoingeckoTerminal)
+* For natively minted tokens: Circulating supply data on Coingecko is essential.
+
+### Steps to add a token
+
+1. Study the general prerequisites (see above) and check if your token complies.
+2. Add your token to the list (`packages/config/src/tokens/tokens.jsonc`). The order of the tokens should be kept alphabetical.
+3. Run `pnpm tokens` in the `packages/config/` directory.
+
+Refer to the [docs - tvl.md](docs/tvl.md) for further token insights.
 
 ## Add your Layer 2 project to the website
 
@@ -40,28 +82,14 @@ If you want to add a new Layer 2 project you can do that by opening a PR. To do 
 1. Read the specification in `packages/config/src/projects/layer2s/types/Layer2.ts`. It contains an annotated
    data format for the project definition.
 2. Add a .ts file to describe your project inside `packages/config/src/projects/layer2s`. You can use the
-   existing projects as reference.
+   existing projects and templates (e.g. OP stack and Orbit stack templates in `packages/config/src/projects/layer2s/templates/`) as reference.
 3. Add your project into `packages/config/src/projects/layer2s/index.ts`. The order of the projects should be
    kept alphabetical.
-4. Add a square PNG project icon with a minimum size of 128x128 pixels into
-   packages/frontend/src/static/icons. From the `packages/frontend` directory
-   run `yarn tinify-logos` afterwards to reduce its size.
-5. If your project is a fork of an already existing project (like Boba Network that is on top of
-   Optimism) or it was built using a Rollups SDK/framework (like ImmutableX that is on top of
-   StarkEx) you can show this information by:
-   - In your project's .ts file find the field `technology`, add a field `provider` (if it is not
-     already) and set the technology provider your project is based on.
-   - If the technology provider in which your project is based on is not defined in L2BEAT yet, you
-     will need to:
-     - Add the new provider in the file `packages/config/src/projects/layer2s/types/Layer2.ts` (find the
-       optional property `provider`).
-     - Create a simple React component to render the technology provider Icon (SVG format required)
-       inside `packages/frontend/src/components/icons/providers`.
-     - Import the Icon component created in `packages/frontend/src/components/icons/index.ts`.
-     - To finish, add the technology provider icon in the technology column of the project's table
-       that is located at `packages/frontend/src/components/table/TechnologyCell.tsx`.
+4. Add a square PNG project icon with a minimum size of 128x128 pixels to
+   `packages/frontend/public/icons`. From the `packages/frontend` directory run `pnpm tinify-logos` afterwards to reduce its size.
+5. Run the website locally to check out your changes. (optional, see above)
 6. Make sure that things like linting, formatting and tests are all passing. To
-   check their status you can run `yarn lint:fix`, `yarn format:fix` or `yarn test`
+   check their status you can run `pnpm lint:fix`, `pnpm format:fix` or `pnpm test`
    respectively. We greatly encourage doing this before the last step as it
    shortens the amount of time needed for your project to be added.
 7. Open a PR :D
@@ -79,35 +107,21 @@ If you want to add a new Layer 3 project you can do that by opening a PR. To do 
 1. Read the specification in `packages/config/src/projects/layer3s/types/Layer3.ts`. It contains an annotated
    data format for the project definition.
 2. Add a .ts file to describe your project inside `packages/config/src/projects/layer3s`. You can use the
-   existing projects as reference. Remember to specify host chain on which your project is based on.
-   Take `projectId` of host chian and add it to `hostChain` property.
-3. Add your project into `packages/config/src/projects/layer3s/index.ts`. The order of the projects should be
+   existing projects and templates (e.g. OP stack and Orbit stack templates in `packages/config/src/projects/layer2s/templates/`) as reference. Remember to specify host chain on which your project is based on.
+   Take `projectId` of host chain and add it to `hostChain` property.
+3. Add your project to `packages/config/src/projects/layer3s/index.ts`. The order of the projects should be
    kept alphabetical.
 4. Add a square PNG project icon with a minimum size of 128x128 pixels into
    packages/frontend/src/static/icons. From the `packages/frontend` directory
-   run `yarn tinify-logos` afterwards to reduce its size.
-5. If your project is a fork of an already existing project (like Boba Network that is on top of
-   Optimism) or it was built using a Rollups SDK/framework (like ImmutableX that is on top of
-   StarkEx) you can show this information by:
-   - In your project's .ts file find the field `technology`, add a field `provider` (if it is not
-     already) and set the technology provider your project is based on.
+   run `pnpm tinify-logos` afterwards to reduce its size.
 6. Make sure that things like linting, formatting and tests are all passing. To
-   check their status you can run `yarn lint:fix`, `yarn format:fix` or `yarn test`
+   check their status you can run `pnpm lint:fix`, `pnpm format:fix` or `pnpm test`
    respectively. We greatly encourage doing this before the last step as it
    shortens the amount of time needed for your project to be added.
 7. Open a PR :D
 8. If your changes contain any errors we might want to fix them ourselves. To
    make this as easy as possible please enable **"Allow edits by maintainers"**.
    Otherwise the latency before we can merge a PR greatly increases.
-
-### Add missing tokens
-
-If while adding your project you find that some of the tokens locked in it are missing from our
-token list do not worry.
-
-1. Read the token definition in `packages/config/src/tokens.ts`
-2. Check if the token matches the requirements.
-3. Add your token to the list. The order of the tokens should be kept alphabetical.
 
 ## Contribute research
 

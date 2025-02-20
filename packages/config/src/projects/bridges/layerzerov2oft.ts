@@ -1,9 +1,9 @@
-import { EthereumAddress, ProjectId } from '@l2beat/shared-pure'
+import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { NUGGETS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('layerzerov2oft')
 const enaExecutor = EthereumAddress(
@@ -18,6 +18,7 @@ const enaExecutor = EthereumAddress(
 export const layerzerov2oft: Bridge = {
   type: 'bridge',
   id: ProjectId('layerzerov2oft'),
+  addedAt: new UnixTime(1718891395), // 2024-06-20T13:49:55Z
   display: {
     name: 'LayerZero v2 OFTs',
     slug: 'layerzerov2oft',
@@ -33,12 +34,17 @@ export const layerzerov2oft: Bridge = {
       documentation: [
         'https://docs.layerzero.network/v2/developers/evm/oft/quickstart',
       ],
-      socialMedia: ['https://x.com/LayerZero_Labs'],
+      socialMedia: [
+        'https://x.com/layerzero_core',
+        'https://t.me/joinchat/VcqxYkStIDsyN2Rh',
+        'https://discord.com/invite/ktbvm8Nkcr',
+        'https://medium.com/layerzero-official',
+      ],
     },
     description:
       'This page gathers significant Omnichain Fungible Tokens (OFTs) built on top of LayerZero v2 AMB protocol.',
     detailedDescription:
-      'Risk associated with using any OFT varies, depending on the technological decisions ([OApp configuration and security stack](https://docs.layerzero.network/v2/developers/evm/configuration/default-config)) made by the developers.\
+      'Risk associated with using any OFT varies, depending on the technological decisions ([OApp configuration and security stack](https://docs.layerzero.network/v2/developers/evm/protocol-gas-settings/default-config)) made by the developers.\
        LayerZero as a framework to build omnichain application does not provide any base security as applications can define their own security settings,\
        however applications and tokens choosing the default security settings will leverage security provided by the current default Verifiers and Executor.\
        Default settings are managed by LayerZero team.',
@@ -134,6 +140,8 @@ export const layerzerov2oft: Bridge = {
       These can be set by the Oapp / OFT owner or a delegate that they can define in the EndpointV2 contract.
       Additionally, the OFT owner can often use other admin functions on the OFT contract that are specific to the ERC-20 implementation (similar to other ERC-20 tokens, like arbitrary minting or pausing functions) and not related to LayerZero.
       
+      In the case of the Executor failing to deliver the bridge message, the user can try to deliver the message to the destination themselves, either if it was already verified or if the user has access to the signed verifier message (e.g. through layerzeroscan.com).
+      
       OFTs can either be natively multichain or they can use an adapter. Native OFTs are burned at their origin and minted at their destination when bridging. 
       Adapter OFTs have a main chain, where they are locked in an adapter escrow. This mints a 'native' OFT version of the locked token that can then be bridged on all chains by burn-minting. 
       To receive the original locked token back, a user would have to return to the main chain and unlock it from the adapter escrow.`,
@@ -141,17 +149,16 @@ export const layerzerov2oft: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'the OApp owner upgrades the OFT(Adapter) contract maliciously.',
-          isCritical: true,
         },
       ],
       references: [
         {
-          text: 'LayerZero V2 docs: Overview',
-          href: 'https://docs.layerzero.network/v2/home/v2-overview',
+          title: 'LayerZero V2 docs: Overview',
+          url: 'https://docs.layerzero.network/v2/home/v2-overview',
         },
         {
-          text: 'LayerZero V2 docs: OFT Quickstart',
-          href: 'https://docs.layerzero.network/v2/developers/evm/oft/quickstart',
+          title: 'LayerZero V2 docs: OFT Quickstart',
+          url: 'https://docs.layerzero.network/v2/developers/evm/oft/quickstart',
         },
       ],
     },
@@ -161,28 +168,26 @@ export const layerzerov2oft: Bridge = {
         'Each crosschain transaction is emitted on the origin chain and must be picked up and verified by preconfigured verifiers (LayerZero calls these DVNs). If they agree on a message, it is considered verified and can be executed by a permissioned Executor at the destination.',
       references: [
         {
-          text: 'Etherscan: Function setConfig() in SendUln302.sol',
-          href: 'https://etherscan.io/address/0xbB2Ea70C9E858123480642Cf96acbcCE1372dCe1#code#F1#L30',
+          title: 'Etherscan: Function setConfig() in SendUln302.sol',
+          url: 'https://etherscan.io/address/0xbB2Ea70C9E858123480642Cf96acbcCE1372dCe1#code#F1#L30',
         },
         {
-          text: 'L2Beat Blog: Circumventing Layer Zero',
-          href: 'https://medium.com/l2beat/circumventing-layer-zero-5e9f652a5d3e',
+          title: 'L2Beat Blog: Circumventing Layer Zero',
+          url: 'https://medium.com/l2beat/circumventing-layer-zero-5e9f652a5d3e',
         },
       ],
       risks: [
         {
           category: 'Users can be censored if',
-          text: 'the executor or all required verifiers fail to facilitate the transfer.',
+          text: 'any required Verifiers fail to approve the transfer.',
         },
         {
           category: 'Funds can be stolen if',
-          text: 'the Executor and the Verifiers collude to submit fraudulent block hash and relay fraudulent transfer.',
-          isCritical: true,
+          text: 'all required Verifiers collude to approve and relay a fraudulent transfer.',
         },
         {
           category: 'Funds can be stolen if',
           text: 'the OApp owner changes the security stack maliciously.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
@@ -212,11 +217,6 @@ export const layerzerov2oft: Bridge = {
         address: EthereumAddress('0x17Ce6AEc7FD1aCcB5C0B2712eDDeFf8939BAB91E'),
         tokens: ['TRESTLE'],
         description: 'OFT adapter escrow for TRESTLE on Ethereum.',
-      }),
-      discovery.getEscrowDetails({
-        address: EthereumAddress('0x0ab9EfCb9DF64D575085A8d1eF7b961b57785aA2'),
-        tokens: ['wTIA'],
-        description: 'OFT adapter escrow for Trestle Wrapped TIA on Ethereum.',
       }),
       discovery.getEscrowDetails({
         address: EthereumAddress('0x6182995916d79DeDb60db1570776F9994fCdCA0a'),
@@ -298,64 +298,55 @@ export const layerzerov2oft: Bridge = {
     ],
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'EndpointV2',
-        'The central Endpoint contract for LayerZero v2 on Ethereum. OApps like OFT adapters or token contracts register with this Endpoint to define their send and receive libraries and LayerZero-related configurations.',
-      ),
-      discovery.getContractDetails(
-        'SendUln302',
-        'The default send library for the LayerZero EndpointV2. This contract defines a framework and configuration options for sending messages across the LayerZero Arbitrary Message Bridge (AMB). It also accumulates fees configured by the OApp owners via the Treasury contract. New libraries can be added by the LayerZero Multisig.',
-      ),
-      discovery.getContractDetails(
-        'ReceiveUln302',
-        'The default receive library for the LayerZero EndpointV2. This contract defines a framework and configuration options for receiving messages across the LayerZero Arbitrary Message Bridge (AMB). New libraries can be added by the LayerZero Multisig.',
-      ),
-      discovery.getContractDetails(
-        'LayerZeroDVN',
-        'The LayerZero Verifier delivers their verified messages through this contract. It is one of the default DVNs configured in the LayerZero EndpointV2.',
-      ),
-      discovery.getContractDetails(
-        'GoogleCloudDVN',
-        'The GoogleCloud Verifier delivers their verified messages through this contract. It is one of the default DVNs configured in the LayerZero EndpointV2.',
-      ),
-      discovery.getContractDetails(
-        'PolyhedraDVN',
-        'The Polyhedra Verifier delivers their verified messages through this contract. It is one of the default DVNs configured in the LayerZero EndpointV2.',
-      ),
-      discovery.getContractDetails(
-        'Treasury',
-        'Manages fees and fee recipients for registered OApps. Fees accumulate in the sendLib and OApp owners can withdraw them.',
-      ),
-    ],
-    risks: [],
-    references: [
-      {
-        text: 'LayerZero Docs: OFT Adapter',
-        href: 'https://docs.layerzero.network/v2/developers/evm/oft/adapter',
-      },
-      {
-        text: 'LayerZero Docs: Deployed contracts and supported chains',
-        href: 'https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts',
-      },
-      {
-        text: 'LayerZero Docs: DVN addresses',
-        href: 'https://docs.layerzero.network/v2/developers/evm/technical-reference/dvn-addresses',
-      },
-    ],
-  },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'LayerZero Multisig',
-      'The owner of EndpointV2, both Uln302 and Treasury. Can register and set default MessageLibraries and change the Treasury address.',
-    ),
-    {
-      accounts: [discovery.formatPermissionedAccount(enaExecutor)],
-      name: 'Default LayerZero Executor',
-      description:
-        'Messages passed through the LayerZero AMB are, by default, sent to the destination chain by this Executor. This can be changed by the respective OApp owner.',
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'EndpointV2',
+          'The central Endpoint contract for LayerZero v2 on Ethereum. OApps like OFT adapters or token contracts register with this Endpoint to define their send and receive libraries and LayerZero-related configurations.',
+        ),
+        discovery.getContractDetails(
+          'SendUln302',
+          'The default send library for the LayerZero EndpointV2. This contract defines a framework and configuration options for sending messages across the LayerZero Arbitrary Message Bridge (AMB). It also accumulates fees configured by the OApp owners via the Treasury contract. New libraries can be added by the LayerZero Multisig.',
+        ),
+        discovery.getContractDetails(
+          'ReceiveUln302',
+          'The default receive library for the LayerZero EndpointV2. This contract defines a framework and configuration options for receiving messages across the LayerZero Arbitrary Message Bridge (AMB). New libraries can be added by the LayerZero Multisig.',
+        ),
+        discovery.getContractDetails(
+          'LayerZeroDVN',
+          'The LayerZero Verifier delivers their verified messages through this contract. It is one of the default DVNs configured in the LayerZero EndpointV2.',
+        ),
+        discovery.getContractDetails(
+          'GoogleCloudDVN',
+          'The GoogleCloud Verifier delivers their verified messages through this contract. It is one of the default DVNs configured in the LayerZero EndpointV2.',
+        ),
+        discovery.getContractDetails(
+          'PolyhedraDVN',
+          'The Polyhedra Verifier delivers their verified messages through this contract. It is one of the default DVNs configured in the LayerZero EndpointV2.',
+        ),
+        discovery.getContractDetails(
+          'Treasury',
+          'Manages fees and fee recipients for registered OApps. Fees accumulate in the sendLib and OApp owners can withdraw them.',
+        ),
+      ],
     },
-  ],
+    risks: [],
+  },
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'LayerZero Multisig',
+          'The owner of EndpointV2, both Uln302 and Treasury. Can register and set default MessageLibraries and change the Treasury address.',
+        ),
+        discovery.getPermissionDetails(
+          'Default LayerZero Executor',
+          discovery.formatPermissionedAccounts([enaExecutor]),
+          'Messages passed through the LayerZero AMB are, by default, sent to the destination chain by this Executor. This can be changed by the respective OApp owner.',
+        ),
+      ],
+    },
+  },
   knowledgeNuggets: [
     {
       title: 'Security models: isolated vs shared',

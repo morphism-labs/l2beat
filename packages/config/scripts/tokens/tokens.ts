@@ -1,20 +1,26 @@
-import { getEnv } from '@l2beat/backend-tools'
+import { Logger, getEnv } from '@l2beat/backend-tools'
 import {
-  CoinListPlatformEntry,
+  type CoinListPlatformEntry,
   CoingeckoClient,
   HttpClient,
 } from '@l2beat/shared'
 import {
   AssetId,
+  ChainConverter,
   ChainId,
-  CoingeckoId,
-  EthereumAddress,
+  type CoingeckoId,
+  type EthereumAddress,
+  type UnixTime,
 } from '@l2beat/shared-pure'
 import { providers } from 'ethers'
-
-import { chains } from '../../src'
-import { ChainConfig } from '../../src/common'
-import { GeneratedToken, Output, SourceEntry } from '../../src/tokens/types'
+import { isEqual } from 'lodash'
+import { ProjectService } from '../../src'
+import type {
+  GeneratedToken,
+  Output,
+  SourceEntry,
+} from '../../src/tokens/types'
+import type { ChainConfig } from '../../src/types'
 import { ScriptLogger } from './utils/ScriptLogger'
 import {
   readGeneratedFile,
@@ -31,7 +37,7 @@ main().catch((e: unknown) => {
 // TODO:
 // - load all generated into result and save result every time
 async function main() {
-  const logger = new ScriptLogger({})
+  const logger: ScriptLogger = new ScriptLogger({})
   logger.notify('Running tokens script...\n')
   const coingeckoClient = getCoingeckoClient()
   let coinList: CoinListPlatformEntry[] | undefined = undefined
@@ -39,8 +45,21 @@ async function main() {
   const output = readGeneratedFile(logger)
   const result: GeneratedToken[] = output.tokens
 
+  const ps = new ProjectService()
+  const chains = (await ps.getProjects({ select: ['chainConfig'] })).map(
+    (x) => x.chainConfig,
+  )
+
+  const chainConverter = new ChainConverter(
+    chains.map((x) => ({ name: x.name, chainId: ChainId(x.chainId) })),
+  )
+
   function saveToken(token: GeneratedToken) {
-    const index = result.findIndex((t) => t.id === token.id)
+    const index = result.findIndex(
+      (t) =>
+        AssetId.create(chainConverter.toName(t.chainId), t.address) ===
+        AssetId.create(chainConverter.toName(token.chainId), token.address),
+    )
 
     if (index === -1) {
       result.push(token)
@@ -54,7 +73,11 @@ async function main() {
 
   for (const [chain, tokens] of Object.entries(sourceToken)) {
     const chainLogger = logger.prefix(chain)
-    const chainConfig = getChainConfiguration(chainLogger, chain)
+    const chainConfig = chains.find((c) => c.name === chain)
+    logger.assert(
+      chainConfig !== undefined,
+      `Configuration not found, add chain configuration to project .ts file`,
+    )
     const chainId = getChainId(chainLogger, chainConfig)
 
     for (const token of tokens) {
@@ -72,6 +95,7 @@ async function main() {
           category,
           source,
           supply,
+          excludeFromTotal: token.excludeFromTotal,
         }
         for (const [key, value] of Object.entries(overrides)) {
           const existing = existingToken[key as keyof typeof existingToken]
@@ -81,14 +105,16 @@ async function main() {
               'from',
               existing?.toString() ?? 'undefined',
               'to',
-              value.toString(),
+              value?.toString() ?? 'undefined',
             )
           }
         }
         const bridgedUsing = token.bridgedUsing ?? existingToken.bridgedUsing
         if (
-          existingToken.bridgedUsing?.bridge !== bridgedUsing?.bridge ||
-          existingToken.bridgedUsing?.slug !== bridgedUsing?.slug ||
+          !isEqual(
+            existingToken.bridgedUsing?.bridges,
+            bridgedUsing?.bridges,
+          ) ||
           existingToken.bridgedUsing?.warning !== bridgedUsing?.warning
         ) {
           tokenLogger.overriding(
@@ -133,12 +159,10 @@ async function main() {
         chainConfig,
         token.address,
         token.symbol,
+        token.deploymentTimestamp,
       )
 
-      const assetId = getAssetId(chainConfig, token, info.name)
-
       saveToken({
-        id: assetId,
         name: info.name,
         coingeckoId: info.coingeckoId,
         address: token.address,
@@ -152,6 +176,7 @@ async function main() {
         source,
         supply,
         bridgedUsing: token.bridgedUsing,
+        excludeFromTotal: token.excludeFromTotal,
       })
 
       tokenLogger.processed()
@@ -163,17 +188,15 @@ function getCoingeckoClient() {
   const env = getEnv()
   const coingeckoApiKey = env.optionalString('COINGECKO_API_KEY')
   const http = new HttpClient()
-  const coingeckoClient = new CoingeckoClient(http, coingeckoApiKey)
+  const coingeckoClient = new CoingeckoClient({
+    http,
+    retryStrategy: 'SCRIPT',
+    callsPerMinute: coingeckoApiKey ? 400 : 10,
+    sourceName: 'coingeckoAPI',
+    apiKey: coingeckoApiKey,
+    logger: Logger.WARN,
+  })
   return coingeckoClient
-}
-
-function getChainConfiguration(logger: ScriptLogger, chain: string) {
-  const chainConfig = chains.find((c) => c.name === chain)
-  logger.assert(
-    chainConfig !== undefined,
-    `Configuration not found, add chain configuration to project .ts file`,
-  )
-  return chainConfig
 }
 
 function getChainId(logger: ScriptLogger, chain: ChainConfig) {
@@ -204,16 +227,6 @@ function getSupply(
   const formula = chain === 'ethereum' ? 'zero' : entry.supply
   tokenLogger.assert(formula !== undefined, `Missing formula`)
   return formula
-}
-
-function getAssetId(chain: ChainConfig, token: SourceEntry, name: string) {
-  const chainPrefix = chain.name === 'ethereum' ? '' : `${chain.name}:`
-
-  return AssetId(
-    `${chainPrefix}${token.symbol.replaceAll(' ', '-').toLowerCase()}-${name
-      .replaceAll(' ', '-')
-      .toLowerCase()}`,
-  )
 }
 
 function sortByChainAndName(result: GeneratedToken[]) {
@@ -248,6 +261,7 @@ async function fetchTokenInfo(
   chain: ChainConfig,
   address: EthereumAddress,
   symbol: string,
+  deploymentTimestampOverride?: UnixTime,
 ) {
   const env = getEnv()
   const rpcUrl = env.optionalString(`${chain.name.toUpperCase()}_RPC_URL`)
@@ -264,6 +278,7 @@ async function fetchTokenInfo(
     address,
     symbol,
     coingeckoId,
+    deploymentTimestampOverride,
   )
 
   return {

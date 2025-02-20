@@ -2,7 +2,7 @@ import Router from '@koa/router'
 import { z } from 'zod'
 
 import { withTypedContext } from '../../../api/types'
-import { UpdateMonitorController } from './UpdateMonitorController'
+import type { UpdateMonitorController } from './UpdateMonitorController'
 
 export function createUpdateMonitorRouter(
   updateMonitorController: UpdateMonitorController,
@@ -30,6 +30,14 @@ export function createUpdateMonitorRouter(
       },
     ),
   )
+
+  router.get('/discovery/changes', async (ctx) => {
+    ctx.set('Access-Control-Allow-Origin', '*')
+    ctx.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
+    ctx.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
+
+    ctx.body = await updateMonitorController.getUpdates()
+  })
 
   return router
 }

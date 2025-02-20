@@ -1,25 +1,24 @@
-import { assert, EthereumAddress, UnixTime } from '@l2beat/shared-pure'
-
+import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
 import { NUGGETS } from '../../common'
-import { subtractOneAfterBlockInclusive } from '../../common/assessCount'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('bobanetwork')
 
 export const bobanetwork: Layer2 = opStackL2({
+  addedAt: new UnixTime(1632469722), // 2021-09-24T07:48:42Z
   discovery,
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.NO_PROOFS],
   display: {
     name: 'Boba Network',
     shortName: 'Boba',
     slug: 'bobanetwork',
     description:
       'Boba is an OP stack Optimistic Rollup built by the Enya team as core contributors to the Boba Foundation.',
-    purposes: ['Universal'],
     links: {
       websites: ['https://boba.network'],
-      apps: [],
       documentation: ['https://docs.boba.network/'],
       explorers: ['https://bobascan.com/'],
       repositories: ['https://github.com/bobanetwork/boba'],
@@ -32,38 +31,13 @@ export const bobanetwork: Layer2 = opStackL2({
         'https://discord.com/invite/Hvu3zpFwWd',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  usesBlobs: true,
-  nonTemplateContracts: [
-    discovery.getContractDetails('L1ERC721Bridge', {
-      description:
-        'The L1ERC721Bridge contract is the main entry point to deposit ERC721 tokens from L1 to L2.',
-    }),
-  ],
-  nonTemplatePermissions: [
-    ...(() => {
-      const discoveredAdminOwner = discovery.getAddressFromValue(
-        'ProxyAdmin',
-        'owner',
-      )
-      const bobaMultisigAddress = discovery.getContract('BobaMultisig').address
-      assert(
-        discoveredAdminOwner === bobaMultisigAddress,
-        'Update the permissions section if this changes. (BobaMultisig is not the ProxyAdmin anymore)',
-      )
-      return discovery.getMultisigPermission(
-        'BobaMultisig',
-        'Owner of the ProxyAdmin. It can upgrade the rollup system and the bridge implementation, potentially gaining access to all funds.',
-      )
-    })(),
-  ],
   rpcUrl: 'https://mainnet.boba.network/',
   transactionApi: {
     type: 'rpc',
     defaultUrl: 'https://mainnet.boba.network/',
     startBlock: 1,
-    assessCount: subtractOneAfterBlockInclusive(1149019), // boba L2 bedrock upgrade block number
+    adjustCount: { type: 'SubtractOneSinceBlock', blockNumber: 1149019 }, // boba L2 bedrock upgrade block number
   },
   // finality: {
   //   type: 'OPStack-blob',
@@ -76,7 +50,7 @@ export const bobanetwork: Layer2 = opStackL2({
   // Explicitly set since we are getting weird results from the finality calculation
   finality: undefined,
   genesisTimestamp: new UnixTime(1713303530), // boba network anchorage upgrade + 3 timestamp
-  associatedTokens: ['BOBA', 'OMG'],
+  associatedTokens: ['BOBA'],
   isNodeAvailable: 'UnderReview',
   nonTemplateTrackedTxs: [
     {
@@ -137,56 +111,64 @@ export const bobanetwork: Layer2 = opStackL2({
   ],
   milestones: [
     {
-      name: 'Boba Anchorage Upgrade',
+      title: 'Boba Anchorage Upgrade',
       date: '2024-04-16T00:00:00Z',
-      link: 'https://forum.boba.network/t/upgrade-boba-network-to-the-anchorage-framework/442',
+      url: 'https://forum.boba.network/t/upgrade-boba-network-to-the-anchorage-framework/442',
       description:
         'Boba upgrades to Bedrock (OP Stack) and to EIP-4844 data blobs for L1 data availability.',
+      type: 'general',
     },
     {
-      name: 'Boba launches L2 on BNB',
+      title: 'Boba launches L2 on BNB',
       date: '2022-11-01T00:00:00Z',
-      link: 'https://boba.network/education/multichain/bobabnb/',
+      url: 'https://boba.network/education/multichain/bobabnb/',
       description: 'Boba launches on BnB.',
+      type: 'general',
     },
     {
-      name: 'Boba launches L2 on Avalanche',
+      title: 'Boba launches L2 on Avalanche',
       date: '2022-09-21T00:00:00Z',
-      link: 'https://boba.network/blog/an-avalanche-of-boba-is-coming/',
+      url: 'https://boba.network/blog/an-avalanche-of-boba-is-coming/',
       description: 'Boba launches on Avalanche.',
+      type: 'general',
     },
     {
-      name: 'Boba launches L2 on Moonbeam and Fantom',
+      title: 'Boba launches L2 on Moonbeam and Fantom',
       date: '2022-06-02T00:00:00Z',
-      link: 'https://boba.network/education/boba-basics/multichain/',
+      url: 'https://boba.network/education/boba-basics/multichain/',
       description: 'Boba launches on Moonbeam and Fantom.',
+      type: 'general',
     },
     {
-      name: 'Call data compression',
+      title: 'Call data compression',
       date: '2022-10-08T00:00:00Z',
-      link: 'https://boba.network/blog/boba-call-data-compression/',
+      url: 'https://boba.network/blog/boba-call-data-compression/',
       description:
         'The Boba Tree From (v0.1.0) release introduces Brotli compression for call data.',
+      type: 'general',
     },
     {
-      name: 'Hybrid Compute',
+      title: 'Hybrid Compute',
       date: '2022-03-18T00:00:00Z',
-      link: 'https://boba.network/education/boba-basics/hybrid-compute/',
+      url: 'https://boba.network/education/boba-basics/hybrid-compute/',
       description:
         'Boba’s proprietary technology enables dApps that trigger code executed on web-scale infrastructure.',
+      type: 'general',
     },
     {
-      name: 'Mainnet launch',
+      title: 'Mainnet launch',
       date: '2021-09-20T00:00:00Z',
-      link: 'https://www.enya.ai/press/public-mainnet',
+      url: 'https://www.firstraysvc.com/news/enya-launches-mainnet-beta-boba-network',
       description:
         'Layer 2 Optimistic Rollup based on the Optimism codebase is live on Ethereum.',
+      type: 'general',
     },
     {
-      name: 'BOBA Token launched',
+      title: 'BOBA Token launched',
       date: '2021-11-18T00:00:00Z',
-      link: 'https://boba.network/Boba-airdrop-live/',
+      url: 'https://x.com/bobanetwork/status/1461839296785051648',
       description: 'BOBA token launched by OMG Foundation.',
+      type: 'general',
     },
   ],
   chainConfig: {
@@ -200,7 +182,7 @@ export const bobanetwork: Layer2 = opStackL2({
     ],
     name: 'bobanetwork',
     chainId: 288,
-    explorerUrl: 'https://eth.bobascan.com/',
+    explorerUrl: 'https://eth.bobascan.com',
     explorerApi: {
       url: 'https://api.routescan.io/v2/network/mainnet/evm/288/etherscan/api/',
       type: 'etherscan',

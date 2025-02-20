@@ -1,8 +1,7 @@
-import assert from 'node:assert'
-
-import { IndexerEffect } from '../types/IndexerEffect'
-import { IndexerReducerResult } from '../types/IndexerReducerResult'
-import { IndexerState } from '../types/IndexerState'
+import { assert } from '@l2beat/shared-pure'
+import type { IndexerEffect } from '../types/IndexerEffect'
+import type { IndexerReducerResult } from '../types/IndexerReducerResult'
+import type { IndexerState } from '../types/IndexerState'
 
 export function continueOperations(
   state: IndexerState,

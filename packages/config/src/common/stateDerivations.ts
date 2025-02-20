@@ -1,4 +1,4 @@
-import { ScalingProjectStateDerivation } from './ScalingProjectStateDerivation'
+import type { ScalingProjectStateDerivation } from '../types'
 
 type SupportedOPStackChains =
   | 'OP_MAINNET'
@@ -7,32 +7,67 @@ type SupportedOPStackChains =
   | 'PGN'
   | 'MODE'
   | 'LISK'
+  | 'HASHKEY'
+  | 'ARENAZ'
+  | 'SONEIUM'
+  | 'SWELL'
+  | 'WORLD'
+  | 'SHAPE'
+  | 'UNICHAIN'
 type OPStackInfo = [string, string] // [config, genesis file]
 
 const OPStackInfos: Record<SupportedOPStackChains, OPStackInfo> = {
   OP_MAINNET: [
     'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/op.toml',
-    'https://community.optimism.io/docs/useful-tools/networks/#parameters-for-node-operators',
+    'https://docs.optimism.io/builders/node-operators/configuration/base-config',
   ],
   ZORA: [
     'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/zora.toml',
     'https://github.com/ethereum-optimism/superchain-registry/tree/main/superchain/extra/genesis/mainnet',
   ],
   PGN: [
-    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/pgn.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/v0.1.1/superchain/configs/mainnet/pgn.yaml',
     'https://github.com/ethereum-optimism/superchain-registry/tree/main/superchain/extra/genesis/mainnet',
   ],
   BASE: [
     'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/base.toml',
-    'https://raw.githubusercontent.com/base-org/node/main/mainnet/genesis-l2.json ',
+    'https://raw.githubusercontent.com/base-org/node/refs/tags/v0.8.4/mainnet/genesis-l2.json',
   ],
   MODE: [
     'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/mode.toml',
-    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/mode.json.gz',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/mode.json.zst',
   ],
   LISK: [
     'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/lisk.toml',
-    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/lisk.json.gz',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/lisk.json.zst',
+  ],
+  HASHKEY: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/hashkeychain.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/hashkeychain.json.zst',
+  ],
+  ARENAZ: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/arena-z.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/arena-z.json.zst',
+  ],
+  SONEIUM: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/soneium.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/soneium.json.zst',
+  ],
+  SWELL: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/swell.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/swell.json.zst',
+  ],
+  WORLD: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/worldchain.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/worldchain.json.zst',
+  ],
+  SHAPE: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/shape.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/shape.json.zst',
+  ],
+  UNICHAIN: [
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/configs/mainnet/unichain.toml',
+    'https://github.com/ethereum-optimism/superchain-registry/blob/main/superchain/extra/genesis/mainnet/unichain.json.zst',
   ],
 }
 

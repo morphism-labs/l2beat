@@ -1,33 +1,24 @@
-import { Logger } from '@l2beat/backend-tools'
-import {
-  BlockchainDaLayer,
-  DaEconomicSecurityType,
-  DaLayer,
-  daLayers,
-} from '@l2beat/config'
+import type { Logger } from '@l2beat/backend-tools'
 import { HttpClient } from '@l2beat/shared'
-import { assertUnreachable } from '@l2beat/shared-pure'
-import { compact } from 'lodash'
-import { DABeatConfig } from '../../config/Config'
-import { Peripherals } from '../../peripherals/Peripherals'
+import type { DaBeatConfig } from '../../config/Config'
+import type { Peripherals } from '../../peripherals/Peripherals'
 import { QuickNodeClient } from '../../peripherals/quicknode/QuickNodeClient'
 import { TendermintClient } from '../../peripherals/tendermint/TendermintClient'
-import { Clock } from '../../tools/Clock'
+import type { Clock } from '../../tools/Clock'
 import { TaskQueue } from '../../tools/queue/TaskQueue'
-import { AbstractStakeAnalyzer } from './stake-analyzers/AbstractStakeAnalyzer'
+import type { AbstractStakeAnalyzer } from './stake-analyzers/AbstractStakeAnalyzer'
 import { CelestiaStakeAnalyzer } from './stake-analyzers/CelestiaStakeAnalyzer'
 import { EthereumStakeAnalyzer } from './stake-analyzers/EthereumStakeAnalyzer'
 import { NearStakeAnalyzer } from './stake-analyzers/NearStakeAnalyzer'
+import { AvailClient } from './stake-analyzers/avail/AvailClient'
+import { AvailStakeAnalyzer } from './stake-analyzers/avail/AvailStakeAnalyzer'
 
 export class DaBeatStakeRefresher {
   private readonly refreshQueue: TaskQueue<void>
-  private readonly analyzers: Record<
-    DaEconomicSecurityType,
-    AbstractStakeAnalyzer
-  >
+  private readonly analyzers: Record<string, AbstractStakeAnalyzer>
   constructor(
     private readonly peripherals: Peripherals,
-    private readonly config: DABeatConfig,
+    private readonly config: DaBeatConfig,
     private readonly clock: Clock,
     private readonly logger: Logger,
   ) {
@@ -35,15 +26,7 @@ export class DaBeatStakeRefresher {
     this.logger = logger.for('DaBeatStakeRefresher')
     this.refresh = this.refresh.bind(this)
     this.analyzers = Object.fromEntries(
-      [
-        ...new Set(
-          compact(
-            daLayers
-              .filter(this.isBlockchainDaLayer)
-              .map((layer) => layer.economicSecurity?.type),
-          ),
-        ),
-      ].map((type) => {
+      config.types.map((type) => {
         switch (type) {
           case 'Ethereum':
             return [
@@ -70,16 +53,29 @@ export class DaBeatStakeRefresher {
               type,
               new NearStakeAnalyzer(this.config.nearRpcUrl, httpClient),
             ]
+          case 'Avail':
+            return [
+              type,
+              new AvailStakeAnalyzer(
+                this.peripherals.getClient(AvailClient, {
+                  url: this.config.availWsUrl,
+                }),
+              ),
+            ]
           default:
-            assertUnreachable(type)
+            throw new Error(`Unsupported economic security: ${type}`)
         }
       }),
     )
     this.refreshQueue = new TaskQueue<void>(
       async () => {
-        this.logger.info('Refresh started')
+        this.logger.info('Refresh started', {
+          types: Object.keys(this.analyzers),
+        })
         await this.refresh()
-        this.logger.info('Refresh finished')
+        this.logger.info('Refresh finished', {
+          types: Object.keys(this.analyzers),
+        })
       },
       this.logger.for('refreshQueue'),
       { metricsId: 'DaBeatStakeRefresher' },
@@ -95,14 +91,20 @@ export class DaBeatStakeRefresher {
       Object.entries(this.analyzers).map(async ([type, analyzer]) => {
         try {
           const { totalStake, thresholdStake } = await analyzer.analyze()
-          this.logger.info(`Stake data for ${type} refreshed`)
+          this.logger.info(`Stake data refreshed`, {
+            type,
+            totalStake,
+            thresholdStake,
+          })
           await database.stake.upsert({
             id: type,
             totalStake,
             thresholdStake,
           })
         } catch (e) {
-          this.logger.error(`Failed to refresh stake data for ${type}: ${e}`)
+          this.logger.error(`Failed to refresh stake data: ${e}`, {
+            type,
+          })
         }
       }),
     )
@@ -113,9 +115,5 @@ export class DaBeatStakeRefresher {
   start() {
     this.clock.onNewDay(() => this.refreshQueue.addIfEmpty())
     this.refreshQueue.addIfEmpty()
-  }
-
-  private isBlockchainDaLayer(layer: DaLayer): layer is BlockchainDaLayer {
-    return layer.kind === 'PublicBlockchain'
   }
 }

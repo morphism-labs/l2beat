@@ -6,6 +6,9 @@ import {
 } from '@l2beat/shared-pure'
 import {
   CONTRACTS,
+  DA_BRIDGES,
+  DA_LAYERS,
+  DA_MODES,
   EXITS,
   FORCE_TRANSACTIONS,
   NEW_CRYPTOGRAPHY,
@@ -14,9 +17,9 @@ import {
   RISK_VIEW,
   STATE_CORRECTNESS,
   TECHNOLOGY_DATA_AVAILABILITY,
-  addSentimentToDataAvailability,
-  makeBridgeCompatible,
 } from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
+import { formatDelay } from '../../common/formatDelays'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
 import {
   getCommittee,
@@ -25,9 +28,10 @@ import {
   getSHARPVerifierGovernors,
   getSHARPVerifierUpgradeDelay,
 } from '../../discovery/starkware'
+import type { Layer2 } from '../../types'
 import { delayDescriptionFromString } from '../../utils/delayDescription'
 import { Badge } from '../badges'
-import { Layer2 } from './types'
+import { StarkexDAC } from '../da-beat/templates/starkex-template'
 
 const discovery = new ProjectDiscovery('apex')
 
@@ -77,42 +81,53 @@ const minFreezeGracePeriod = Math.min(
   freezeGracePeriodUSDT,
 )
 
-const usdcCommittee = getCommittee(
+const {
+  committeePermission: usdcCommittee,
+  minSigners: usdcMinSigners,
+  minAssumedHonestMembers: usdcMinAssumedHonestMembers,
+} = getCommittee(
   discovery,
   'CommitteeUSDC',
   'Data Availability Committee for USDC StarkEx',
 )
-const usdtCommittee = getCommittee(
+const {
+  committeePermission: usdtCommittee,
+  minSigners: usdtMinSigners,
+  minAssumedHonestMembers: usdtMinAssumedHonestMembers,
+} = getCommittee(
   discovery,
   'CommitteeUSDT',
   'Data Availability Committee for USDT StarkEx',
 )
 
 const usdcDacConfig =
-  usdcCommittee.minAssumedHonestMembers / usdcCommittee.accounts.length
+  usdcMinAssumedHonestMembers / usdcCommittee.accounts.length
 const usdtDacConfig =
-  usdtCommittee.minAssumedHonestMembers / usdtCommittee.accounts.length
+  usdtMinAssumedHonestMembers / usdtCommittee.accounts.length
 
 const dacConfig =
   usdcDacConfig < usdtDacConfig
     ? {
-        requiredSignatures: usdcCommittee.minSigners,
+        requiredSignatures: usdcMinSigners,
         membersCount: usdcCommittee.accounts.length,
       }
     : {
-        requiredSignatures: usdtCommittee.minSigners,
+        requiredSignatures: usdtMinSigners,
         membersCount: usdtCommittee.accounts.length,
       }
 
 export const apex: Layer2 = {
   type: 'layer2',
   id: ProjectId('apex'),
+  addedAt: new UnixTime(1663927910), // 2022-09-23T10:11:50Z
+  capability: 'appchain',
   badges: [
     Badge.VM.AppChain,
     Badge.DA.DAC,
     Badge.Stack.StarkEx,
     Badge.Infra.SHARP,
   ],
+  reasonsForBeingOther: [REASON_FOR_BEING_OTHER.LOW_DAC_THRESHOLD],
   display: {
     name: 'ApeX',
     slug: 'apex',
@@ -122,13 +137,12 @@ export const apex: Layer2 = {
       two independent StarkEx instances, one for USDC and one for USDT, but that
       technical distinction is not visible to the user.`,
     purposes: ['Exchange'],
-    provider: 'StarkEx',
+    stack: 'StarkEx',
     category: 'Validium',
     links: {
       websites: ['https://apex.exchange/'],
       apps: ['https://pro.apex.exchange/'],
       documentation: ['https://apex-pro.gitbook.io/apex-pro?lang=en-US'],
-      explorers: [],
       repositories: ['https://github.com/ApeX-Protocol/core'],
       socialMedia: [
         'https://twitter.com/OfficialApeXdex',
@@ -138,7 +152,6 @@ export const apex: Layer2 = {
         'https://youtube.com/@apexprotocol',
       ],
     },
-    activityDataSource: 'Closed API',
   },
   stage: {
     stage: 'NotApplicable',
@@ -163,52 +176,26 @@ export const apex: Layer2 = {
       resyncLastDays: 7,
     },
   },
-  dataAvailability: addSentimentToDataAvailability({
-    layers: ['DAC'],
-    bridge: { type: 'DAC Members', ...dacConfig },
-    mode: 'State diffs',
-  }),
-  riskView: makeBridgeCompatible({
+  dataAvailability: {
+    layer: DA_LAYERS.DAC,
+    bridge: DA_BRIDGES.DAC_MEMBERS(dacConfig),
+    mode: DA_MODES.STATE_DIFFS,
+  },
+  riskView: {
     stateValidation: RISK_VIEW.STATE_ZKP_ST,
-    dataAvailability: {
-      ...RISK_VIEW.DATA_EXTERNAL_DAC(dacConfig),
-      sources: [
-        {
-          contract: 'StarkExchangeUSDC',
-          references: [
-            'https://etherscan.io/address/0xdD5f42B087C1D2F73a2b443249b7D3DbE148a859#code#F36#L174',
-          ],
-        },
-        {
-          contract: 'StarkExchangeUSDT',
-          references: [
-            'https://etherscan.io/address/0x5BfbE850d18b73ed98FB830e0A5E9F4970Bb93dA#code#F36#L174',
-          ],
-        },
-        {
-          contract: 'CommitteeUSDC',
-          references: [
-            'https://etherscan.io/address/0x23cab3cf1aa7b929df5e9f3712aca3a6fb9494e4#code#F1#L84',
-          ],
-        },
-        {
-          contract: 'CommitteeUSDT',
-          references: [
-            'https://etherscan.io/address/0x7249082BfAFE9BCA502d38a686Ef3df37A0cf800#code#F1#L84',
-          ],
-        },
-      ],
-    },
+    dataAvailability: RISK_VIEW.DATA_EXTERNAL_DAC(dacConfig),
     exitWindow: RISK_VIEW.EXIT_WINDOW(
       includingSHARPUpgradeDelaySeconds,
       minFreezeGracePeriod,
     ),
-    sequencerFailure:
-      RISK_VIEW.SEQUENCER_FORCE_VIA_L1_STARKEX_PERPETUAL(minFreezeGracePeriod),
+    sequencerFailure: {
+      ...RISK_VIEW.SEQUENCER_FORCE_VIA_L1_STARKEX_PERPETUAL(
+        minFreezeGracePeriod,
+      ),
+      secondLine: formatDelay(minFreezeGracePeriod),
+    },
     proposerFailure: RISK_VIEW.PROPOSER_USE_ESCAPE_HATCH_MP_AVGPRICE,
-    validatedBy: RISK_VIEW.VALIDATED_BY_ETHEREUM,
-    destinationToken: RISK_VIEW.CANONICAL_USDC,
-  }),
+  },
   technology: {
     stateCorrectness: STATE_CORRECTNESS.STARKEX_VALIDITY_PROOFS,
     newCryptography: NEW_CRYPTOGRAPHY.ZK_STARKS,
@@ -219,101 +206,105 @@ export const apex: Layer2 = {
     exitMechanisms: EXITS.STARKEX_PERPETUAL,
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'StarkExchangeUSDC',
-        'Main contract of ApeX exchange for USDC collateral. Updates state and verifies its integrity using STARK Verifier. Allows users to deposit and withdraw tokens via normal and emergency modes.',
-      ),
-      discovery.getContractDetails(
-        'StarkExchangeUSDT',
-        'Main contract of ApeX exchange for USDT collateral. Updates state and verifies its integrity using STARK Verifier. Allows users to deposit and withdraw tokens via normal and emergency modes.',
-      ),
-      discovery.getContractDetails(
-        'CommitteeUSDC',
-        'Data Availability Committee (DAC) contract for USDC StarkEx instance, verifying data availability claim from DAC Members (via multisig check).',
-      ),
-      discovery.getContractDetails(
-        'CommitteeUSDT',
-        'Data Availability Committee (DAC) contract for USDT StarkEx instance, verifying data availability claim from DAC Members (via multisig check).',
-      ),
-      discovery.getContractDetails('MultiSigPoolUSDC', {
-        description:
-          'Allows deposits in different tokens and swaps them to USDC. Allows fast withdrawals after the agreement of at least 2 designated signers.',
-      }),
-      discovery.getContractDetails('MultiSigPoolUSDT', {
-        description:
-          'Allows deposits in different tokens and swaps them to USDT. Allows fast withdrawals after the agreement of at least 2 designated signers.',
-      }),
-      discovery.getContractDetails('PerpetualEscapeVerifier', {
-        description:
-          'Contract responsible for validating force withdrawal requests. Used by both USDC and USDT StarkEx instances.',
-      }),
-      ...getSHARPVerifierContracts(discovery, verifierAddressUSDC),
-      ...(verifierAddressUSDT !== verifierAddressUSDC
-        ? getSHARPVerifierContracts(discovery, verifierAddressUSDT)
-        : []),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'StarkExchangeUSDC',
+          'Main contract of ApeX exchange for USDC collateral. Updates state and verifies its integrity using STARK Verifier. Allows users to deposit and withdraw tokens via normal and emergency modes.',
+        ),
+        discovery.getContractDetails(
+          'StarkExchangeUSDT',
+          'Main contract of ApeX exchange for USDT collateral. Updates state and verifies its integrity using STARK Verifier. Allows users to deposit and withdraw tokens via normal and emergency modes.',
+        ),
+        discovery.getContractDetails(
+          'CommitteeUSDC',
+          'Data Availability Committee (DAC) contract for USDC StarkEx instance, verifying data availability claim from DAC Members (via multisig check).',
+        ),
+        discovery.getContractDetails(
+          'CommitteeUSDT',
+          'Data Availability Committee (DAC) contract for USDT StarkEx instance, verifying data availability claim from DAC Members (via multisig check).',
+        ),
+        discovery.getContractDetails('MultiSigPoolUSDC', {
+          description:
+            'Allows deposits in different tokens and swaps them to USDC. Allows fast withdrawals after the agreement of at least 2 designated signers.',
+        }),
+        discovery.getContractDetails('MultiSigPoolUSDT', {
+          description:
+            'Allows deposits in different tokens and swaps them to USDT. Allows fast withdrawals after the agreement of at least 2 designated signers.',
+        }),
+        discovery.getContractDetails('PerpetualEscapeVerifier', {
+          description:
+            'Contract responsible for validating force withdrawal requests. Used by both USDC and USDT StarkEx instances.',
+        }),
+        ...getSHARPVerifierContracts(discovery, verifierAddressUSDC),
+        ...(verifierAddressUSDT !== verifierAddressUSDC
+          ? getSHARPVerifierContracts(discovery, verifierAddressUSDT)
+          : []),
+      ],
+    },
     risks: [
       CONTRACTS.UPGRADE_WITH_DELAY_SECONDS_RISK(
         includingSHARPUpgradeDelaySeconds,
       ),
     ],
   },
-  permissions: [
-    {
-      name: 'Governors for USDC StarkEx',
-      accounts: getProxyGovernance(discovery, 'StarkExchangeUSDC'),
-      description:
-        'Allowed to upgrade the implementation of the StarkExchange (USDC) contract, potentially maliciously gaining control over the system or stealing funds.' +
-        delayDescriptionFromString(upgradeDelayUSDC),
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Governors for USDC StarkEx',
+          getProxyGovernance(discovery, 'StarkExchangeUSDC'),
+          'Allowed to upgrade the implementation of the StarkExchange (USDC) contract, potentially maliciously gaining control over the system or stealing funds.' +
+            delayDescriptionFromString(upgradeDelayUSDC),
+        ),
+        discovery.getPermissionDetails(
+          'Governors for USDT StarkEx',
+          getProxyGovernance(discovery, 'StarkExchangeUSDT'),
+          'Allowed to upgrade the implementation of the StarkExchange (USDT) contract, potentially maliciously gaining control over the system or stealing funds.' +
+            delayDescriptionFromString(upgradeDelayUSDT),
+        ),
+        discovery.getPermissionDetails(
+          'Operators for USDC StarkEx',
+          discovery.getPermissionedAccounts('StarkExchangeUSDC', 'OPERATORS'),
+          'Allowed to update state of the system and verify DA proofs for USDC StarkEx instance. When Operator is down the state cannot be updated.',
+        ),
+        discovery.getPermissionDetails(
+          'Operators for USDT StarkEx',
+          discovery.getPermissionedAccounts('StarkExchangeUSDT', 'OPERATORS'),
+          'Allowed to update state of the system and verify DA proofs for USDT StarkEx instance. When Operator is down the state cannot be updated.',
+        ),
+        usdcCommittee,
+        usdtCommittee,
+        ...getSHARPVerifierGovernors(discovery, verifierAddressUSDC),
+        ...(verifierAddressUSDT !== verifierAddressUSDC
+          ? getSHARPVerifierGovernors(discovery, verifierAddressUSDT)
+          : []),
+      ],
     },
-    {
-      name: 'Governors for USDT StarkEx',
-      accounts: getProxyGovernance(discovery, 'StarkExchangeUSDT'),
-      description:
-        'Allowed to upgrade the implementation of the StarkExchange (USDT) contract, potentially maliciously gaining control over the system or stealing funds.' +
-        delayDescriptionFromString(upgradeDelayUSDT),
-    },
-    {
-      name: 'Operators for USDC StarkEx',
-      accounts: discovery.getPermissionedAccounts(
-        'StarkExchangeUSDC',
-        'OPERATORS',
-      ),
-      description:
-        'Allowed to update state of the system and verify DA proofs for USDC StarkEx instance. When Operator is down the state cannot be updated.',
-    },
-    {
-      name: 'Operators for USDT StarkEx',
-      accounts: discovery.getPermissionedAccounts(
-        'StarkExchangeUSDT',
-        'OPERATORS',
-      ),
-      description:
-        'Allowed to update state of the system and verify DA proofs for USDT StarkEx instance. When Operator is down the state cannot be updated.',
-    },
-    usdcCommittee,
-    usdtCommittee,
-    ...getSHARPVerifierGovernors(discovery, verifierAddressUSDC),
-    ...(verifierAddressUSDT !== verifierAddressUSDC
-      ? getSHARPVerifierGovernors(discovery, verifierAddressUSDT)
-      : []),
-  ],
+  },
   milestones: [
     {
-      name: 'ApeX Pro public beta launched',
+      title: 'ApeX Pro public beta launched',
       date: '2022-11-21T00:00:00Z',
-      link: 'https://twitter.com/officialapexdex/status/1564917523401052162?s=21&t=c-SqpS1PL2KOns-2K7myJA',
+      url: 'https://twitter.com/officialapexdex/status/1564917523401052162?s=21&t=c-SqpS1PL2KOns-2K7myJA',
       description:
         'ApeX Pro beta is launched, with incentives program for users.',
+      type: 'general',
     },
     {
-      name: 'ApeX Pro live on Mainnet',
+      title: 'ApeX Pro live on Mainnet',
       date: '2022-08-31T00:00:00Z',
-      link: 'https://twitter.com/officialapexdex/status/1594722304537288706?s=21&t=c-SqpS1PL2KOns-2K7myJA',
+      url: 'https://twitter.com/officialapexdex/status/1594722304537288706?s=21&t=c-SqpS1PL2KOns-2K7myJA',
       description:
         'ApeX Pro, a non-custodial decentralized exchange is now live on Mainnet.',
+      type: 'general',
     },
   ],
   knowledgeNuggets: [...NUGGETS.STARKWARE],
+  customDa: StarkexDAC({
+    dac: {
+      requiredMembers: dacConfig.requiredSignatures,
+      membersCount: dacConfig.membersCount,
+    },
+  }),
 }

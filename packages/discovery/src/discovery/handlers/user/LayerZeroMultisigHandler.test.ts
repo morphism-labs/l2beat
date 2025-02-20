@@ -1,10 +1,9 @@
 import { EthereumAddress } from '@l2beat/shared-pure'
 import { expect, mockObject } from 'earl'
-import { providers, utils } from 'ethers'
+import { type providers, utils } from 'ethers'
 
-import { ContractSource } from '../../../utils/IEtherscanClient'
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
+import type { ContractSource } from '../../../utils/IEtherscanClient'
+import type { IProvider } from '../../provider/IProvider'
 import { LayerZeroMultisigHandler } from './LayerZeroMultisigHandler'
 
 // data from https://etherscan.io/tx/0x1b83d19d45aa517f56403a2fa5e4472668d612f0f65b524cc84cbf2071006b31
@@ -43,7 +42,6 @@ describe(LayerZeroMultisigHandler.name, () => {
     const handler = new LayerZeroMultisigHandler(
       'layerZeroMultisig',
       SAMPLE_CONSTRUCTOR_FRAGMENT,
-      DiscoveryLogger.SILENT,
     )
 
     const contractAddress = EthereumAddress.random()
@@ -73,7 +71,6 @@ describe(LayerZeroMultisigHandler.name, () => {
     const handler = new LayerZeroMultisigHandler(
       'layerZeroMultisig',
       SAMPLE_CONSTRUCTOR_FRAGMENT,
-      DiscoveryLogger.SILENT,
     )
     const contractAddress = EthereumAddress.random()
 

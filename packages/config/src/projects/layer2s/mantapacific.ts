@@ -1,25 +1,26 @@
 import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
-
-import { subtractOne } from '../../common/assessCount'
+import { NUGGETS } from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
 import { CELESTIA_DA_PROVIDER, opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('mantapacific')
 
 export const mantapacific: Layer2 = opStackL2({
+  addedAt: new UnixTime(1693907285), // 2023-09-05T09:48:05Z
   daProvider: CELESTIA_DA_PROVIDER,
   discovery,
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.NO_PROOFS,
+    REASON_FOR_BEING_OTHER.NO_DA_ORACLE,
+  ],
   display: {
     name: 'Manta Pacific',
     slug: 'mantapacific',
-    architectureImage: 'mantapacific',
     description:
       'Manta Pacific is an Optimium empowering EVM-native zero-knowledge (ZK) applications and general dapps.',
-    warning:
-      'Fraud proof system is currently under development. Users need to trust the block proposer to submit correct L1 state roots.',
-    purposes: ['Universal'],
     links: {
       websites: ['https://pacific.manta.network/'],
       apps: ['https://pacific-bridge.manta.network/'],
@@ -35,7 +36,6 @@ export const mantapacific: Layer2 = opStackL2({
         'https://medium.com/@mantanetwork',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
   rpcUrl: 'https://pacific-rpc.manta.network/http',
   transactionApi: {
@@ -43,7 +43,11 @@ export const mantapacific: Layer2 = opStackL2({
     defaultUrl: 'https://pacific-rpc.manta.network/http',
     defaultCallsPerMinute: 1500,
     startBlock: 1,
-    assessCount: subtractOne,
+    adjustCount: { type: 'SubtractOne' },
+  },
+  celestiaDa: {
+    sinceBlock: 0, // Edge Case: config added @ DA Module start
+    namespace: 'AAAAAAAAAAAAAAAAAAAAAAAAAIZiad33fbxA7Z0=',
   },
   associatedTokens: ['MANTA'],
   chainConfig: {
@@ -75,25 +79,21 @@ export const mantapacific: Layer2 = opStackL2({
   },
   genesisTimestamp: new UnixTime(1679202395),
   isNodeAvailable: false,
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'AdminMultisig',
-      'Owner of the ProxyAdmin contract.',
-    ),
-    {
-      name: 'MantaOwner',
-      accounts: [discovery.getPermissionedAccount('SystemConfig', 'owner')],
-      description:
-        'Owner of the SystemConfig and configured as the Challenger and Guardian of the system.',
-    },
-  ],
   milestones: [
     {
-      name: 'Manta Pacific Network Launch',
-      link: 'https://mantanetwork.medium.com/manta-pacific-mainnet-alpha-launch-743c6bc2b95e',
+      title: 'Manta Pacific Network Launch',
+      url: 'https://mantanetwork.medium.com/manta-pacific-mainnet-alpha-launch-743c6bc2b95e',
       date: '2023-09-12T00:00:00Z',
       description: 'Manta Pacific is live on mainnet.',
+      type: 'general',
     },
   ],
-  badges: [Badge.DA.Celestia, Badge.RaaS.Caldera],
+  additionalBadges: [Badge.DA.Celestia, Badge.RaaS.Caldera],
+  knowledgeNuggets: [
+    {
+      title: 'Blobstream and Celestia Architecture',
+      url: 'https://www.youtube.com/watch?v=cn_fN6pkakQ',
+      thumbnail: NUGGETS.THUMBNAILS.MODULAR_ROLLUP,
+    },
+  ],
 })

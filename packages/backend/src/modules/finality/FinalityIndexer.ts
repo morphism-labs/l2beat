@@ -1,15 +1,14 @@
-import { assert, Logger } from '@l2beat/backend-tools'
-import { UnixTime } from '@l2beat/shared-pure'
-import { ChildIndexer, Retries } from '@l2beat/uif'
+import type { Logger } from '@l2beat/backend-tools'
+import { assert, UnixTime } from '@l2beat/shared-pure'
+import { ChildIndexer, Indexer } from '@l2beat/uif'
 import { mean } from 'lodash'
 
-import { Database, FinalityRecord } from '@l2beat/database'
-import { FinalityConfig } from './types/FinalityConfig'
-
-const UPDATE_RETRY_STRATEGY = Retries.exponentialBackOff({
-  maxAttempts: 10,
-  initialTimeoutMs: 1000,
-})
+import type { Database, FinalityRecord } from '@l2beat/database'
+import {
+  batchToTimeToInclusionDelays,
+  batchesToStateUpdateDelays,
+} from './analyzers/types/BaseAnalyzer'
+import type { FinalityConfig } from './types/FinalityConfig'
 
 export class FinalityIndexer extends ChildIndexer {
   readonly indexerId: string
@@ -20,9 +19,16 @@ export class FinalityIndexer extends ChildIndexer {
     private readonly db: Database,
     private readonly configuration: FinalityConfig,
   ) {
-    super(logger.tag(configuration.projectId.toString()), [parentIndexer], {
-      updateRetryStrategy: UPDATE_RETRY_STRATEGY,
-    })
+    super(
+      logger.tag({
+        tag: configuration.projectId,
+        project: configuration.projectId,
+      }),
+      [parentIndexer],
+      {
+        updateRetryStrategy: Indexer.getInfiniteRetryStrategy(),
+      },
+    )
     this.indexerId = `finality_indexer_${configuration.projectId.toString()}`
   }
 
@@ -66,6 +72,17 @@ export class FinalityIndexer extends ChildIndexer {
     )
 
     if (finalityData) {
+      // Sometimes if finality is wrongly configured we get negative values,
+      // we do not want to save those data to db
+      assert(
+        finalityData.minimumTimeToInclusion > 0 &&
+          finalityData.averageTimeToInclusion > 0 &&
+          finalityData.maximumTimeToInclusion > 0 &&
+          (finalityData.averageStateUpdate === null ||
+            finalityData.averageStateUpdate >= 0),
+        `Finality data cannot be negative: ${this.configuration.projectId}`,
+      )
+
       await this.db.finality.insert(finalityData)
     }
 
@@ -96,19 +113,25 @@ export class FinalityIndexer extends ChildIndexer {
 
     const from = to.add(-1, 'days')
 
-    const inclusionDelays = await timeToInclusion.analyzeInterval(from, to)
-
-    if (!inclusionDelays) {
+    const t2iBatches = await timeToInclusion.analyzeInterval(from, to)
+    if (!t2iBatches) {
       return
     }
+
+    const t2iDelay = t2iBatches.flatMap((batch) =>
+      batchToTimeToInclusionDelays(batch),
+    )
+    const averageTimeToInclusion = Math.round(mean(t2iDelay))
+    const minimumTimeToInclusion = minimum(t2iDelay)
+    const maximumTimeToInclusion = maximum(t2iDelay)
 
     const baseResult = {
       projectId: configuration.projectId,
       timestamp: to,
 
-      minimumTimeToInclusion: Math.min(...inclusionDelays),
-      maximumTimeToInclusion: Math.max(...inclusionDelays),
-      averageTimeToInclusion: Math.round(mean(inclusionDelays)),
+      minimumTimeToInclusion,
+      maximumTimeToInclusion,
+      averageTimeToInclusion,
     }
 
     if (stateUpdateMode !== 'analyze') {
@@ -123,12 +146,12 @@ export class FinalityIndexer extends ChildIndexer {
       `State update analyzer is not defined for ${configuration.projectId}, update module or set state update mode to 'disabled'`,
     )
 
-    const stateUpdateDelays = await stateUpdate.analyzeInterval(from, to)
-
-    if (!stateUpdateDelays) {
+    const suBatches = await stateUpdate.analyzeInterval(from, to)
+    if (!suBatches) {
       return
     }
 
+    const stateUpdateDelays = batchesToStateUpdateDelays(t2iBatches, suBatches)
     return {
       ...baseResult,
       averageStateUpdate: Math.round(mean(stateUpdateDelays)),
@@ -183,4 +206,28 @@ export class FinalityIndexer extends ChildIndexer {
   override async invalidate(targetHeight: number): Promise<number> {
     return await Promise.resolve(targetHeight)
   }
+}
+
+function minimum(values: number[]): number {
+  if (values.length === 0) {
+    return 0
+  }
+
+  let result = Infinity
+  for (const v of values) {
+    result = Math.min(result, v)
+  }
+  return result
+}
+
+function maximum(values: number[]): number {
+  if (values.length === 0) {
+    return 0
+  }
+
+  let result = -Infinity
+  for (const v of values) {
+    result = Math.max(result, v)
+  }
+  return result
 }

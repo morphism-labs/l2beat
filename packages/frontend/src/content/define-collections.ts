@@ -1,7 +1,3 @@
-// NOTE(imxeno): This file doesn't match the casing, as the last collection
-// definition is linked from the frontend2 package, and there we use
-// kebab-case for filenames.
-
 type CollectionType = 'data' | 'content'
 
 interface CollectionInput<T extends CollectionType, S extends Zod.Schema> {

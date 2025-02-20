@@ -2,14 +2,15 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { NUGGETS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('connext')
 
 export const connext: Bridge = {
   type: 'bridge',
   id: ProjectId('connext'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   isArchived: true,
   display: {
     name: 'Connext (Legacy)',
@@ -72,8 +73,8 @@ export const connext: Bridge = {
         'A user and a Router (liquidity provider) engage in a peer-to-peer atomic swap process and both are expected to monitor each other\'s actions during the "Prepare" (lock) and "Fulfill" (claim) phases. When a Relayer is used to send a message to the destination chain, the user needs to verify that it happens, and that it happens in a timely manner.',
       references: [
         {
-          text: 'Docstring for TransactionManager.sol',
-          href: 'https://etherscan.deth.net/address/0x31efc4aeaa7c39e54a33fdc3c46ee2bd70ae0a09#code',
+          title: 'Docstring for TransactionManager.sol',
+          url: 'https://etherscan.deth.net/address/0x31efc4aeaa7c39e54a33fdc3c46ee2bd70ae0a09#code',
         },
       ],
       risks: [],
@@ -92,27 +93,31 @@ export const connext: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'TransactionManager',
-        'Escrow and logic for cross-chain transactions.',
-      ),
-      discovery.getContractDetails(
-        'FulfillInterpreter',
-        'Contract enabling execution of arbitrary calldata on a destination chain.',
-      ),
-    ],
-    risks: [],
-  },
-  permissions: [
-    {
-      name: 'Owner of TransactionManager',
-      description: 'Can add and remove Routers and supported assets.',
-      accounts: [
-        discovery.getPermissionedAccount('TransactionManager', 'owner'),
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'TransactionManager',
+          'Escrow and logic for cross-chain transactions.',
+        ),
+        discovery.getContractDetails(
+          'FulfillInterpreter',
+          'Contract enabling execution of arbitrary calldata on a destination chain.',
+        ),
       ],
     },
-  ],
+    risks: [],
+  },
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Owner of TransactionManager',
+          discovery.getPermissionedAccounts('TransactionManager', 'owner'),
+          'Can add and remove Routers and supported assets.',
+        ),
+      ],
+    },
+  },
   knowledgeNuggets: [
     {
       title: 'Connext deep dive',

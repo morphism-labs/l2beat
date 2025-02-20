@@ -1,21 +1,27 @@
 import { UnixTime } from '@l2beat/shared-pure'
 
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
+import { AnytrustDAC } from '../da-beat/templates/anytrust-template'
 import { orbitStackL2 } from './templates/orbitStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('reya')
 
 export const reya: Layer2 = orbitStackL2({
+  addedAt: new UnixTime(1715019483), // 2024-05-06T18:18:03Z
   discovery,
-  badges: [Badge.DA.DAC, Badge.RaaS.Gelato],
+  additionalBadges: [Badge.DA.DAC, Badge.RaaS.Gelato],
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.CLOSED_PROOFS,
+    REASON_FOR_BEING_OTHER.SMALL_DAC,
+  ],
   display: {
     name: 'Reya',
     slug: 'reya',
     description:
       'Reya is an Arbitrum Orbit stack L2 with AnyTrust data availability, optimizing for trading and liquidity provision.',
-    purposes: ['DeFi', 'AMM', 'Exchange'],
     links: {
       websites: ['https://reya.network/'],
       apps: [
@@ -28,10 +34,9 @@ export const reya: Layer2 = orbitStackL2({
       socialMedia: [
         'https://twitter.com/Reya_xyz',
         'https://discord.gg/reyaxyz',
-        'https://medium.com/reya-labs',
+        'https://medium.com/@reyalabs123',
       ],
     },
-    // activityDataSource: 'Blockchain RPC',
   },
   chainConfig: {
     name: 'reya',
@@ -79,34 +84,24 @@ export const reya: Layer2 = orbitStackL2({
   bridge: discovery.getContract('Bridge'),
   rollupProxy: discovery.getContract('RollupProxy'),
   sequencerInbox: discovery.getContract('SequencerInbox'),
-  // Activity data would be inaccurate since reya uses AA and batches user ops in one tx each block (each block has 2 tx before subtraction)
-  //   transactionApi: {
-  //     type: 'rpc',
-  //     defaultUrl: 'https://rpc.reya.network',
-  //     defaultCallsPerMinute: 1500,
-  //     assessCount: subtractOne,
-  //     startBlock: 1,
-  //   },
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'GelatoMultisig',
-      'Multisig that can execute upgrades via the UpgradeExecutor.',
-    ),
-  ],
+  rpcUrl: 'https://rpc.reya.network',
   milestones: [
     {
-      name: 'Reya DEX launch',
-      link: 'https://x.com/reya_xyz/status/1793296498727485712',
+      title: 'Reya DEX launch',
+      url: 'https://x.com/reya_xyz/status/1793296498727485712',
       date: '2024-05-21T00:00:00Z',
       description:
         'Reya DEX launches with Perpetual trading available for ETH and BTC.',
+      type: 'general',
     },
     {
-      name: 'Reya LGE',
-      link: 'https://medium.com/reya-labs/reya-network-the-first-trading-optimised-l2-liquidity-generation-event-launch-f3cd958302ec',
+      title: 'Reya LGE',
+      url: 'https://medium.com/@reyalabs123/reya-network-the-first-trading-optimised-l2-liquidity-generation-event-launch-f3cd958302ec',
       date: '2024-04-22T00:00:00Z',
       description:
         'Reya launches with a Liquidity Generation Event (LGE) where users can provide USDC to the network.',
+      type: 'general',
     },
   ],
+  customDa: AnytrustDAC({ discovery }),
 })

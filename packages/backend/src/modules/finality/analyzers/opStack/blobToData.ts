@@ -1,7 +1,6 @@
-import { assert } from '@l2beat/backend-tools'
-
-import { Blob } from '@l2beat/shared'
-import { byteArrFromHexStr } from './utils'
+import type { Blob } from '@l2beat/shared'
+import { assert } from '@l2beat/shared-pure'
+import { byteArrFromHexStr } from '../../utils/byteArrFromHexStr'
 
 const BLOB_SIZE = 4096 * 32
 const MAX_BLOB_DATA_SIZE = (4 * 31 + 3) * 1024 - 4

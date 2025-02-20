@@ -1,5 +1,6 @@
+import path from 'path'
 import { ConfigReader } from '@l2beat/discovery'
-import { ContractParameters } from '@l2beat/discovery-types'
+import type { ContractParameters } from '@l2beat/discovery-types'
 import { assert } from '@l2beat/shared-pure'
 
 const chainMapping: Record<string, string> = {
@@ -9,6 +10,8 @@ const chainMapping: Record<string, string> = {
   xai: 'arbitrum',
   deri: 'arbitrum',
   rari: 'arbitrum',
+  sxnetwork: 'ethereum',
+  galxegravity: 'ethereum',
 }
 
 function getArbOSVersion(wasmModuleRoot: string): string {
@@ -44,6 +47,8 @@ function getChainName(chainId: number | undefined): string {
     20231119: 'deri',
     1380012617: 'rari',
     7887: 'kinto',
+    4162: 'sxnetwork',
+    1625: 'galxegravity',
   }
   if (chainId === undefined) {
     return 'Unknown chainId'
@@ -62,7 +67,7 @@ const descriptions: Record<string, string> = {
 export async function analyseAllOrbitChains(
   discoveryPath: string,
 ): Promise<void> {
-  const configReader = new ConfigReader(discoveryPath)
+  const configReader = new ConfigReader(path.dirname(discoveryPath))
   const rollups: ContractParameters[] = []
   for (const [chain, mapping] of Object.entries(chainMapping)) {
     const discovery = configReader.readDiscovery(chain, mapping)
@@ -150,7 +155,7 @@ export async function compareTwoOrbitChain(
   discoveryPath: string,
 ): Promise<void> {
   console.log(`Analyzing ${firstProject} and ${secondProject}`)
-  const configReader = new ConfigReader(discoveryPath)
+  const configReader = new ConfigReader(path.dirname(discoveryPath))
 
   const discovery1 = getSafeDiscovery(configReader, firstProject)
   const discovery2 = getSafeDiscovery(configReader, secondProject)

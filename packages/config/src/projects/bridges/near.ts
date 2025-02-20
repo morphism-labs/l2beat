@@ -3,8 +3,8 @@ import { utils } from 'ethers'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('near')
 
@@ -36,6 +36,7 @@ const lockRequirementInWei = discovery.getContractValue<number>(
 export const near: Bridge = {
   type: 'bridge',
   id: ProjectId('near'),
+  addedAt: new UnixTime(1662628329), // 2022-09-08T09:12:09Z
   display: {
     name: 'Rainbow Bridge',
     slug: 'near',
@@ -116,7 +117,6 @@ export const near: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'bridge administrator removes funds from the bridge escrow.',
-          isCritical: true,
         },
       ],
       isIncomplete: true,
@@ -130,37 +130,41 @@ export const near: Bridge = {
         {
           category: 'Funds can be stolen if',
           text: 'destination token contract is maliciously upgraded.',
-          isCritical: true,
         },
       ],
       isIncomplete: true,
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails('NearBridge', {
-        description: 'Contract storing Near state checkpoints.',
-      }),
-      discovery.getContractDetails('NearProver', {
-        description: 'Contract verifying merkle proofs, used for withdrawals.',
-      }),
-      {
-        address: EthereumAddress('0x23Ddd3e3692d1861Ed57EDE224608875809e127f'),
-        name: 'ERC20Locker',
-        description: 'Escrow contract for ERC20 tokens.',
-      }, // Note: Escrow contract has to be hardcoded
-      {
-        address: EthereumAddress('0x6BFaD42cFC4EfC96f529D786D643Ff4A8B89FA52'),
-        name: 'EthCustodian',
-        description: 'Escrow contract for ETH tokens.',
-      }, // Note: Escrow contract has to be hardcoded
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails('NearBridge', {
+          description: 'Contract storing Near state checkpoints.',
+        }),
+        discovery.getContractDetails('NearProver', {
+          description:
+            'Contract verifying merkle proofs, used for withdrawals.',
+        }),
+        discovery.getContractDetails(
+          'ERC20Locker',
+          'Escrow contract for ERC20 tokens.',
+        ),
+        discovery.getContractDetails(
+          'EthCustodian',
+          'Escrow contract for ETH tokens.',
+        ),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    ...discovery.getMultisigPermission(
-      'BridgeAdminMultisig',
-      'Admin can pause/unpause contracts, modify contracts storage and delegate call to any contract. This allows for any arbitrary action including removal of all tokens from escrows.',
-    ),
-  ],
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getMultisigPermission(
+          'BridgeAdminMultisig',
+          'Admin can pause/unpause contracts, modify contracts storage and delegate call to any contract. This allows for any arbitrary action including removal of all tokens from escrows.',
+        ),
+      ],
+    },
+  },
 }

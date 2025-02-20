@@ -1,20 +1,20 @@
-import { Logger } from '@l2beat/backend-tools'
+import type { Logger } from '@l2beat/backend-tools'
 import { notUndefined } from '@l2beat/shared-pure'
 
-import { CoingeckoClient, CoingeckoQueryService } from '@l2beat/shared'
-import { Config } from '../../config'
-import { Peripherals } from '../../peripherals/Peripherals'
+import { CoingeckoQueryService } from '@l2beat/shared'
+import type { Config } from '../../config'
+import type { Peripherals } from '../../peripherals/Peripherals'
 import { BigQueryClient } from '../../peripherals/bigquery/BigQueryClient'
-import { Clock } from '../../tools/Clock'
+import type { Providers } from '../../providers/Providers'
+import type { Clock } from '../../tools/Clock'
+import { HourlyIndexer } from '../../tools/HourlyIndexer'
 import { IndexerService } from '../../tools/uif/IndexerService'
-import {
+import type {
   ApplicationModule,
   ApplicationModuleWithIndexer,
 } from '../ApplicationModule'
-import { HourlyIndexer } from './HourlyIndexer'
 import { TrackedTxsClient } from './TrackedTxsClient'
 import { TrackedTxsIndexer } from './TrackedTxsIndexer'
-import { createTrackedTxsStatusRouter } from './api/TrackedTxsStatusRouter'
 import { createL2CostsModule } from './modules/l2-costs/L2CostsModule'
 import { L2CostsAggregatorIndexer } from './modules/l2-costs/indexers/L2CostsAggregatorIndexer'
 import { L2CostsPricesIndexer } from './modules/l2-costs/indexers/L2CostsPricesIndexer'
@@ -26,6 +26,7 @@ export function createTrackedTxsModule(
   config: Config,
   logger: Logger,
   peripherals: Peripherals,
+  providers: Providers,
   clock: Clock,
 ): ApplicationModuleWithIndexer<TrackedTxsIndexer> | undefined {
   if (!config.trackedTxsConfig) {
@@ -33,9 +34,11 @@ export function createTrackedTxsModule(
     return
   }
 
+  logger = logger.tag({ module: 'tracked-txs' })
+
   const indexerService = new IndexerService(peripherals.database)
 
-  const hourlyIndexer = new HourlyIndexer(logger, clock, 'tracked-txs')
+  const hourlyIndexer = new HourlyIndexer(logger, clock)
   const bigQueryClient = peripherals.getClient(
     BigQueryClient,
     config.trackedTxsConfig.bigQuery,
@@ -87,11 +90,11 @@ export function createTrackedTxsModule(
     config.trackedTxsConfig.uses.l2costs &&
     config.trackedTxsConfig.uses.l2costs.aggregatorEnabled
   ) {
-    const coingeckoClient = peripherals.getClient(CoingeckoClient, {
-      apiKey: config.trackedTxsConfig.uses.l2costs.coingeckoApiKey,
-    })
-
-    const coingeckoQueryService = new CoingeckoQueryService(coingeckoClient)
+    const coingeckoClient = providers.clients.coingecko
+    const coingeckoQueryService = new CoingeckoQueryService(
+      coingeckoClient,
+      logger.tag({ tag: 'trackedTxs' }),
+    )
 
     l2CostPricesIndexer = new L2CostsPricesIndexer({
       coingeckoQueryService,
@@ -99,7 +102,7 @@ export function createTrackedTxsModule(
       parents: [hourlyIndexer],
       indexerService,
       minHeight: config.trackedTxsConfig.minTimestamp.toNumber(),
-      logger,
+      logger: logger.tag({ feature: 'costs' }),
     })
 
     l2CostsAggregatorIndexer = new L2CostsAggregatorIndexer({
@@ -107,7 +110,7 @@ export function createTrackedTxsModule(
       parents: [trackedTxsIndexer, l2CostPricesIndexer],
       indexerService,
       minHeight: config.trackedTxsConfig.minTimestamp.toNumber(),
-      logger,
+      logger: logger.tag({ feature: 'costs' }),
       projects: config.projects,
     })
   }
@@ -122,7 +125,7 @@ export function createTrackedTxsModule(
       parents: [trackedTxsIndexer],
       indexerService,
       minHeight: config.trackedTxsConfig.minTimestamp.toNumber(),
-      logger,
+      logger: logger.tag({ feature: 'liveness' }),
     })
 
     anomaliesIndexer = new AnomaliesIndexer({
@@ -131,7 +134,7 @@ export function createTrackedTxsModule(
       parents: [trackedTxsIndexer],
       indexerService,
       minHeight: config.trackedTxsConfig.minTimestamp.toNumber(),
-      logger,
+      logger: logger.tag({ feature: 'liveness' }),
     })
   }
 
@@ -152,10 +155,6 @@ export function createTrackedTxsModule(
 
   return {
     start,
-    routers: [
-      ...subModules.flatMap((m) => m?.routers ?? []),
-      createTrackedTxsStatusRouter({ clock, db: peripherals.database }),
-    ],
     indexer: trackedTxsIndexer,
   }
 }

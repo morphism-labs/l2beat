@@ -1,20 +1,19 @@
-import { assert } from 'node:console'
+import type { Logger } from '@l2beat/backend-tools'
 
-import { Logger } from '@l2beat/backend-tools'
-
-import { Retries, RetryStrategy } from './Retries'
+import { assert } from '@l2beat/shared-pure'
+import { Retries, type RetryStrategy } from './Retries'
 import { assertUnreachable } from './assertUnreachable'
 import { getInitialState } from './reducer/getInitialState'
 import { indexerReducer } from './reducer/indexerReducer'
-import { IndexerAction } from './reducer/types/IndexerAction'
-import {
+import type { IndexerAction } from './reducer/types/IndexerAction'
+import type {
   InitializeStateEffect,
   InvalidateEffect,
   NotifyReadyEffect,
   SetSafeHeightEffect,
   UpdateEffect,
 } from './reducer/types/IndexerEffect'
-import { IndexerState } from './reducer/types/IndexerState'
+import type { IndexerState } from './reducer/types/IndexerState'
 
 export interface IndexerOptions {
   tickRetryStrategy?: RetryStrategy
@@ -41,12 +40,10 @@ export abstract class Indexer {
     Retries.exponentialBackOff({
       initialTimeoutMs: 1000,
       maxAttempts: Infinity,
+      // WARNING: Change only if you know what you are doing
+      // Alerting system in Kibana requires Indexer to log sth once an hour
       maxTimeoutMs: 1 * 60 * 60_000,
     })
-
-  static createId(name: string, tag: string | undefined): string {
-    return tag === undefined ? name : `${name}::${tag}`
-  }
 
   /**
    * Initializes the indexer.
@@ -191,17 +188,24 @@ export abstract class Indexer {
     assert(!this.started, 'Indexer already started')
     this.started = true
     this.logger.info('Starting...')
-    const initializedState = await this.initialize()
 
-    if (!initializedState) {
-      return
+    try {
+      const initializedState = await this.initialize()
+
+      if (!initializedState) {
+        return
+      }
+
+      this.dispatch({
+        type: 'Initialized',
+        ...initializedState,
+        childCount: this.children.length,
+      })
+    } catch (error) {
+      this.logger.error(`Failed to initialize indexer`, {
+        error: JSON.stringify(error),
+      })
     }
-
-    this.dispatch({
-      type: 'Initialized',
-      ...initializedState,
-      childCount: this.children.length,
-    })
   }
 
   subscribe(child: Indexer): void {
@@ -270,17 +274,20 @@ export abstract class Indexer {
     this.logger.info('Updating', { from, to: effect.targetHeight })
     try {
       const newHeight = await this.update(from, effect.targetHeight)
-      if (newHeight > effect.targetHeight) {
+      if (newHeight < from || newHeight > effect.targetHeight) {
         this.logger.critical('Update returned invalid height', {
+          from,
+          to: effect.targetHeight,
           newHeight,
-          max: effect.targetHeight,
         })
         this.dispatch({ type: 'UpdateFailed', fatal: true })
       } else {
         this.dispatch({ type: 'UpdateSucceeded', from, newHeight })
+        this.logMetrics(newHeight, effect.targetHeight)
         this.updateRetryStrategy.clear()
       }
     } catch (error) {
+      const attempt = this.updateRetryStrategy.attempts()
       this.updateRetryStrategy.markAttempt()
       const fatal = !this.updateRetryStrategy.shouldRetry()
       if (fatal) {
@@ -288,21 +295,32 @@ export abstract class Indexer {
           error,
           from,
           to: effect.targetHeight,
+          attempt,
         })
-      } else {
+      } else if (attempt >= 10) {
         this.logger.error('Update failed', {
           error,
           from,
           to: effect.targetHeight,
+          attempt,
+        })
+      } else {
+        this.logger.warn('Update failed', {
+          error,
+          from,
+          to: effect.targetHeight,
+          attempt,
         })
       }
+      this.logMetrics(this.state.height, effect.targetHeight)
       this.dispatch({ type: 'UpdateFailed', fatal })
     }
   }
 
   private executeScheduleRetryUpdate(): void {
     const timeoutMs = this.updateRetryStrategy.timeoutMs()
-    this.logger.debug('Scheduling retry update', { timeoutMs })
+    const attempt = this.updateRetryStrategy.attempts()
+    this.logger.info('Scheduling retry update', { timeoutMs, attempt })
     setTimeout(() => {
       this.dispatch({ type: 'RetryUpdate' })
     }, timeoutMs)
@@ -396,7 +414,7 @@ export abstract class Indexer {
 
   // #endregion
   // #region Common methods
-
+  //
   private async executeSetSafeHeight(
     effect: SetSafeHeightEffect,
   ): Promise<void> {
@@ -405,6 +423,10 @@ export abstract class Indexer {
       child.notifyUpdate(this, effect.safeHeight),
     )
     await this.setSafeHeight(effect.safeHeight)
+  }
+
+  private logMetrics(current: number, target: number): void {
+    this.logger.info('Metrics', { delay: target - current, current, target })
   }
 
   // #endregion

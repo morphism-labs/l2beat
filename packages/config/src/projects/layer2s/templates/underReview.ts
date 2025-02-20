@@ -1,33 +1,36 @@
-import { ProjectId } from '@l2beat/shared-pure'
-
-import {
-  CONTRACTS,
+import { ProjectId, type UnixTime } from '@l2beat/shared-pure'
+import { CONTRACTS, TECHNOLOGY, UNDER_REVIEW_RISK_VIEW } from '../../../common'
+import type {
   ChainConfig,
-  ScalingProjectEscrow,
-  ScalingProjectTransactionApi,
-  TECHNOLOGY,
-  UNDER_REVIEW_RISK_VIEW,
-} from '../../../common'
-import { BadgeId } from '../../badges'
-import { type Layer3, type Layer3Display } from '../../layer3s'
-import { type Layer2, type Layer2Display } from '../types'
+  Layer2,
+  Layer2Display,
+  Layer3,
+  ProjectEscrow,
+  ScalingProjectCapability,
+  ScalingProjectDisplay,
+  TransactionApiConfig,
+} from '../../../types'
+import type { BadgeId } from '../../badges'
 
-export interface UnderReviewConfigCommon {
+interface UnderReviewConfigCommon {
   id: string
+  addedAt: UnixTime
+  capability: ScalingProjectCapability
   rpcUrl?: string
-  escrows?: ScalingProjectEscrow[]
+  escrows?: ProjectEscrow[]
   chainConfig?: ChainConfig
-  transactionApi?: ScalingProjectTransactionApi
+  transactionApi?: TransactionApiConfig
   badges?: BadgeId[]
+  isArchived?: boolean
 }
 
 export interface UnderReviewConfigL2 extends UnderReviewConfigCommon {
-  display: Omit<Layer2Display, 'dataAvailabilityMode'>
+  display: Layer2Display
   associatedTokens?: string[]
 }
 
 export interface UnderReviewConfigL3 extends UnderReviewConfigCommon {
-  display: Omit<Layer3Display, 'dataAvailabilityMode'>
+  display: ScalingProjectDisplay
   hostChain: Layer3['hostChain']
   associatedTokens?: string[]
 }
@@ -37,11 +40,16 @@ export function underReviewL2(templateVars: UnderReviewConfigL2): Layer2 {
     isUnderReview: true,
     type: 'layer2',
     id: ProjectId(templateVars.id),
-    display: {
-      ...templateVars.display,
-    },
+    addedAt: templateVars.addedAt,
+    capability: templateVars.capability,
+    isArchived: templateVars.isArchived ?? undefined,
+    display: templateVars.display,
     stage: {
-      stage: 'UnderReview',
+      stage:
+        templateVars.display.category === 'Optimistic Rollup' ||
+        templateVars.display.category === 'ZK Rollup'
+          ? 'UnderReview'
+          : 'NotApplicable',
     },
     config: {
       associatedTokens: templateVars.associatedTokens,
@@ -70,6 +78,9 @@ export function underReviewL3(templateVars: UnderReviewConfigL3): Layer3 {
     type: 'layer3',
     isUnderReview: true,
     id: ProjectId(templateVars.id),
+    addedAt: templateVars.addedAt,
+    capability: templateVars.capability,
+    isArchived: templateVars.isArchived ?? undefined,
     hostChain: templateVars.hostChain,
     display: {
       ...templateVars.display,
@@ -88,7 +99,15 @@ export function underReviewL3(templateVars: UnderReviewConfigL3): Layer3 {
             }
           : undefined),
     },
+    stage: {
+      stage:
+        templateVars.display.category === 'Optimistic Rollup' ||
+        templateVars.display.category === 'ZK Rollup'
+          ? 'UnderReview'
+          : 'NotApplicable',
+    },
     riskView: UNDER_REVIEW_RISK_VIEW,
+    stackedRiskView: UNDER_REVIEW_RISK_VIEW,
     technology: TECHNOLOGY.UNDER_REVIEW,
     contracts: CONTRACTS.UNDER_REVIEW,
     chainConfig: templateVars.chainConfig,

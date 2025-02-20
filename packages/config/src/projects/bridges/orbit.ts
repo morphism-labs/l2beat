@@ -2,8 +2,8 @@ import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { CONTRACTS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('orbit')
 
@@ -16,6 +16,7 @@ const orbitMultisigThreshold = `${discovery.getContractValue<number>(
 export const orbit: Bridge = {
   type: 'bridge',
   id: ProjectId('orbit'),
+  addedAt: new UnixTime(1663234549), // 2022-09-15T09:35:49Z
   display: {
     name: 'Orbit Bridge',
     slug: 'orbit',
@@ -103,8 +104,8 @@ export const orbit: Bridge = {
       description: `Orbit Bridge is a cross-chain bridge that allows users to transfer tokens between different blockchains. Tokens are deposited on the source chain and "representation tokens" are minted on the destination chain. When a user deposits tokens to an escrow contract on Ethereum, a message is relayed to a group o validators via Orbit Hub contract on Orbit chain to a minter contract on a destination chain, where "representation tokens" are minted. Deposited tokens are not locked and can be used in DeFi by Orbit Farm. When a user deposits minted tokens on the destination chain, they are burned and a message is relayed to validators through Orbit Hub contract on Orbit chain to the ETH vault bridge contract, which releases the tokens if at least ${orbitMultisigThreshold} validators have signed and liquidity is available. The source code of the farm contracts is not verified on Etherscan.`,
       references: [
         {
-          text: 'Bridging transactions',
-          href: 'https://bridge-docs.orbitchain.io/bridging-transaction',
+          title: 'Bridging transactions',
+          url: 'https://bridge-docs.orbitchain.io/bridging-transaction',
         },
       ],
       risks: [],
@@ -116,30 +117,26 @@ export const orbit: Bridge = {
         'Orbit Bridge actors include Operators and Validators. Operators relay data between Orbit Chain and supported chains, while Validators build multi-sig based consensus on validity of transactions.',
       references: [
         {
-          text: 'Orbit Bridge - How it works',
-          href: 'https://bridge-docs.orbitchain.io/how-it-works',
+          title: 'Orbit Bridge - How it works',
+          url: 'https://bridge-docs.orbitchain.io/how-it-works',
         },
       ],
       risks: [
         {
           category: 'Users can be censored if',
           text: 'validators decide to not pass selected messages between chains.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'validators relay a fake message to a destination chain to mint more tokens than there are locked on Ethereum thus preventing some existing holders from being able to bring their funds back to Ethereum.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'validators relay a fake message to Ethereum chain allowing a user to withdraw tokens from Ethereum escrow when equivalent amount of tokens has not been deposited and burned on destination chain.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
           text: "there's an exploit in contracts that invest user deposit.",
-          isCritical: true,
         },
         {
           category: 'Funds can be frozen if',
@@ -172,36 +169,42 @@ export const orbit: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'ETH Vault',
-        'Bridge contract, Proxy, Escrow, Governance.',
-      ),
-      discovery.getContractDetails('USDT Farm', 'USDT Compound Farm.'),
-      discovery.getContractDetails('DAI Farm', 'DAI Compound Farm.'),
-      discovery.getContractDetails('USDC Farm', 'USDC Compound Farm.'),
-      discovery.getContractDetails('WBTC Farm', 'WBTC Compound Farm.'),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'ETH Vault',
+          'Bridge contract, Proxy, Escrow, Governance.',
+        ),
+        discovery.getContractDetails('USDT Farm', 'USDT Compound Farm.'),
+        discovery.getContractDetails('DAI Farm', 'DAI Compound Farm.'),
+        discovery.getContractDetails('USDC Farm', 'USDC Compound Farm.'),
+        discovery.getContractDetails('WBTC Farm', 'WBTC Compound Farm.'),
+      ],
+    },
     risks: [CONTRACTS.UPGRADE_NO_DELAY_RISK],
   },
-  permissions: [
-    {
-      name: 'Bridge contract Governance',
-      accounts: discovery.getPermissionedAccounts('ETH Vault', 'getOwners'),
-      description: `Participants of the Bridge Governance: ${orbitMultisigThreshold} Orbit Multisig. They have admin access to the proxies' functions and can upgrade the bridge implementation without delay.`,
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Bridge contract Governance',
+          discovery.getPermissionedAccounts('ETH Vault', 'getOwners'),
+          `Participants of the Bridge Governance: ${orbitMultisigThreshold} Orbit Multisig. They have admin access to the proxies' functions and can upgrade the bridge implementation without delay.`,
+        ),
+        discovery.getPermissionDetails(
+          'Policy Admin',
+          discovery.getPermissionedAccounts('ETH Vault', 'policyAdmin'),
+          'Can set bridging fees, gas limits and can pause / unpause the bridge or censor individual withdrawals.',
+        ),
+      ],
     },
-    {
-      name: 'Policy Admin',
-      accounts: [discovery.getPermissionedAccount('ETH Vault', 'policyAdmin')],
-      description:
-        'Can set bridging fees, gas limits and can pause / unpause the bridge or censor individual withdrawals.',
-    },
-  ],
+  },
   milestones: [
     {
-      name: 'Orbit Bridge hacked for $81.5M',
+      title: 'Orbit Bridge hacked for $81.5M',
       date: '2024-01-01T00:00:00.00Z',
-      link: 'https://digifinex.medium.com/orbit-bridge-hacked-for-81-5-million-orbit-chain-ecosystem-plummets-1fe5b8d85ff3',
+      url: 'https://digifinex.medium.com/orbit-bridge-hacked-for-81-5-million-orbit-chain-ecosystem-plummets-1fe5b8d85ff3',
+      type: 'incident',
     },
   ],
 }

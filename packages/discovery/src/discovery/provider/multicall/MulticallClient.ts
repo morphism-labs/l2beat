@@ -1,6 +1,10 @@
-import { Bytes, EthereumAddress } from '@l2beat/shared-pure'
+import { Bytes, type EthereumAddress } from '@l2beat/shared-pure'
 import { z } from 'zod'
-import { MulticallConfig, MulticallRequest, MulticallResponse } from './types'
+import type {
+  MulticallConfig,
+  MulticallRequest,
+  MulticallResponse,
+} from './types'
 
 export interface CallProvider {
   call(
@@ -100,7 +104,7 @@ export class MulticallClient {
         // NOTE(radomski): If we batch a call that will execute an INVALID
         // opcode we have no way of knowing which call failed. Just execute
         // them individually.
-        if (parsed.data.error.error.message === 'out of gas') {
+        if (parsed.data.error.error.message.includes('out of gas')) {
           return await this.executeIndividual(requests, blockNumber)
         }
       }
@@ -109,22 +113,12 @@ export class MulticallClient {
   }
 }
 
-export function toBatches<T>(items: T[], batchSize: number): T[][] {
+function toBatches<T>(items: T[], batchSize: number): T[][] {
   const batches: T[][] = []
   for (let i = 0; i < items.length; i += batchSize) {
     batches.push(items.slice(i, i + batchSize))
   }
   return batches
-}
-
-export function parseEthersError(e: unknown): Error | undefined {
-  const parsed = ethersError.safeParse(e)
-
-  if (parsed.success) {
-    return new Error(JSON.stringify(parsed.data))
-  }
-
-  return undefined
 }
 
 const ethersError = z.object({

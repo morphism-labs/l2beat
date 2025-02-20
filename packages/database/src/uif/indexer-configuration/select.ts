@@ -1,10 +1,10 @@
-import { IndexerConfiguration } from '../../kysely/generated/types'
+import type { IndexerConfiguration } from '../../kysely/generated/types'
 
 export const selectIndexerConfiguration = [
   'id',
-  'indexer_id',
-  'max_height',
-  'min_height',
-  'current_height',
+  'indexerId',
+  'maxHeight',
+  'minHeight',
+  'currentHeight',
   'properties',
 ] as const satisfies (keyof IndexerConfiguration)[]

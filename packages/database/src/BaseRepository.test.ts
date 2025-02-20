@@ -1,13 +1,13 @@
 import { expect } from 'earl'
 import { BaseRepository } from './BaseRepository'
-import { Database } from './database'
+import type { Database } from './database'
 import { describeDatabase } from './test/database'
 
 let nonce = 0
 function toRow(value: number) {
   return {
-    configuration_id: 'test',
-    price_usd: value,
+    configurationId: 'test',
+    priceUsd: value,
     timestamp: new Date(nonce++),
   }
 }
@@ -16,31 +16,28 @@ class TestRepository extends BaseRepository {
   async insert(value: number) {
     await this.db
       // We use prices because it is one of the simpler tables
-      .insertInto('public.prices')
+      .insertInto('Price')
       .values(toRow(value))
       .execute()
   }
 
   async batchInsert(values: number[]) {
     await this.batch(values, 2, async (values) => {
-      await this.db
-        .insertInto('public.prices')
-        .values(values.map(toRow))
-        .execute()
+      await this.db.insertInto('Price').values(values.map(toRow)).execute()
     })
   }
 
   async getAll() {
     const results = await this.db
-      .selectFrom('public.prices')
-      .select(['price_usd'])
-      .orderBy('price_usd', 'asc')
+      .selectFrom('Price')
+      .select(['priceUsd'])
+      .orderBy('priceUsd', 'asc')
       .execute()
-    return results.map((row) => row.price_usd)
+    return results.map((row) => row.priceUsd)
   }
 
   async deleteAll() {
-    await this.db.deleteFrom('public.prices').execute()
+    await this.db.deleteFrom('Price').execute()
   }
 }
 

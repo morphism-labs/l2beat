@@ -1,11 +1,11 @@
 import {
-  AbiFunction,
-  DecodeFunctionDataReturnType,
+  type AbiFunction,
+  type DecodeFunctionDataReturnType,
   decodeFunctionData,
   parseAbiItem,
   toFunctionSelector,
 } from 'viem'
-import { Method, Operation } from './types'
+import type { Method, Operation } from './types'
 
 export const methods: Method[] = [
   defineMethod(
@@ -43,6 +43,28 @@ export const methods: Method[] = [
     parseAbiItem('function execute(address,uint256,bytes)'),
     ([, , calldata]) => {
       return [{ type: 'recursive', calldata }]
+    },
+  ),
+  defineMethod(
+    parseAbiItem(
+      'function executeBatch((address to, uint256 value, bytes data)[] calls)',
+    ),
+    ([calls]) => {
+      return calls.map((call) => ({
+        type: 'recursive',
+        calldata: call.data,
+      }))
+    },
+  ),
+  defineMethod(
+    parseAbiItem(
+      'function executeBatch(address[] targets, uint256[] values, bytes[] inputs)',
+    ),
+    ([, , inputs]) => {
+      return inputs.map((input: string) => ({
+        type: 'recursive',
+        calldata: input,
+      }))
     },
   ),
 ]

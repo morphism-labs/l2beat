@@ -1,27 +1,29 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
-
-import { subtractOne } from '../../common/assessCount'
+import type { Layer3 } from '../../types'
 import { underReviewL3 } from '../layer2s/templates/underReview'
-import { Layer3 } from './types'
 
 // inbox on arbitrum: https://arbiscan.io/address/0xb0a00d053160e297324b7689b5e3f3af9a6fa4fb
 export const hook: Layer3 = underReviewL3({
   id: 'hook',
+  capability: 'universal',
+  addedAt: new UnixTime(1719928126), // 2024-07-02T13:48:46Z
+  isArchived: true,
   hostChain: ProjectId('arbitrum'),
   display: {
     name: 'Hook',
     slug: 'hook',
     category: 'Optimistic Rollup',
-    provider: 'Arbitrum',
+    stack: 'Arbitrum',
     description:
       'Hook is an Orbit stack L3 Appchain on Arbitrum powering a perpetuals DEX for tokens and NFTs.',
-    purposes: ['DeFi', 'NFT', 'Exchange'],
+    headerWarning:
+      'Hook has been [wound down and withdrawals to EOAs have been executed](https://hook.xyz/).',
+    purposes: ['Universal', 'NFT', 'Exchange'],
     links: {
       websites: ['https://hook.xyz/'],
       apps: ['https://hook.xyz/trade/'],
       documentation: ['https://odysseydocumentation.hook.xyz/'],
       explorers: ['https://hook.calderaexplorer.xyz/'],
-      repositories: [],
       socialMedia: [
         'https://twitter.com/HookProtocol',
         'https://discord.com/invite/8Hqw76DHQm',
@@ -29,7 +31,6 @@ export const hook: Layer3 = underReviewL3({
         'https://warpcast.com/hookprotocol',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
   // rpcUrl: 'https://hook.calderachain.xyz/http',
   transactionApi: {
@@ -37,7 +38,7 @@ export const hook: Layer3 = underReviewL3({
     startBlock: 1,
     defaultUrl: 'https://hook.calderachain.xyz/http',
     defaultCallsPerMinute: 1500,
-    assessCount: subtractOne,
+    adjustCount: { type: 'SubtractOne' },
   },
   escrows: [
     // BRIDGE
@@ -53,9 +54,13 @@ export const hook: Layer3 = underReviewL3({
       address: EthereumAddress('0xB39DF6BBB1Cf2B609DeE43F109caFEFF1A7CCBEa'),
       sinceTimestamp: new UnixTime(1709063015),
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
       tokens: ['WETH'],
       chain: 'ethereum',
@@ -66,9 +71,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['USDC'],
       chain: 'ethereum',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
     {
@@ -78,9 +87,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['WETH'],
       chain: 'arbitrum',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
     {
@@ -90,9 +103,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['USDC'],
       chain: 'arbitrum',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
     {
@@ -102,9 +119,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['WETH'],
       chain: 'base',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
     {
@@ -114,9 +135,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['USDC'],
       chain: 'base',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
     {
@@ -126,9 +151,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['WETH'],
       chain: 'optimism',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
     {
@@ -138,9 +167,13 @@ export const hook: Layer3 = underReviewL3({
       tokens: ['USDC'],
       chain: 'optimism',
       source: 'external',
-      bridge: {
-        name: 'Socket bridge',
-        slug: 'socket',
+      bridgedUsing: {
+        bridges: [
+          {
+            name: 'Socket bridge',
+            slug: 'socket',
+          },
+        ],
       },
     },
   ],

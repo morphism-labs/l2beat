@@ -1,24 +1,24 @@
 import { Logger } from '@l2beat/backend-tools'
-import { Database, PriceRecord } from '@l2beat/database'
+import type { Database, PriceRecord } from '@l2beat/database'
 import {
   CoingeckoId,
-  CoingeckoPriceConfigEntry,
+  type CoingeckoPriceConfigEntry,
   UnixTime,
 } from '@l2beat/shared-pure'
 import { expect, mockObject } from 'earl'
 import { mockDatabase } from '../../../test/database'
-import { IndexerService } from '../../../tools/uif/IndexerService'
+import type { IndexerService } from '../../../tools/uif/IndexerService'
 import { _TEST_ONLY_resetUniqueIds } from '../../../tools/uif/ids'
 import {
   actual,
   removal,
 } from '../../../tools/uif/multi/test/mockConfigurations'
-import {
+import type {
   Configuration,
   RemovalConfiguration,
 } from '../../../tools/uif/multi/types'
-import { PriceService } from '../services/PriceService'
-import { SyncOptimizer } from '../utils/SyncOptimizer'
+import type { PriceService } from '../services/PriceService'
+import type { SyncOptimizer } from '../utils/SyncOptimizer'
 import { PriceIndexer } from './PriceIndexer'
 
 describe(PriceIndexer.name, () => {
@@ -33,8 +33,8 @@ describe(PriceIndexer.name, () => {
       const adjustedTo = 200
 
       const priceService = mockObject<PriceService>({
-        getAdjustedTo: () => new UnixTime(adjustedTo),
-        fetchPrices: async () => [
+        calculateAdjustedTo: () => new UnixTime(adjustedTo),
+        getPrices: async () => [
           price('a', 100),
           price('a', 150), // will be filtered out, see syncOptimizer
           price('a', 200),
@@ -76,9 +76,12 @@ describe(PriceIndexer.name, () => {
       const saveData = await indexer.multiUpdate(from, to, configurations)
       const safeHeight = await saveData()
 
-      expect(priceService.getAdjustedTo).toHaveBeenOnlyCalledWith(from, to)
+      expect(priceService.calculateAdjustedTo).toHaveBeenOnlyCalledWith(
+        from,
+        to,
+      )
 
-      expect(priceService.fetchPrices).toHaveBeenOnlyCalledWith(
+      expect(priceService.getPrices).toHaveBeenOnlyCalledWith(
         new UnixTime(from),
         new UnixTime(adjustedTo),
         parameters.coingeckoId,

@@ -1,5 +1,5 @@
-import { RateLimiter } from '@l2beat/shared-pure'
-import { PublicClient } from 'viem'
+import { RateLimiter } from '@l2beat/backend-tools'
+import type { PublicClient } from 'viem'
 
 export class RateLimitedViemProvider {
   private readonly rateLimiter: RateLimiter

@@ -1,6 +1,6 @@
-import { ChainId } from '@l2beat/shared-pure'
+import type { ChainId } from '@l2beat/shared-pure'
 import { BaseRepository } from '../../BaseRepository'
-import { VerifierStatusRecord, toRecord, toRow } from './entity'
+import { type VerifierStatusRecord, toRecord, toRow } from './entity'
 import { selectVerifierStatus } from './select'
 
 export class VerifierStatusRepository extends BaseRepository {
@@ -14,12 +14,12 @@ export class VerifierStatusRepository extends BaseRepository {
     const rows = records.map(toRow)
     await this.batch(rows, 1_000, async (batch) => {
       await this.db
-        .insertInto('public.verifier_status')
+        .insertInto('VerifierStatus')
         .values(batch)
         .onConflict((cb) =>
-          cb.columns(['address', 'chain_id']).doUpdateSet((eb) => ({
-            last_used: eb.ref('excluded.last_used'),
-            last_updated: eb.ref('excluded.last_updated'),
+          cb.columns(['address', 'chainId']).doUpdateSet((eb) => ({
+            lastUsed: eb.ref('excluded.lastUsed'),
+            lastUpdated: eb.ref('excluded.lastUpdated'),
           })),
         )
         .execute()
@@ -32,10 +32,10 @@ export class VerifierStatusRepository extends BaseRepository {
     chainId: ChainId,
   ): Promise<VerifierStatusRecord | undefined> {
     const row = await this.db
-      .selectFrom('public.verifier_status')
+      .selectFrom('VerifierStatus')
       .select(selectVerifierStatus)
       .where('address', '=', address)
-      .where('chain_id', '=', +chainId)
+      .where('chainId', '=', +chainId)
       .limit(1)
       .executeTakeFirst()
     return row && toRecord(row)
@@ -43,16 +43,14 @@ export class VerifierStatusRepository extends BaseRepository {
 
   async getAll(): Promise<VerifierStatusRecord[]> {
     const rows = await this.db
-      .selectFrom('public.verifier_status')
+      .selectFrom('VerifierStatus')
       .select(selectVerifierStatus)
       .execute()
     return rows.map(toRecord)
   }
 
   async deleteAll(): Promise<number> {
-    const result = await this.db
-      .deleteFrom('public.verifier_status')
-      .executeTakeFirst()
+    const result = await this.db.deleteFrom('VerifierStatus').executeTakeFirst()
     return Number(result.numDeletedRows)
   }
 }

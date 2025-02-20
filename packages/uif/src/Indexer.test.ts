@@ -3,10 +3,10 @@ import { install } from '@sinonjs/fake-timers'
 import { expect, mockFn } from 'earl'
 
 import { Indexer } from './Indexer'
-import { RetryStrategy } from './Retries'
+import type { RetryStrategy } from './Retries'
 import { ChildIndexer } from './indexers/ChildIndexer'
 import { RootIndexer } from './indexers/RootIndexer'
-import { IndexerAction } from './reducer/types/IndexerAction'
+import type { IndexerAction } from './reducer/types/IndexerAction'
 
 describe(Indexer.name, () => {
   describe('correctly initializes', () => {
@@ -108,6 +108,7 @@ describe(Indexer.name, () => {
           markAttempt,
           timeoutMs: () => 1000,
           clear,
+          attempts: () => 1,
         },
       })
 
@@ -156,12 +157,14 @@ describe(Indexer.name, () => {
           markAttempt: invalidateMarkAttempt,
           timeoutMs: () => 1000,
           clear: invalidateClear,
+          attempts: () => 1,
         },
         updateRetryStrategy: {
           shouldRetry: updateShouldRetry,
           markAttempt: updateMarkAttempt,
           timeoutMs: () => 1000,
           clear: updateClear,
+          attempts: () => 1,
         },
       })
 
@@ -211,6 +214,7 @@ describe(Indexer.name, () => {
           markAttempt,
           timeoutMs: () => 1000,
           clear,
+          attempts: () => 1,
         },
       })
 
@@ -295,7 +299,7 @@ export class TestRootIndexer extends RootIndexer {
     name?: string,
     retryStrategy?: { tickRetryStrategy?: RetryStrategy },
   ) {
-    super(Logger.SILENT.tag(name), retryStrategy ?? {})
+    super(Logger.SILENT.tag({ tag: name }), retryStrategy ?? {})
 
     const oldDispatch = Reflect.get(this, 'dispatch')
     Reflect.set(this, 'dispatch', (action: IndexerAction) => {
@@ -388,7 +392,7 @@ class TestChildIndexer extends ChildIndexer {
       updateRetryStrategy?: RetryStrategy
     },
   ) {
-    super(Logger.SILENT.tag(name), parents, retryStrategy ?? {})
+    super(Logger.SILENT.tag({ tag: name }), parents, retryStrategy ?? {})
 
     const oldDispatch = Reflect.get(this, 'dispatch')
     Reflect.set(this, 'dispatch', (action: IndexerAction) => {

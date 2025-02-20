@@ -1,9 +1,8 @@
-import { Logger } from '@l2beat/backend-tools'
-import { chains, getVerifiersFromConfig } from '@l2beat/config'
-import { Config } from '../../config'
-import { Peripherals } from '../../peripherals/Peripherals'
-import { Clock } from '../../tools/Clock'
-import { ApplicationModule } from '../ApplicationModule'
+import type { Logger } from '@l2beat/backend-tools'
+import type { Config } from '../../config'
+import type { Peripherals } from '../../peripherals/Peripherals'
+import type { Clock } from '../../tools/Clock'
+import type { ApplicationModule } from '../ApplicationModule'
 import { VerifiersStatusRefresher } from './VerifiersStatusRefresher'
 
 export function createVerifiersModule(
@@ -17,13 +16,15 @@ export function createVerifiersModule(
     return
   }
 
+  logger = logger.tag({ feature: 'verifiers', module: 'verifiers' })
+
   const refresher = new VerifiersStatusRefresher({
     db: peripherals.database,
     peripherals,
     clock,
     logger,
-    verifiersListProvider: getVerifiersFromConfig,
-    chains: chains,
+    verifiers: config.verifiers.verifiers,
+    chains: config.verifiers.chains,
   })
 
   const start = () => {

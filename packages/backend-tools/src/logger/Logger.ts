@@ -1,14 +1,14 @@
 import { join } from 'path'
 
-import { assertUnreachable } from '../utils/assertUnreachable'
+import { assertUnreachable } from '@l2beat/shared-pure'
 import { LogFormatterJson } from './LogFormatterJson'
 import { LogFormatterPretty } from './LogFormatterPretty'
-import { LEVEL, LogLevel } from './LogLevel'
-import { LogThrottle, LogThrottleOptions } from './LogThrottle'
+import { LEVEL, type LogLevel } from './LogLevel'
+import { LogThrottle, type LogThrottleOptions } from './LogThrottle'
 import { parseLogArguments } from './parseLogArguments'
 import { resolveError } from './resolveError'
 import { tagService } from './tagService'
-import { LogEntry, LoggerOptions } from './types'
+import type { LogEntry, LoggerOptions } from './types'
 
 /**
  * [Read full documentation](https://github.com/l2beat/tools/blob/master/packages/backend-tools/src/logger/docs.md)
@@ -21,9 +21,8 @@ export class Logger {
 
   constructor(options: Partial<LoggerOptions>) {
     this.options = {
+      ...options,
       logLevel: options.logLevel ?? 'INFO',
-      service: options.service,
-      tag: options.tag,
       utc: options.utc ?? false,
       cwd: options.cwd ?? process.cwd(),
       getTime: options.getTime ?? (() => new Date()),
@@ -115,8 +114,13 @@ export class Logger {
     })
   }
 
-  tag(tag: string | undefined): Logger {
-    return this.configure({ tag })
+  tag(
+    tags: Pick<
+      LoggerOptions,
+      'tag' | 'module' | 'feature' | 'chain' | 'project' | 'source'
+    >,
+  ): Logger {
+    return this.configure(tags)
   }
 
   withThrottling(options: LogThrottleOptions): Logger {
@@ -187,6 +191,11 @@ export class Logger {
       level,
       time: this.options.getTime(),
       service: tagService(this.options.service, this.options.tag),
+      feature: this.options.feature,
+      module: this.options.module,
+      chain: parsed.chain ?? this.options.chain,
+      project: parsed.project ?? this.options.project,
+      source: this.options.source,
     }
   }
 

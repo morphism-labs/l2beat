@@ -1,14 +1,16 @@
 import { EthereumAddress, UnixTime } from '@l2beat/shared-pure'
 import { expect } from 'earl'
 
-import { AnalyzedContract } from '../analysis/AddressAnalyzer'
+import type { Meta } from '@l2beat/discovery-types'
+import type { AnalyzedContract } from '../analysis/AddressAnalyzer'
 import { EMPTY_ANALYZED_CONTRACT } from '../utils/testUtils'
 import { processAnalysis, sortByKeys } from './toDiscoveryOutput'
 
-const emptyOutputMeta = {
-  descriptions: undefined,
-  roles: undefined,
-  assignedPermissions: undefined,
+const emptyOutputMeta: Meta = {
+  description: undefined,
+  issuedPermissions: undefined,
+  receivedPermissions: undefined,
+  directlyReceivedPermissions: undefined,
   categories: undefined,
   types: undefined,
   severity: undefined,
@@ -71,8 +73,8 @@ describe(processAnalysis.name, () => {
     name: 'C',
     proxyType: 'EIP1967 proxy',
     values: {
-      $admin: ADDRESS_D,
-      $implementation: ADDRESS_E,
+      $admin: ADDRESS_D.toString(),
+      $implementation: ADDRESS_E.toString(),
       foo: 'foo',
       bar: 'bar',
     },
@@ -95,9 +97,9 @@ describe(processAnalysis.name, () => {
     expect(result).toEqual({
       contracts: [],
       eoas: [
-        { ...emptyOutputMeta, address: ADDRESS_A },
-        { ...emptyOutputMeta, address: ADDRESS_B },
-        { ...emptyOutputMeta, address: ADDRESS_C },
+        { ...emptyOutputMeta, address: ADDRESS_A, name: undefined },
+        { ...emptyOutputMeta, address: ADDRESS_B, name: undefined },
+        { ...emptyOutputMeta, address: ADDRESS_C, name: undefined },
       ],
       abis: {},
     })
@@ -134,6 +136,7 @@ describe(processAnalysis.name, () => {
           sinceTimestamp: base.deploymentTimestamp.toNumber(),
           values: CONTRACT_B.values,
           errors: CONTRACT_B.errors,
+          sourceHashes: [],
         },
       ],
       eoas: [],
@@ -155,9 +158,10 @@ describe(processAnalysis.name, () => {
           proxyType: CONTRACT_C.proxyType,
           sinceTimestamp: base.deploymentTimestamp.toNumber(),
           values: CONTRACT_C.values,
+          sourceHashes: [],
         },
       ],
-      eoas: [{ ...emptyOutputMeta, address: ADDRESS_D }],
+      eoas: [{ ...emptyOutputMeta, address: ADDRESS_D, name: undefined }],
       abis: CONTRACT_C.abis,
     })
   })
@@ -190,6 +194,7 @@ describe(processAnalysis.name, () => {
           values: CONTRACT_B.values,
           errors: CONTRACT_B.errors,
           sinceTimestamp: base.deploymentTimestamp.toNumber(),
+          sourceHashes: [],
         },
         {
           address: ADDRESS_C,
@@ -197,9 +202,10 @@ describe(processAnalysis.name, () => {
           name: 'C',
           values: CONTRACT_C.values,
           sinceTimestamp: base.deploymentTimestamp.toNumber(),
+          sourceHashes: [],
         },
       ],
-      eoas: [{ ...emptyOutputMeta, address: ADDRESS_D }],
+      eoas: [{ ...emptyOutputMeta, address: ADDRESS_D, name: undefined }],
       abis: {
         ...CONTRACT_A.abis,
         ...CONTRACT_B.abis,

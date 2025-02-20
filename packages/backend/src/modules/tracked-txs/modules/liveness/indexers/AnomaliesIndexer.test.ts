@@ -1,12 +1,12 @@
+import type { BackendProject } from '@l2beat/backend-shared'
 import { Logger } from '@l2beat/backend-tools'
-import { BackendProject } from '@l2beat/config'
-import { AnomalyRecord, Database, LivenessRecord } from '@l2beat/database'
-import { TrackedTxConfigEntry, createTrackedTxId } from '@l2beat/shared'
+import type { AnomalyRecord, Database, LivenessRecord } from '@l2beat/database'
+import { type TrackedTxConfigEntry, createTrackedTxId } from '@l2beat/shared'
 import { ProjectId, UnixTime } from '@l2beat/shared-pure'
 import { expect, mockFn, mockObject } from 'earl'
-import { IndexerService } from '../../../../../tools/uif/IndexerService'
-import { SavedConfiguration } from '../../../../../tools/uif/multi/types'
-import { LivenessRecordWithConfig } from '../services/LivenessWithConfigService'
+import type { IndexerService } from '../../../../../tools/uif/IndexerService'
+import type { SavedConfiguration } from '../../../../../tools/uif/multi/types'
+import type { LivenessRecordWithConfig } from '../services/LivenessWithConfigService'
 import { AnomaliesIndexer } from './AnomaliesIndexer'
 
 const NOW = UnixTime.now()
@@ -60,6 +60,7 @@ describe(AnomaliesIndexer.name, () => {
 
     it('should update', async () => {
       const mockAnomaliesRepository = mockObject<Database['anomalies']>({
+        deleteAll: mockFn().resolvesTo(0),
         upsertMany: mockFn().resolvesTo(1),
       })
 
@@ -87,6 +88,8 @@ describe(AnomaliesIndexer.name, () => {
 
       expect(mockCalculateAnomalies).toHaveBeenCalledWith(NOW.toStartOf('day'))
 
+      expect(mockAnomaliesRepository.deleteAll).toHaveBeenCalled()
+
       expect(mockAnomaliesRepository.upsertMany).toHaveBeenCalledWith(
         mockAnomalies,
       )
@@ -96,6 +99,7 @@ describe(AnomaliesIndexer.name, () => {
 
     it('should adjust and update', async () => {
       const mockAnomaliesRepository = mockObject<Database['anomalies']>({
+        deleteAll: mockFn().resolvesTo(0),
         upsertMany: mockFn().resolvesTo(1),
       })
 
@@ -122,6 +126,8 @@ describe(AnomaliesIndexer.name, () => {
       const result = await indexer.update(from, to.toNumber())
 
       expect(mockCalculateAnomalies).toHaveBeenCalledWith(NOW.toStartOf('day'))
+
+      expect(mockAnomaliesRepository.deleteAll).toHaveBeenCalled()
 
       expect(mockAnomaliesRepository.upsertMany).toHaveBeenCalledWith(
         mockAnomalies,
@@ -346,13 +352,14 @@ describe(AnomaliesIndexer.name, () => {
 })
 
 function createIndexer(options: {
-  tag?: string
+  tag: string
   livenessRepository?: Database['liveness']
   anomaliesRepository?: Database['anomalies']
   indexerService?: IndexerService
+  transaction?: Database['transaction']
 }) {
   return new AnomaliesIndexer({
-    tag: options.tag,
+    tags: { tag: options.tag },
     indexerService: options.indexerService ?? mockObject<IndexerService>(),
     logger: Logger.SILENT,
     minHeight: 0,
@@ -365,6 +372,7 @@ function createIndexer(options: {
         mockObject<Database['anomalies']>({
           upsertMany: mockFn().resolvesTo(1),
         }),
+      transaction: options.transaction ?? (async (fun) => await fun()),
     }),
     projects: MOCK_PROJECTS,
   })

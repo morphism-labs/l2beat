@@ -1,7 +1,7 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
-import { Bridge } from './types'
+import type { Bridge } from '../../types'
 
 const discovery = new ProjectDiscovery('chainport')
 const congressSize = discovery.getContractValue<number>(
@@ -16,6 +16,7 @@ const congressThreshold = discovery.getContractValue<number>(
 export const chainport: Bridge = {
   type: 'bridge',
   id: ProjectId('chainport'),
+  addedAt: new UnixTime(1696938823), // 2023-10-10T11:53:43Z
   display: {
     name: 'Chainport',
     slug: 'chainport',
@@ -110,7 +111,6 @@ export const chainport: Bridge = {
         {
           category: 'Funds can be frozen if',
           text: 'third party actors decide to not relay selected messages between chains.',
-          isCritical: true,
         },
         {
           category: 'Funds can be stolen if',
@@ -120,32 +120,38 @@ export const chainport: Bridge = {
     },
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'Vault6',
-        'Escrow controlled by the Chainport Congress.',
-      ),
-      discovery.getContractDetails(
-        'ChainportCongress',
-        'Contains the logic to create proposal, vote and execute them.',
-      ),
-      discovery.getContractDetails(
-        'ChainportCongressMembersRegistry',
-        `Registry of the Chainport Congress members. Acts as a ${congressThreshold}-of-${congressSize} multisig.`,
-      ),
-    ],
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'Vault6',
+          'Escrow controlled by the Chainport Congress.',
+        ),
+        discovery.getContractDetails(
+          'ChainportCongress',
+          'Contains the logic to create proposal, vote and execute them.',
+        ),
+        discovery.getContractDetails(
+          'ChainportCongressMembersRegistry',
+          `Registry of the Chainport Congress members. Acts as a ${congressThreshold} / ${congressSize} multisig.`,
+        ),
+      ],
+    },
     risks: [],
   },
-  permissions: [
-    {
-      name: 'Congress members',
-      accounts: discovery.getPermissionedAccounts(
-        'ChainportCongressMembersRegistry',
-        'allMembers',
-      ),
-      description: 'Members of the Chainport Congress.',
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.getPermissionDetails(
+          'Congress members',
+          discovery.getPermissionedAccounts(
+            'ChainportCongressMembersRegistry',
+            'allMembers',
+          ),
+          'Members of the Chainport Congress.',
+        ),
+        discovery.getMultisigPermission('MultisigVault1', 'Vault 1.'),
+        discovery.getMultisigPermission('MultisigVault2', 'Vault 2.'),
+      ],
     },
-    ...discovery.getMultisigPermission('MultisigVault1', 'Vault 1.'),
-    ...discovery.getMultisigPermission('MultisigVault2', 'Vault 2.'),
-  ],
+  },
 }

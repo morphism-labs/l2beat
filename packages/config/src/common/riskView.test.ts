@@ -1,17 +1,17 @@
-import { Bytes, Sentiment } from '@l2beat/shared-pure'
+import { Bytes } from '@l2beat/shared-pure'
 import { expect } from 'earl'
-import { ScalingProjectRiskViewEntry } from './ScalingProjectRisk'
+import type { Sentiment, TableReadyValue } from '../types'
 import { pickWorseRisk, sumRisk } from './riskView'
 
 function createFakeRisk(
   sentiment: Sentiment,
-  definingMetric?: number,
-): ScalingProjectRiskViewEntry {
+  orderHint?: number,
+): TableReadyValue {
   return {
     description: 'description',
     value: Bytes.randomOfLength(32).toString(),
     sentiment,
-    definingMetric,
+    orderHint,
   }
 }
 
@@ -31,7 +31,7 @@ describe(pickWorseRisk.name, () => {
     expect(pickWorseRisk(neutralRisk, warnRisk)).toEqual(warnRisk)
   })
 
-  it('if two have the same sentiment and no definingMetric is specified for one it throws', () => {
+  it('if two have the same sentiment and no order is specified for one it throws', () => {
     const badRisk2 = createFakeRisk('bad')
     const warnRisk2 = createFakeRisk('warning', 23)
 
@@ -54,7 +54,7 @@ describe(pickWorseRisk.name, () => {
 })
 
 describe(sumRisk.name, () => {
-  it('returns the sum of the risks if theyre the same and good', () => {
+  it('returns the sum of the risks if they are the same and good', () => {
     const risk1 = createFakeRisk('warning', 40)
     const risk2 = createFakeRisk('warning', 2)
     const expected = createFakeRisk('warning', 42)

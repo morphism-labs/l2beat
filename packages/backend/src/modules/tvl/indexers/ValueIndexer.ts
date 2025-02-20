@@ -1,14 +1,18 @@
 import {
+  type AmountId,
+  type PriceId,
+  createAmountId,
+  createPriceId,
+} from '@l2beat/backend-shared'
+import type {
   AmountConfigEntry,
+  AssetId,
   PriceConfigEntry,
   UnixTime,
 } from '@l2beat/shared-pure'
 import { ManagedChildIndexer } from '../../../tools/uif/ManagedChildIndexer'
-import { AmountId, createAmountId } from '../utils/createAmountId'
-import { AssetId, createAssetId } from '../utils/createAssetId'
-import { PriceId, createPriceId } from '../utils/createPriceId'
 import { getValuesConfigHash } from '../utils/getValuesConfigHash'
-import { ValueIndexerDeps } from './types'
+import type { ValueIndexerDeps } from './types'
 
 export class ValueIndexer extends ManagedChildIndexer {
   private readonly amountConfigs: Map<AmountId, AmountConfigEntry>
@@ -18,8 +22,15 @@ export class ValueIndexer extends ManagedChildIndexer {
     super({
       ...$,
       name: 'value_indexer',
-      tag: `${$.project}_${$.dataSource}`,
-      configHash: getValuesConfigHash($.amountConfigs, $.priceConfigs),
+      tags: {
+        tag: `${$.project}_${$.dataSource}`,
+        project: $.project,
+      },
+      configHash: getValuesConfigHash(
+        $.amountConfigs,
+        $.priceConfigs,
+        $.minHeight,
+      ),
     })
 
     this.amountConfigs = getAmountConfigs($.amountConfigs)
@@ -103,7 +114,7 @@ function getAmountConfigs(amounts: AmountConfigEntry[]) {
 function getPriceConfigIds(prices: PriceConfigEntry[]) {
   const result = new Map<AssetId, string>()
   for (const p of prices) {
-    result.set(createAssetId(p), createPriceId(p))
+    result.set(p.assetId, createPriceId(p))
   }
 
   return result

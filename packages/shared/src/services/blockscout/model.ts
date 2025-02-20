@@ -44,7 +44,7 @@ export type BlockscoutAddressParam = z.infer<typeof BlockscoutAddressParam>
 export const BlockscoutAddressParam = z.object({
   ens_domain_name: z.string().nullable(),
   hash: z.string(),
-  implementation_name: z.string().nullable(),
+  implementation_name: z.string().nullish(),
   is_contract: z.boolean(),
   is_verified: z.boolean(),
   metadata: z.unknown().nullable(),
@@ -59,8 +59,8 @@ export type BlockscoutInternalTransaction = z.infer<
 >
 
 export const BlockscoutInternalTransaction = z.object({
-  block: z.number(),
   block_index: z.number(),
+  block_number: z.number(),
   created_contract: z.unknown().nullable(),
   error: z.unknown().nullable(),
   from: BlockscoutAddressParam,

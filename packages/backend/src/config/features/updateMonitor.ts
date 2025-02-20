@@ -1,10 +1,14 @@
-import { Env } from '@l2beat/backend-tools'
-import { chains } from '@l2beat/config'
-import { DiscoveryChainConfig, getMulticall3Config } from '@l2beat/discovery'
+import type { Env } from '@l2beat/backend-tools'
+import type { ChainConfig } from '@l2beat/config'
+import {
+  type DiscoveryChainConfig,
+  getMulticall3Config,
+} from '@l2beat/discovery'
 
 export function getChainDiscoveryConfig(
   env: Env,
   chain: string,
+  chains: ChainConfig[],
 ): DiscoveryChainConfig {
   const chainConfig = chains.find((c) => c.name === chain)
   if (!chainConfig) {

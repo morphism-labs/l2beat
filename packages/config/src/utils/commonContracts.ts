@@ -1,38 +1,25 @@
 import { ConfigReader } from '@l2beat/discovery'
 import {
-  ContractValue,
-  DiscoveryOutput,
+  type ContractValue,
+  type DiscoveryOutput,
   get$Implementations,
 } from '@l2beat/discovery-types'
-import { hashJson } from '@l2beat/shared'
-import {
-  assert,
-  EthereumAddress,
-  Hash256,
-  ProjectId,
-} from '@l2beat/shared-pure'
+import { assert, EthereumAddress, type ProjectId } from '@l2beat/shared-pure'
 import { merge } from 'lodash'
-import {
+import { bridges } from '../projects/bridges'
+import { layer2s } from '../projects/layer2s'
+import { layer3s } from '../projects/layer3s'
+import type {
   Bridge,
-  DaLayer,
   Layer2,
   Layer3,
-  Project,
-  ScalingProjectContract,
-  ScalingProjectPermission,
-  bridges,
-  layer2s,
-  layer3s,
-} from '..'
+  ProjectContract,
+  ProjectPermission,
+} from '../types'
 
-type Params =
-  | {
-      type: (Layer2 | Bridge | DaLayer)['type']
-    }
-  | {
-      type: Layer3['type']
-      hostChain: string
-    }
+type CommonProject = Layer2 | Layer3 | Bridge
+
+type Params = { type: 'layer2' | 'layer3' | 'bridge'; hostChain?: string }
 
 export function getCommonContractsIn(project: Params) {
   if (project.type === 'layer2') {
@@ -43,40 +30,42 @@ export function getCommonContractsIn(project: Params) {
     return findCommonContractsMemoized(bridges)
   }
 
-  if (project.type === 'layer3' && project.hostChain !== 'Multiple') {
+  if (project.type === 'layer3') {
     const projects = layer3s.filter((l3) => l3.hostChain === project.hostChain)
     return findCommonContractsMemoized(projects, project.hostChain as string)
-  }
-
-  if (project.type === 'DaLayer') {
-    throw new Error('Not implemented yet')
   }
 
   return {}
 }
 
-const memo = new Map<Hash256, Record<string, ReferenceInfo[]>>()
+const memo = new Map<string, Record<string, ReferenceInfo[]>>()
 
 function findCommonContractsMemoized(
-  projects: Pick<Project, 'id' | 'contracts' | 'permissions' | 'display'>[],
+  projects: Pick<
+    CommonProject,
+    'id' | 'contracts' | 'permissions' | 'display'
+  >[],
   hostChain: string = 'ethereum',
 ) {
-  const hash = hashJson(hostChain + JSON.stringify(projects.map((p) => p.id)))
-  if (memo.has(hash)) {
-    const result = memo.get(hash)
+  const key = hostChain + JSON.stringify(projects.map((p) => p.id))
+  if (memo.has(key)) {
+    const result = memo.get(key)
     assert(result !== undefined)
     return result
   }
   const result = findCommonContracts(projects, hostChain)
-  memo.set(hash, result)
+  memo.set(key, result)
   return result
 }
 
 function findCommonContracts(
-  projects: Pick<Project, 'id' | 'contracts' | 'permissions' | 'display'>[],
+  projects: Pick<
+    CommonProject,
+    'id' | 'contracts' | 'permissions' | 'display'
+  >[],
   hostChain: string,
 ) {
-  const configReader = new ConfigReader('../backend')
+  const configReader = new ConfigReader('../config')
   const allConfigs = configReader.readAllConfigsForChain(hostChain)
   const configs = allConfigs.filter((c) =>
     projects.map((p) => p.id.toString()).includes(c.name),
@@ -153,7 +142,10 @@ type ReferenceInfo = {
 }
 
 function pickOutReferencedEntries(
-  projects: Pick<Project, 'id' | 'contracts' | 'permissions' | 'display'>[],
+  projects: Pick<
+    CommonProject,
+    'id' | 'contracts' | 'permissions' | 'display'
+  >[],
   commonContracts: Record<string, ProjectId[]>,
 ): Record<string, ReferenceInfo[]> {
   const result: Record<string, ReferenceInfo[]> = {}
@@ -197,29 +189,24 @@ function pickOutReferencedEntries(
 }
 
 function projectContainsAddressAsContract(
-  project: Pick<Project, 'contracts'>,
+  project: Pick<CommonProject, 'contracts'>,
   address: string,
-): ScalingProjectContract | undefined {
+): ProjectContract | undefined {
   if (project.contracts === undefined) {
     return undefined
   }
 
-  for (const contract of project.contracts.addresses) {
-    if (
-      'address' in contract &&
-      (contract.address.toString() === address ||
+  for (const chain in project.contracts.addresses ?? {}) {
+    for (const contract of (project.contracts.addresses ?? {})[chain]) {
+      if (
+        contract.address.toString() === address ||
         (contract.upgradeability !== undefined &&
           contract.upgradeability.implementations
             .map((a) => a.toString())
-            .includes(address)))
-    ) {
-      return contract
-    }
-    if (
-      'multipleAddresses' in contract &&
-      contract.multipleAddresses.map((a) => a.toString()).includes(address)
-    ) {
-      return contract
+            .includes(address))
+      ) {
+        return contract
+      }
     }
   }
 
@@ -227,25 +214,26 @@ function projectContainsAddressAsContract(
 }
 
 function getPermissionContainingAddress(
-  project: Pick<Project, 'permissions'>,
+  project: Pick<CommonProject, 'permissions'>,
   address: string,
-): ScalingProjectPermission | undefined {
-  if (
-    project.permissions === undefined ||
-    project.permissions === 'UnderReview'
-  ) {
+): ProjectPermission | undefined {
+  if (!project.permissions) {
     return undefined
   }
 
-  for (const permission of project.permissions) {
-    if (permission.accounts.length > 1) {
-      continue
-    }
+  for (const perChain of Object.values(project.permissions)) {
+    const all = [...(perChain.roles ?? []), ...(perChain.actors ?? [])]
 
-    if (
-      permission.accounts.map((a) => a.address.toString()).includes(address)
-    ) {
-      return permission
+    for (const permission of all) {
+      if (permission.accounts.length > 1) {
+        continue
+      }
+
+      if (
+        permission.accounts.map((a) => a.address.toString()).includes(address)
+      ) {
+        return permission
+      }
     }
   }
 

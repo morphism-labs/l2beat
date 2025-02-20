@@ -1,11 +1,13 @@
 import { EthereumAddress, ProjectId, UnixTime } from '@l2beat/shared-pure'
+import type { Layer3 } from '../../types'
 import { Badge } from '../badges'
 import { underReviewL3 } from '../layer2s/templates/underReview'
-import { Layer3 } from '../layer3s'
 
 export const cheese: Layer3 = underReviewL3({
   hostChain: ProjectId('arbitrum'),
   id: ProjectId('cheese'),
+  capability: 'universal',
+  addedAt: new UnixTime(1722512887), // 2024-08-01T11:48:07Z
   badges: [
     Badge.L3ParentChain.Arbitrum,
     Badge.DA.Celestia,
@@ -15,7 +17,7 @@ export const cheese: Layer3 = underReviewL3({
   ],
   display: {
     category: 'Optimium',
-    provider: 'Arbitrum',
+    stack: 'Arbitrum',
     name: 'CheeseChain',
     slug: 'cheese',
     description: 'CheeseChain is an Orbit stack Optimium using $CHEESE.',
@@ -28,7 +30,6 @@ export const cheese: Layer3 = underReviewL3({
       ],
       documentation: ['https://docs.cheesechain.lol/'],
       explorers: ['https://fetascan.io/'],
-      repositories: [],
       socialMedia: [
         'https://x.com/layerofcheese',
         'https://t.me/cheesegateway',

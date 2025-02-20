@@ -1,14 +1,14 @@
-import { Database } from '@l2beat/database'
+import type { AmountId, PriceId } from '@l2beat/backend-shared'
+import type { Database } from '@l2beat/database'
 import {
-  AmountConfigEntry,
+  type AmountConfigEntry,
+  AssetId,
   EthereumAddress,
   ProjectId,
+  type TotalSupplyEntry,
   UnixTime,
 } from '@l2beat/shared-pure'
 import { expect, mockObject } from 'earl'
-import { AmountId } from '../utils/createAmountId'
-import { AssetId, createAssetId } from '../utils/createAssetId'
-import { PriceId } from '../utils/createPriceId'
 import { MOCKS_FOR_TVL } from '../utils/test/mocks'
 import { ValueService } from './ValueService'
 
@@ -36,21 +36,27 @@ describe(ValueService.name, () => {
 
     const project: ProjectId = ProjectId('project')
     const source: string = 'chain'
-    const CONFIG_A = mockObject<AmountConfigEntry>({
+    const addressA = EthereumAddress.random()
+    const CONFIG_A = mockObject<TotalSupplyEntry>({
+      assetId: AssetId.create('chain', addressA),
       sinceTimestamp: UnixTime.ZERO,
-      address: EthereumAddress.random(),
+      address: addressA,
       chain: 'chain',
       includeInTotal: true,
+      untilTimestamp: undefined,
       decimals: DECIMALS,
       source: 'canonical',
       isAssociated: false,
       category: 'ether',
     })
-    const CONFIG_B = mockObject<AmountConfigEntry>({
+    const addressB = EthereumAddress.random()
+    const CONFIG_B = mockObject<TotalSupplyEntry>({
+      assetId: AssetId.create('chain', addressB),
       sinceTimestamp: new UnixTime(300),
-      address: EthereumAddress.random(),
+      address: addressB,
       chain: 'chain',
       includeInTotal: false,
+      untilTimestamp: undefined,
       decimals: DECIMALS,
       source: 'external',
       isAssociated: false,
@@ -60,9 +66,10 @@ describe(ValueService.name, () => {
       ['a', CONFIG_A],
       ['b', CONFIG_B],
     ])
+
     const priceConfigIds: Map<AssetId, PriceId> = new Map([
-      [createAssetId(CONFIG_A), 'a'],
-      [createAssetId(CONFIG_B), 'b'],
+      [AssetId.create(CONFIG_A.chain, CONFIG_A.address), 'a'],
+      [AssetId.create(CONFIG_B.chain, CONFIG_B.address), 'b'],
     ])
     const timestamps: UnixTime[] = [
       new UnixTime(100),

@@ -1,25 +1,19 @@
-import { UnixTime, formatSeconds } from '@l2beat/shared-pure'
+import { UnixTime } from '@l2beat/shared-pure'
 
+import { DA_BRIDGES, DA_LAYERS } from '../../common'
+import { REASON_FOR_BEING_OTHER } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Layer2 } from '../../types'
 import { Badge } from '../badges'
+import { DaEconomicSecurityRisk, DaFraudDetectionRisk } from '../da-beat/common'
 import { opStackL2 } from './templates/opStack'
-import { Layer2 } from './types'
 
 const discovery = new ProjectDiscovery('fraxtal')
 
-const timelockDelay = formatSeconds(
-  discovery.getContractValue('Timelock', 'delay'),
-)
-
-const upgradeability = {
-  upgradableBy: ['ProxyAdmin'],
-  upgradeDelay: 'No delay',
-}
-
 export const fraxtal: Layer2 = opStackL2({
-  badges: [Badge.DA.CustomDA],
+  addedAt: new UnixTime(1708511622), // 2024-02-21T10:33:42Z
   daProvider: {
-    name: 'FraxtalDA',
+    layer: DA_LAYERS.FRAXTAL_DA,
     riskView: {
       value: 'External',
       description:
@@ -32,12 +26,12 @@ export const fraxtal: Layer2 = opStackL2({
         'Fraxtal uses a separate data availability module developed by the Frax Core Team. Data is posted off chain, and only hashes of blob data is published on an on chain inbox.',
       references: [
         {
-          text: 'Fraxtal documentation',
-          href: 'https://docs.frax.com/fraxtal',
+          title: 'Fraxtal documentation',
+          url: 'https://docs.frax.com/fraxtal',
         },
         {
-          text: 'On-Chain Inbox',
-          href: 'https://etherscan.io/address/0xff000000000000000000000000000000000420fc',
+          title: 'On-Chain Inbox',
+          url: 'https://etherscan.io/address/0xff000000000000000000000000000000000420fc',
         },
       ],
       risks: [
@@ -53,18 +47,20 @@ export const fraxtal: Layer2 = opStackL2({
         },
       ],
     },
-    bridge: { type: 'None' },
+    bridge: DA_BRIDGES.NONE,
+    badge: Badge.DA.CustomDA,
   },
   associatedTokens: ['FXS', 'FPIS'],
   discovery,
+  reasonsForBeingOther: [
+    REASON_FOR_BEING_OTHER.NO_PROOFS,
+    REASON_FOR_BEING_OTHER.NO_DA_ORACLE,
+  ],
   display: {
     name: 'Fraxtal',
     slug: 'fraxtal',
-    warning:
-      'Fraud proof system is currently under development. Users need to trust the block proposer to submit correct L1 state roots.',
     description:
       'Fraxtal is an EVM equivalent Optimium utilizing the OP stack as its smart contract platform and execution environment.',
-    purposes: ['Universal', 'DeFi'],
     links: {
       websites: ['https://frax.com/'],
       apps: ['https://app.frax.finance/'],
@@ -77,50 +73,14 @@ export const fraxtal: Layer2 = opStackL2({
         'https://t.me/fraxfinance',
       ],
     },
-    activityDataSource: 'Blockchain RPC',
   },
-  upgradeability,
   rpcUrl: 'https://rpc.frax.com',
   genesisTimestamp: new UnixTime(1706811599),
   isNodeAvailable: true,
-  nonTemplatePermissions: [
-    ...discovery.getMultisigPermission(
-      'FraxtalMultisig',
-      'This address is the owner of the following contracts: ProxyAdmin, SystemConfig. It is also designated as a Guardian of the FraxchainPortal, meaning it can halt withdrawals. It can upgrade the bridge implementation potentially gaining access to all funds, and change the sequencer, state root proposer or any other system component (unlimited upgrade power). This address is also the permissioned challenger of the system. It can delete non finalized roots without going through the fault proof process.',
-    ),
-    ...discovery.getMultisigPermission(
-      'frxETHMultisig',
-      'This address is the owner of the frxETHMinter contract. It can pause and unpause ETH deposits, change how much ETH is withheld from each submit() transaction and withdraw arbitrary amounts of assets from the minter contract.',
-    ),
-    ...discovery.getMultisigPermission(
-      'TimelockMultisig',
-      'This address is the owner of the timelock smart contract. It can queue, cancel, and execute transactions in the timelock (e.g., adding and removing frxETH whitelisted minters).',
-    ),
-  ],
-  nonTemplateContracts: [
-    discovery.getContractDetails('frxETH', {
-      description:
-        'Fraxtal uses Frax Ether (frxETH) as the designated gas token, allowing users to utilize frxETH to pay for blockspace.',
-    }),
-    discovery.getContractDetails('frxETHMinter', {
-      description:
-        'Authorized minter contract for frxETH, accepts user-supplied ETH and converts it to frxETH.',
-    }),
-    discovery.getContractDetails('sfrxETH', {
-      description:
-        'Vault token contract (ERC-4626) for staked frxETH. The smart contract receives frxETH tokens and mints sfrxETH tokens.',
-    }),
-    discovery.getContractDetails('Timelock', {
-      description: `Allows for time-delayed execution of transactions in the FrxETH smart contract, such as adding and removing whitelisted minters. Delay is set to ${timelockDelay}.`,
-    }),
-    discovery.getContractDetails('SuperchainConfig', {
-      description: `Upgradable contract that manages the PAUSED_SLOT, a boolean value indicating whether the Superchain is paused, and GUARDIAN_SLOT, the address of the guardian which can pause and unpause the system. The address of the guardian can only be modified by the ProxyAdmin by upgrading the SuperchainConfig contract. This contract is a fork of Optimism's superchainConfig contract and may not be utilized by other chains.`,
-    }),
-  ],
   chainConfig: {
     name: 'fraxtal',
     chainId: 252,
-    explorerUrl: 'https://fraxscan.com/',
+    explorerUrl: 'https://fraxscan.com',
     explorerApi: {
       url: 'https://api.fraxscan.com/api',
       type: 'etherscan',
@@ -131,4 +91,49 @@ export const fraxtal: Layer2 = opStackL2({
   },
   nonTemplateEscrows: [],
   nonTemplateOptimismPortalEscrowTokens: ['frxETH'],
+  customDa: {
+    type: 'Custom',
+    name: 'FraxtalDA',
+    description:
+      'FraxtalDA is a custom data availability solution built by the Fraxtal team.',
+    technology: {
+      description: `
+## Architecture
+FraxtalDA is a custom data availability solution built by the Fraxtal team. 
+The data is posted by the OP batcher to three separate locations: AWS, IPFS, and Cloudfare R2. 
+The IPFS hash is then submitted to the onchain inbox contract on Ethereum.
+FraxtalDA relies on a single DA endpoint to manage data posting between the three different locations. 
+
+![FraxtalDA](/images/da-layer-technology/fraxtalDA/FraxtalDA.png#center)
+
+The sequencer attests to data availability by posting an IPFS hash to an onchain inbox contract on Ethereum. L2 nodes derive the L2 chain from the L1 by reading transactions commitments from this sequencer inbox.
+When reading from the inbox, the op-node verifies that the commitment hash is a valid IPFS CID. If the data corresponding to the hash is missing from IPFS, the op-node will halt, preventing further derivation of the L2 chain. 
+
+## DA Bridge
+The SequencerInbox only stores IPFS hash commitments posted by the sequencer. It is not possible to verify blob inclusion against the data commitments onchain.
+Projects not integrating with a functional DA bridge rely only on the data availability attestation of the sequencer.There is no committee attesting to the availability of the data. For L2 chain derivation, the system relies on sequencer commitments to an L1 onchain inbox. See DA layer technology section for more details.
+      `,
+      references: [
+        {
+          title: 'FraxtalDA Documentation',
+          url: 'https://docs.frax.com/fraxtal/network/data-availability',
+        },
+        {
+          title: 'Fraxtal DA Follower - Source Code',
+          url: 'https://github.com/FraxFinance/fraxtal-da-follower/blob/791e849b41465e1e00377f57c8f0c49d4b13caa8/main.go',
+        },
+      ],
+      risks: [
+        {
+          category: 'Funds can be lost if',
+          text: `the sequencer posts an invalid data availability commitment.`,
+        },
+      ],
+    },
+    risks: {
+      economicSecurity: DaEconomicSecurityRisk.Unknown,
+      fraudDetection: DaFraudDetectionRisk.NoFraudDetection,
+      isNoBridge: true,
+    },
+  },
 })

@@ -1,18 +1,24 @@
-import { ContractParameters } from '@l2beat/discovery-types'
 import { Bytes, EthereumAddress, Hash256, UnixTime } from '@l2beat/shared-pure'
 import { expect, mockFn, mockObject } from 'earl'
 
-import { DiscoveryLogger } from '../DiscoveryLogger'
-import { ContractOverrides } from '../config/DiscoveryOverrides'
-import { HandlerExecutor } from '../handlers/HandlerExecutor'
-import { IProvider } from '../provider/IProvider'
-import { ProxyDetector } from '../proxies/ProxyDetector'
-import { ContractSources, SourceCodeService } from '../source/SourceCodeService'
+import { createContractConfig } from '../config/ContractConfig'
+import { DiscoveryContract } from '../config/RawDiscoveryConfig'
+import type { HandlerExecutor } from '../handlers/HandlerExecutor'
+import type { IProvider } from '../provider/IProvider'
+import type { ProxyDetector } from '../proxies/ProxyDetector'
+import type { ContractSources } from '../source/SourceCodeService'
+import type { SourceCodeService } from '../source/SourceCodeService'
 import { EMPTY_ANALYZED_CONTRACT } from '../utils/testUtils'
 import { AddressAnalyzer } from './AddressAnalyzer'
-import { TemplateService } from './TemplateService'
+import type { TemplateService } from './TemplateService'
 
 describe(AddressAnalyzer.name, () => {
+  const overrides = DiscoveryContract.parse({})
+  const config = createContractConfig(
+    { address: EthereumAddress.random(), ...overrides },
+    {},
+  )
+
   describe(AddressAnalyzer.prototype.analyze.name, () => {
     it('handles EOAs', async () => {
       const provider = mockObject<IProvider>({
@@ -23,22 +29,21 @@ describe(AddressAnalyzer.name, () => {
         mockObject<SourceCodeService>(),
         mockObject<HandlerExecutor>(),
         mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
+          findMatchingTemplates: () => [],
         }),
-        DiscoveryLogger.SILENT,
       )
 
       const address = EthereumAddress.random()
       const result = await addressAnalyzer.analyze(
         provider,
         address,
+        config,
         undefined,
-        undefined,
-        DiscoveryLogger.SILENT,
       )
 
       expect(result).toEqual({
         type: 'EOA',
+        name: undefined,
         address,
       })
     })
@@ -59,6 +64,7 @@ describe(AddressAnalyzer.name, () => {
         },
         sources: [
           {
+            hash: Hash256.random(),
             name: 'Proxy1',
             address: address,
             source: {
@@ -72,6 +78,7 @@ describe(AddressAnalyzer.name, () => {
             },
           },
           {
+            hash: Hash256.random(),
             name: 'Impl1',
             address: implementation,
             source: {
@@ -102,8 +109,8 @@ describe(AddressAnalyzer.name, () => {
           detectProxy: async () => ({
             type: 'EIP1967 proxy',
             values: {
-              $implementation: implementation,
-              $admin: admin,
+              $implementation: implementation.toString(),
+              $admin: admin.toString(),
             },
           }),
         }),
@@ -119,17 +126,15 @@ describe(AddressAnalyzer.name, () => {
           }),
         }),
         mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
+          findMatchingTemplates: () => [],
         }),
-        DiscoveryLogger.SILENT,
       )
 
       const result = await addressAnalyzer.analyze(
         provider,
         address,
+        config,
         undefined,
-        undefined,
-        DiscoveryLogger.SILENT,
       )
 
       expect(result).toEqual({
@@ -140,10 +145,11 @@ describe(AddressAnalyzer.name, () => {
         deploymentTimestamp: new UnixTime(1234),
         deploymentBlockNumber: 9876,
         proxyType: 'EIP1967 proxy',
+        references: undefined,
         implementations: [implementation],
         values: {
-          $implementation: implementation,
-          $admin: admin,
+          $implementation: implementation.toString(),
+          $admin: admin.toString(),
           owner: owner.toString(),
         },
         abis: sources.abis,
@@ -152,9 +158,8 @@ describe(AddressAnalyzer.name, () => {
           [admin.toString()]: {
             displayName: undefined,
             categories: undefined,
-            descriptions: undefined,
+            description: undefined,
             permissions: [{ type: 'upgrade', delay: 0, target: address }],
-            roles: undefined,
             severity: undefined,
             types: undefined,
           },
@@ -181,6 +186,7 @@ describe(AddressAnalyzer.name, () => {
         },
         sources: [
           {
+            hash: Hash256.random(),
             name: 'Test',
             address,
             source: {
@@ -194,6 +200,7 @@ describe(AddressAnalyzer.name, () => {
             },
           },
           {
+            hash: Hash256.random(),
             name: 'Test2',
             address: implementation,
             source: {
@@ -224,8 +231,8 @@ describe(AddressAnalyzer.name, () => {
           detectProxy: async () => ({
             type: 'EIP1967 proxy',
             values: {
-              $implementation: implementation,
-              $admin: admin,
+              $implementation: implementation.toString(),
+              $admin: admin.toString(),
             },
           }),
         }),
@@ -241,17 +248,15 @@ describe(AddressAnalyzer.name, () => {
           }),
         }),
         mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
+          findMatchingTemplates: () => [],
         }),
-        DiscoveryLogger.SILENT,
       )
 
       const result = await addressAnalyzer.analyze(
         provider,
         address,
+        config,
         undefined,
-        undefined,
-        DiscoveryLogger.SILENT,
       )
 
       expect(result).toEqual({
@@ -262,10 +267,11 @@ describe(AddressAnalyzer.name, () => {
         deploymentTimestamp: new UnixTime(1234),
         deploymentBlockNumber: 9876,
         proxyType: 'EIP1967 proxy',
+        references: undefined,
         implementations: [implementation],
         values: {
-          $implementation: implementation,
-          $admin: admin,
+          $implementation: implementation.toString(),
+          $admin: admin.toString(),
           owner: owner.toString(),
         },
         abis: sources.abis,
@@ -274,9 +280,8 @@ describe(AddressAnalyzer.name, () => {
           [admin.toString()]: {
             displayName: undefined,
             categories: undefined,
-            descriptions: undefined,
+            description: undefined,
             permissions: [{ type: 'upgrade', delay: 0, target: address }],
-            roles: undefined,
             severity: undefined,
             types: undefined,
           },
@@ -304,6 +309,7 @@ describe(AddressAnalyzer.name, () => {
         },
         sources: [
           {
+            hash: Hash256.random(),
             name: 'Test',
             address,
             source: {
@@ -317,6 +323,7 @@ describe(AddressAnalyzer.name, () => {
             },
           },
           {
+            hash: Hash256.random(),
             name: 'Test',
             address,
             source: {
@@ -342,8 +349,8 @@ describe(AddressAnalyzer.name, () => {
           detectProxy: async () => ({
             type: 'EIP1967 proxy',
             values: {
-              $implementation: implementation,
-              $admin: admin,
+              $implementation: implementation.toString(),
+              $admin: admin.toString(),
             },
           }),
         }),
@@ -359,17 +366,15 @@ describe(AddressAnalyzer.name, () => {
           }),
         }),
         mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
+          findMatchingTemplates: () => [],
         }),
-        DiscoveryLogger.SILENT,
       )
 
       const result = await addressAnalyzer.analyze(
         provider,
         address,
+        config,
         undefined,
-        undefined,
-        DiscoveryLogger.SILENT,
       )
 
       expect(result).toEqual({
@@ -380,10 +385,11 @@ describe(AddressAnalyzer.name, () => {
         deploymentTimestamp: undefined,
         isVerified: true,
         proxyType: 'EIP1967 proxy',
+        references: undefined,
         implementations: [implementation],
         values: {
-          $implementation: implementation,
-          $admin: admin,
+          $implementation: implementation.toString(),
+          $admin: admin.toString(),
           owner: owner.toString(),
         },
         abis: sources.abis,
@@ -392,9 +398,8 @@ describe(AddressAnalyzer.name, () => {
           [admin.toString()]: {
             displayName: undefined,
             categories: undefined,
-            descriptions: undefined,
+            description: undefined,
             permissions: [{ type: 'upgrade', delay: 0, target: address }],
-            roles: undefined,
             severity: undefined,
             types: undefined,
           },
@@ -406,292 +411,4 @@ describe(AddressAnalyzer.name, () => {
       })
     })
   })
-
-  describe(AddressAnalyzer.prototype.hasContractChanged.name, () => {
-    it('handles immutable contracts', async () => {
-      const address = EthereumAddress.random()
-      const values = { foo: 'bar' }
-
-      const provider = mockObject<IProvider>({
-        getBytecode: async () => Bytes.fromHex('0x10'),
-      })
-
-      const addressAnalyzer = new AddressAnalyzer(
-        mockObject<ProxyDetector>(),
-        mockObject<SourceCodeService>({
-          getRelevantAbi: (abis) => abis[0] ?? [],
-        }),
-        mockObject<HandlerExecutor>({
-          execute: mockFn()
-            .resolvesToOnce({
-              results: [],
-              values,
-              errors: {},
-            })
-            .resolvesToOnce({
-              results: [],
-              // values change on the second run
-              values: { foo: 'baz' },
-              errors: {},
-            })
-            .resolvesToOnce({
-              results: [],
-              values: {},
-              // handler executor errors on the third run
-              errors: {
-                foo: 'error',
-              },
-            }),
-        }),
-        mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
-        }),
-        DiscoveryLogger.SILENT,
-      )
-
-      const contractParameters: ContractParameters = {
-        name: 'name',
-        address,
-        proxyType: 'immutable',
-        values,
-      }
-      const overrides: ContractOverrides = { address }
-      const abis = {
-        [address.toString()]: ['function foo()'],
-      }
-
-      const result = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        abis,
-      )
-      expect(result).toEqual(false)
-
-      const changedResult = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        abis,
-      )
-      expect(changedResult).toEqual(true)
-
-      await expect(
-        async () =>
-          await addressAnalyzer.hasContractChanged(
-            provider,
-            contractParameters,
-            overrides,
-            undefined,
-            abis,
-          ),
-      ).toBeRejected()
-    })
-
-    it('handles proxy contracts', async () => {
-      const proxy = EthereumAddress.random()
-      const proxyValues = { foo: 'bar' }
-
-      const implementation = EthereumAddress.random()
-      const implementationValues = { bar: 'baz' }
-
-      const values = { ...proxyValues, ...implementationValues }
-      const provider = mockObject<IProvider>()
-
-      const addressAnalyzer = new AddressAnalyzer(
-        mockObject<ProxyDetector>(),
-        mockObject<SourceCodeService>({
-          getRelevantAbi: (abis) => [...(abis[0] ?? []), ...(abis[1] ?? [])],
-        }),
-        mockObject<HandlerExecutor>({
-          execute: mockFn()
-            .resolvesToOnce({
-              results: [],
-              values,
-              errors: {},
-            })
-            .resolvesToOnce({
-              results: [],
-              values: { ...proxyValues, bar: 'changed' },
-              errors: {},
-            }),
-        }),
-        mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
-        }),
-        DiscoveryLogger.SILENT,
-      )
-
-      const contractParameters: ContractParameters = {
-        name: 'name',
-        address: proxy,
-        proxyType: 'immutable',
-        values,
-      }
-      const overrides: ContractOverrides = { address: proxy }
-      const abis = {
-        [proxy.toString()]: ['function foo()'],
-        [implementation.toString()]: ['function bar()'],
-      }
-
-      const result = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        abis,
-      )
-      expect(result).toEqual(false)
-
-      const changedResult = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        abis,
-      )
-      expect(changedResult).toEqual(true)
-    })
-
-    it('handles unverified contracts', async () => {
-      const address = EthereumAddress.random()
-
-      const provider = mockObject<IProvider>()
-      const addressAnalyzer = new AddressAnalyzer(
-        mockObject<ProxyDetector>(),
-        mockObject<SourceCodeService>({
-          getSources: mockFn()
-            .resolvesToOnce(mockSources({ isVerified: false }))
-            .resolvesToOnce(mockSources({ isVerified: true })),
-        }),
-        mockObject<HandlerExecutor>(),
-        mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
-        }),
-        DiscoveryLogger.SILENT,
-      )
-
-      const contractParameters: ContractParameters = {
-        name: 'name',
-        address,
-        proxyType: 'immutable',
-        unverified: true,
-      }
-      const overrides: ContractOverrides = { address }
-
-      const result = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        {},
-      )
-
-      expect(result).toEqual(false)
-
-      const changedResult = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        {},
-      )
-
-      expect(changedResult).toEqual(true)
-    })
-
-    it('handles verified proxy with unverified implementation', async () => {
-      const address = EthereumAddress.random()
-      const implementation = EthereumAddress.random()
-
-      const provider = mockObject<IProvider>()
-      const addressAnalyzer = new AddressAnalyzer(
-        mockObject<ProxyDetector>(),
-        mockObject<SourceCodeService>({
-          getSources: mockFn()
-            .resolvesToOnce(mockSources({ isVerified: false }))
-            .resolvesToOnce(mockSources({ isVerified: true })),
-        }),
-        mockObject<HandlerExecutor>(),
-        mockObject<TemplateService>({
-          findMatchingTemplates: () => ({}),
-        }),
-        DiscoveryLogger.SILENT,
-      )
-
-      const contractParameters: ContractParameters = {
-        name: 'name',
-        address,
-        proxyType: 'EIP1967 proxy',
-        values: {
-          $implementation: implementation,
-          $admin: EthereumAddress.random(),
-        },
-        unverified: true,
-      }
-      const overrides: ContractOverrides = { address }
-
-      const result = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        {},
-      )
-
-      expect(result).toEqual(false)
-
-      const changedResult = await addressAnalyzer.hasContractChanged(
-        provider,
-        contractParameters,
-        overrides,
-        undefined,
-        {},
-      )
-
-      expect(changedResult).toEqual(true)
-    })
-  })
-
-  it(AddressAnalyzer.prototype.hasEoaBecomeContract.name, async () => {
-    const provider = mockObject<IProvider>({
-      getBytecode: mockFn()
-        .resolvesToOnce(Bytes.EMPTY)
-        .resolvesToOnce(Bytes.fromHex('0x10')),
-    })
-    const addressAnalyzer = new AddressAnalyzer(
-      mockObject<ProxyDetector>(),
-      mockObject<SourceCodeService>(),
-      mockObject<HandlerExecutor>(),
-      mockObject<TemplateService>({
-        findMatchingTemplates: () => ({}),
-      }),
-      DiscoveryLogger.SILENT,
-    )
-
-    const address = EthereumAddress.random()
-
-    const result = await addressAnalyzer.hasEoaBecomeContract(provider, address)
-
-    expect(result).toEqual(false)
-
-    const changedResult = await addressAnalyzer.hasEoaBecomeContract(
-      provider,
-      address,
-    )
-
-    expect(changedResult).toEqual(true)
-  })
 })
-
-function mockSources({ isVerified }: { isVerified: boolean }): ContractSources {
-  return {
-    name: '',
-    isVerified,
-    abi: [],
-    abis: {},
-    sources: [],
-  }
-}

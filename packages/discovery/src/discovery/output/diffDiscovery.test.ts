@@ -1,4 +1,4 @@
-import { ContractParameters } from '@l2beat/discovery-types'
+import type { ContractParameters } from '@l2beat/discovery-types'
 import { EthereumAddress } from '@l2beat/shared-pure'
 import { expect } from 'earl'
 
@@ -22,8 +22,8 @@ describe(diffDiscovery.name, () => {
         proxyType: 'EIP1967 proxy',
         ignoreInWatchMode: ['B'],
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
           A: true,
           //ignores fields included in ignore in watch mode
           B: 'thisWillChange',
@@ -35,8 +35,8 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_B,
         proxyType: 'EIP1967 proxy',
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
         },
       },
       //skips unchanged contracts
@@ -45,8 +45,8 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_D,
         proxyType: 'EIP1967 proxy',
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
         },
       },
       {
@@ -55,8 +55,8 @@ describe(diffDiscovery.name, () => {
         unverified: true,
         proxyType: 'EIP1967 proxy',
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
         },
       },
     ]
@@ -67,8 +67,8 @@ describe(diffDiscovery.name, () => {
         proxyType: 'EIP1967 proxy',
         ignoreInWatchMode: ['B'],
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
           A: false,
           B: 'itChanged',
         },
@@ -79,8 +79,8 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_C,
         proxyType: 'EIP1967 proxy',
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
         },
       },
       {
@@ -88,8 +88,8 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_D,
         proxyType: 'EIP1967 proxy',
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
         },
       },
       {
@@ -98,8 +98,8 @@ describe(diffDiscovery.name, () => {
         unverified: true,
         proxyType: 'EIP1967 proxy',
         values: {
-          $admin: ADMIN,
-          $implementation: IMPLEMENTATION,
+          $admin: ADMIN.toString(),
+          $implementation: IMPLEMENTATION.toString(),
         },
       },
     ]
@@ -118,6 +118,7 @@ describe(diffDiscovery.name, () => {
             after: 'false',
             description: undefined,
             severity: undefined,
+            type: undefined,
           },
         ],
       },
@@ -143,7 +144,7 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_A,
         proxyType: 'EIP1967 proxy',
         ignoreInWatchMode: ['B'],
-        descriptions: ['hello', 'world'],
+        description: 'hello world',
         values: {},
       },
     ]
@@ -169,7 +170,7 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_A,
         proxyType: 'EIP1967 proxy',
         ignoreInWatchMode: ['B'],
-        descriptions: ['hello', 'world'],
+        description: 'hello world',
         values: {},
       },
     ]
@@ -193,7 +194,7 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_A,
         proxyType: 'EIP1967 proxy',
         ignoreInWatchMode: ['B'],
-        descriptions: ['hello', 'world'],
+        description: 'hello world',
         values: { v: 1 },
       },
     ]
@@ -203,7 +204,7 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_A,
         proxyType: 'EIP1967 proxy',
         ignoreInWatchMode: ['B'],
-        descriptions: ['hello', 'sailor'],
+        description: 'hello sailor',
         values: { v: 2 },
       },
     ]
@@ -216,11 +217,12 @@ describe(diffDiscovery.name, () => {
         address: ADDRESS_A,
         diff: [
           {
-            after: '"sailor"',
-            before: '"world"',
+            after: '"hello sailor"',
+            before: '"hello world"',
             description: undefined,
-            key: 'descriptions.1',
+            key: 'description',
             severity: undefined,
+            type: undefined,
           },
           {
             after: '2',
@@ -228,6 +230,7 @@ describe(diffDiscovery.name, () => {
             description: undefined,
             key: 'values.v',
             severity: undefined,
+            type: undefined,
           },
         ],
         description: 'hello sailor',

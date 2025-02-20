@@ -1,23 +1,30 @@
-import { Database } from '@l2beat/database'
-import {
+import type { Database } from '@l2beat/database'
+import type {
+  AggLayerL2Token,
+  AggLayerNativeEtherPreminted,
+  AggLayerNativeEtherWrapped,
   AmountConfigEntry,
   CirculatingSupplyEntry,
   CoingeckoId,
   CoingeckoPriceConfigEntry,
+  ElasticChainEther,
+  ElasticChainL2Token,
   EscrowEntry,
   PremintedEntry,
   PriceConfigEntry,
   ProjectId,
   TotalSupplyEntry,
 } from '@l2beat/shared-pure'
-import { ManagedChildIndexerOptions } from '../../../tools/uif/ManagedChildIndexer'
-import { ManagedMultiIndexerOptions } from '../../../tools/uif/multi/types'
-import { AmountService } from '../services/AmountService'
-import { BlockTimestampProvider } from '../services/BlockTimestampProvider'
-import { CirculatingSupplyService } from '../services/CirculatingSupplyService'
-import { PriceService } from '../services/PriceService'
-import { ValueService } from '../services/ValueService'
-import { SyncOptimizer } from '../utils/SyncOptimizer'
+import type { ManagedChildIndexerOptions } from '../../../tools/uif/ManagedChildIndexer'
+import type { ManagedMultiIndexerOptions } from '../../../tools/uif/multi/types'
+import type { AggLayerService } from '../services/AggLayerService'
+import type { AmountService } from '../services/AmountService'
+import type { BlockTimestampProvider } from '../services/BlockTimestampProvider'
+import type { CirculatingSupplyService } from '../services/CirculatingSupplyService'
+import type { ElasticChainService } from '../services/ElasticChainService'
+import type { PriceService } from '../services/PriceService'
+import type { ValueService } from '../services/ValueService'
+import type { SyncOptimizer } from '../utils/SyncOptimizer'
 
 export interface BlockTimestampIndexerDeps
   extends Omit<ManagedChildIndexerOptions, 'name'> {
@@ -32,6 +39,29 @@ export type ChainAmountConfig = EscrowEntry | TotalSupplyEntry
 export interface ChainAmountIndexerDeps
   extends Omit<ManagedMultiIndexerOptions<ChainAmountConfig>, 'name'> {
   amountService: AmountService
+  db: Database
+  syncOptimizer: SyncOptimizer
+  chain: string
+}
+
+export type AggLayerAmountConfig =
+  | AggLayerL2Token
+  | AggLayerNativeEtherPreminted
+  | AggLayerNativeEtherWrapped
+
+export interface AggLayerAmountIndexerDeps
+  extends Omit<ManagedMultiIndexerOptions<AggLayerAmountConfig>, 'name'> {
+  aggLayerService: AggLayerService
+  db: Database
+  syncOptimizer: SyncOptimizer
+  chain: string
+}
+
+export type ElasticChainAmountConfig = ElasticChainL2Token | ElasticChainEther
+
+export interface ElasticChainAmountIndexerDeps
+  extends Omit<ManagedMultiIndexerOptions<ElasticChainAmountConfig>, 'name'> {
+  elasticChainService: ElasticChainService
   db: Database
   syncOptimizer: SyncOptimizer
   chain: string

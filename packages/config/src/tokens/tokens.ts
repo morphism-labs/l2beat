@@ -10,10 +10,9 @@ visible benefits.
 You can check the detailed steps on how to add new tokens in the tvl.md file in the repository.
 */
 
-import { AssetId, Token, UnixTime } from '@l2beat/shared-pure'
+import { assert, AssetId, type Token, UnixTime } from '@l2beat/shared-pure'
 
-import { assert } from '@l2beat/backend-tools'
-import { chains } from '../chains'
+import { chains } from '../projects/chains'
 import generated from './generated.json'
 import { GeneratedToken } from './types'
 
@@ -25,14 +24,6 @@ const tokenMapByAssetId = new Map(tokenList.map((t) => [t.id, t] as const))
 
 export function safeGetTokenByAssetId(assetId: AssetId) {
   return tokenMapByAssetId.get(assetId)
-}
-
-export function getTokenByAssetId(assetId: AssetId) {
-  const token = tokenMapByAssetId.get(assetId)
-  if (!token) {
-    throw new TypeError(`Unknown token ${assetId.toString()}`)
-  }
-  return token
 }
 
 function toToken(generated: GeneratedToken): Token {
@@ -52,7 +43,13 @@ function toToken(generated: GeneratedToken): Token {
   )
 
   return {
+    id: AssetId.create(chain.name, generated.address),
     ...generated,
+    chainName: chain.name,
+    url:
+      generated.address && chain.explorerUrl
+        ? `${chain.explorerUrl}/address/${generated.address}`
+        : undefined,
     sinceTimestamp,
   }
 }

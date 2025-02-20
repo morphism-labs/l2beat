@@ -1,12 +1,12 @@
 import { getEnv } from '@l2beat/backend-tools'
 import { UnixTime } from '@l2beat/shared-pure'
 
-import { Config } from './Config'
+import type { Config } from './Config'
 import { makeConfig } from './makeConfig'
 
 export type { Config }
 
-export function getConfig(): Config {
+export function getConfig(): Promise<Config> {
   const env = getEnv()
   const deploymentEnv = env.optionalString('DEPLOYMENT_ENV') ?? 'local'
   console.log('Loading config for:', deploymentEnv)

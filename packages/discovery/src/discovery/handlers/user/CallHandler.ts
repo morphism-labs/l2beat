@@ -1,14 +1,13 @@
-import { ContractValue } from '@l2beat/discovery-types'
+import type { ContractValue } from '@l2beat/discovery-types'
 import { EthereumAddress } from '@l2beat/shared-pure'
 import { utils } from 'ethers'
 import * as z from 'zod'
 
-import { DiscoveryLogger } from '../../DiscoveryLogger'
-import { IProvider } from '../../provider/IProvider'
-import { Handler, HandlerResult } from '../Handler'
+import type { IProvider } from '../../provider/IProvider'
+import type { Handler, HandlerResult } from '../Handler'
 import {
-  ScopeVariables,
-  generateScopeVariables,
+  type ReferenceInput,
+  generateReferenceInput,
   getReferencedName,
   resolveReference,
 } from '../reference'
@@ -34,7 +33,6 @@ export class CallHandler implements Handler {
     readonly field: string,
     private readonly definition: CallHandlerDefinition,
     abi: string[],
-    readonly logger: DiscoveryLogger,
   ) {
     for (const arg of this.definition.args) {
       const dependency = getReferencedName(arg)
@@ -63,21 +61,12 @@ export class CallHandler implements Handler {
     currentContractAddress: EthereumAddress,
     previousResults: Record<string, HandlerResult | undefined>,
   ): Promise<HandlerResult> {
-    const scopeVariables = generateScopeVariables(
+    const referenceInput = generateReferenceInput(
+      previousResults,
       provider,
       currentContractAddress,
     )
-    const resolved = resolveDependencies(
-      this.definition,
-      previousResults,
-      scopeVariables,
-    )
-    this.logger.logExecution(this.field, [
-      'Calling ',
-      `${this.fragment.name}(${resolved.args
-        .map((x) => x.toString())
-        .join(', ')})`,
-    ])
+    const resolved = resolveDependencies(this.definition, referenceInput)
     const callResult = await callMethod(
       provider,
       resolved.address ?? currentContractAddress,
@@ -104,21 +93,14 @@ export class CallHandler implements Handler {
 
 function resolveDependencies(
   definition: CallHandlerDefinition,
-  previousResults: Record<string, HandlerResult | undefined>,
-  scopeVariables: ScopeVariables,
+  referenceInput: ReferenceInput,
 ): {
   method: string | undefined
   args: ContractValue[]
   address: EthereumAddress | undefined
 } {
-  const args = definition.args.map((x) =>
-    resolveReference(x, previousResults, scopeVariables),
-  )
-  const address = resolveReference(
-    definition.address,
-    previousResults,
-    scopeVariables,
-  )
+  const args = definition.args.map((x) => resolveReference(x, referenceInput))
+  const address = resolveReference(definition.address, referenceInput)
   return {
     method: definition.method,
     args,

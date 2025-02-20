@@ -1,6 +1,6 @@
-import { assert, EthereumAddress } from '@l2beat/shared-pure'
+import { assert, type EthereumAddress } from '@l2beat/shared-pure'
 
-import { ScalingProjectPermission } from '../../common'
+import type { ProjectPermission } from '../../types'
 import { delayDescriptionFromSeconds } from '../../utils/delayDescription'
 import { ProjectDiscovery } from '../ProjectDiscovery'
 import { getProxyGovernance } from './getProxyGovernance'
@@ -56,7 +56,7 @@ const CAIRO_BOOTLOADER_PROGRAM = discovery.getContractDetails(
 
 const MEMORY_FACT_REGISTRY = discovery.getContractDetails(
   'MemoryPageFactRegistry',
-  'MemoryPageFactRegistry is one of the many contracts used by SHARP verifier. This one is important as it registers all necessary on-chain data.',
+  'MemoryPageFactRegistry is one of the many contracts used by SHARP verifier. This one is important as it registers all necessary onchain data.',
 )
 
 const OLD_MEMORY_FACT_REGISTRY = discovery.getContractDetails(
@@ -104,22 +104,24 @@ export function getSHARPVerifierContracts(
 export function getSHARPVerifierGovernors(
   projectDiscovery: ProjectDiscovery,
   verifierAddress: EthereumAddress,
-): ScalingProjectPermission[] {
+): ProjectPermission[] {
   assert(
-    verifierAddress === SHARP_VERIFIER_PROXY.address,
-    `SHARPVerifierProxy address mismatch. This project probably uses a different SHARP verifier (${projectDiscovery.projectName})`,
+    verifierAddress === SHARP_VERIFIER_PROXY.address &&
+      getProxyGovernance(discovery, 'SHARPVerifierProxy')[0].address ===
+        discovery.getContract('SHARPVerifierAdminMultisig').address &&
+      getProxyGovernance(discovery, 'SHARPVerifierProxy').length === 1,
+    `SHARPVerifierProxy or governance address mismatch. This project probably uses a different SHARP verifier or the admin has changed (${projectDiscovery.projectName})`,
   )
 
   return [
-    {
-      name: 'SHARP Verifier Governors',
-      accounts: getProxyGovernance(discovery, 'SHARPVerifierProxy'),
-      description:
-        'Can upgrade implementation of SHARP Verifier, potentially with code approving fraudulent state. ' +
+    projectDiscovery.getPermissionDetails(
+      'SHARP Verifier Governors',
+      getProxyGovernance(discovery, 'SHARPVerifierProxy'),
+      'Can upgrade implementation of SHARP Verifier, potentially with code approving fraudulent state. ' +
         delayDescriptionFromSeconds(upgradeDelay),
-    },
-    ...discovery.getMultisigPermission(
-      'SHARPVerifierGovernorMultisig',
+    ),
+    discovery.getMultisigPermission(
+      'SHARPVerifierAdminMultisig',
       'SHARP Verifier Governor.',
     ),
   ]

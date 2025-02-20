@@ -1,15 +1,15 @@
+import type { BackendProject } from '@l2beat/backend-shared'
 import { Logger } from '@l2beat/backend-tools'
-import { BackendProject } from '@l2beat/config'
-import {
+import type {
   AggregatedLivenessRecord,
   Database,
   LivenessRecord,
 } from '@l2beat/database'
-import { TrackedTxConfigEntry, createTrackedTxId } from '@l2beat/shared'
+import { type TrackedTxConfigEntry, createTrackedTxId } from '@l2beat/shared'
 import { ProjectId, UnixTime } from '@l2beat/shared-pure'
 import { expect, mockFn, mockObject } from 'earl'
-import { IndexerService } from '../../../../../tools/uif/IndexerService'
-import { SavedConfiguration } from '../../../../../tools/uif/multi/types'
+import type { IndexerService } from '../../../../../tools/uif/IndexerService'
+import type { SavedConfiguration } from '../../../../../tools/uif/multi/types'
 import { LivenessAggregatingIndexer } from './LivenessAggregatingIndexer'
 
 const NOW = UnixTime.now()
@@ -241,13 +241,13 @@ describe(LivenessAggregatingIndexer.name, () => {
 })
 
 function createIndexer(options: {
-  tag?: string
+  tag: string
   livenessRepository?: Database['liveness']
   aggregatedLivenessRepository?: Database['aggregatedLiveness']
   indexerService?: IndexerService
 }) {
   return new LivenessAggregatingIndexer({
-    tag: options.tag,
+    tags: { tag: options.tag },
     indexerService: options.indexerService ?? mockObject<IndexerService>(),
     logger: Logger.SILENT,
     minHeight: 0,

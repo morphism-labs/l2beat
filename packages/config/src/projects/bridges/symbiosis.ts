@@ -2,20 +2,21 @@ import { ProjectId, UnixTime } from '@l2beat/shared-pure'
 
 import { NUGGETS } from '../../common'
 import { ProjectDiscovery } from '../../discovery/ProjectDiscovery'
+import type { Bridge } from '../../types'
 import { RISK_VIEW } from './common'
-import { Bridge } from './types'
 
 const discovery = new ProjectDiscovery('symbiosis')
 
 export const symbiosis: Bridge = {
   type: 'bridge',
   id: ProjectId('symbiosis'),
+  addedAt: new UnixTime(1688541556), // 2023-07-05T07:19:16Z
   display: {
     name: 'Symbiosis',
     slug: 'symbiosis',
     category: 'Hybrid',
     description:
-      'Symbiosis is a cross-chain AMM DEX externally validated my a MPC relayers network.',
+      'Symbiosis is a cross-chain AMM DEX externally validated my an MPC relayers network.',
     links: {
       websites: [
         'https://symbiosis.finance/',
@@ -27,6 +28,7 @@ export const symbiosis: Bridge = {
         'https://medium.com/@symbiosis_fi',
         'https://twitter.com/symbiosis_fi',
       ],
+      documentation: ['https://docs.symbiosis.finance'],
     },
   },
   riskView: {
@@ -62,7 +64,7 @@ export const symbiosis: Bridge = {
     principleOfOperation: {
       name: 'Principle of operation',
       description:
-        'Symbiosis uses a MPC relayer network to facilitate cross-chain transfers. An AMM on BOBA BNB is used to perform swaps.',
+        'Symbiosis uses an MPC relayer network to facilitate cross-chain transfers. An AMM on BOBA BNB is used to perform swaps.',
       references: [],
       risks: [],
     },
@@ -75,19 +77,19 @@ export const symbiosis: Bridge = {
         {
           category: 'Users can be censored if',
           text: 'MPC nodes decide to censor certain transactions.',
-          isCritical: true,
+
           _ignoreTextFormatting: true,
         },
         {
           category: 'Funds can be stolen if',
           text: 'MPC nodes decide to maliciously takeover them or there is an external exploit which will result in signing malicious transaction.',
-          isCritical: true,
+
           _ignoreTextFormatting: true,
         },
         {
           category: 'Funds can be lost if',
           text: 'MPC nodes lose their private keys.',
-          isCritical: true,
+
           _ignoreTextFormatting: true,
         },
       ],
@@ -100,7 +102,6 @@ export const symbiosis: Bridge = {
         {
           category: 'Funds can be lost if',
           text: 'destination token contract is maliciously upgraded or not securely implemented.',
-          isCritical: true,
         },
       ],
       references: [],
@@ -111,38 +112,40 @@ export const symbiosis: Bridge = {
       {
         address: discovery.getContract('Portal').address, // Portal v2
         sinceTimestamp: new UnixTime(1668373200),
-        tokens: ['USDC', 'SIS', 'WETH'],
+        tokens: '*',
         chain: 'ethereum',
       },
     ],
   },
   contracts: {
-    addresses: [
-      discovery.getContractDetails(
-        'MetaRouter',
-        'An upgradeable contract to process funds by provided route.',
-      ),
-      {
-        address: discovery.getContract('Bridge').address,
-        name: 'Bridge',
-        description:
+    addresses: {
+      [discovery.chain]: [
+        discovery.getContractDetails(
+          'MetaRouter',
+          'An upgradeable contract to process funds by provided route.',
+        ),
+        discovery.getContractDetails(
+          'Bridge',
           'A contract that generates Oracle requests for the Symbiosis relayers network.',
-      },
-      {
-        address: discovery.getContract('Portal').address,
-        name: 'Portal',
-        description: 'A contract that stores "bridged" liquidity.',
-      },
-    ],
+        ),
+        discovery.getContractDetails(
+          'Portal',
+          'A contract that stores "bridged" liquidity.',
+        ),
+      ],
+    },
     risks: [],
-    isIncomplete: true,
   },
-  permissions: [
-    discovery.contractAsPermissioned(
-      discovery.getContract('Multisig'),
-      'This multisig can upgrade the BridgeV2 and Portal contracts.',
-    ),
-  ],
+  permissions: {
+    [discovery.chain]: {
+      actors: [
+        discovery.contractAsPermissioned(
+          discovery.getContract('Multisig'),
+          'This multisig can upgrade the BridgeV2 and Portal contracts.',
+        ),
+      ],
+    },
+  },
   knowledgeNuggets: [
     {
       title: 'Bridging contracts explained',

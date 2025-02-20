@@ -1,7 +1,7 @@
-import { ProxyDetails } from '@l2beat/discovery-types'
+import type { ContractValue, ProxyDetails } from '@l2beat/discovery-types'
 import { Bytes, EthereumAddress } from '@l2beat/shared-pure'
-
-import { IProvider } from '../../provider/IProvider'
+import type { IProvider } from '../../provider/IProvider'
+import { getPastUpgradesSingleEvent } from '../pastUpgrades'
 
 // keccak256('eip1967.proxy.implementation') - 1)
 const IMPLEMENTATION_SLOT = Bytes.fromHex(
@@ -27,7 +27,7 @@ export function getAdmin(
   return provider.getStorageAsAddress(address, ADMIN_SLOT)
 }
 
-export async function getOwner(
+async function getOwner(
   provider: IProvider,
   address: EthereumAddress,
 ): Promise<EthereumAddress> {
@@ -47,6 +47,11 @@ export async function detectEip1967Proxy(
   if (implementation === EthereumAddress.ZERO) {
     return
   }
+  const pastUpgrades = await getPastUpgradesSingleEvent(
+    provider,
+    address,
+    'event Upgraded(address indexed implementation)',
+  )
   let admin = await getAdmin(provider, address)
   // TODO: (sz-piotr) potential for errors
   if (admin === EthereumAddress.ZERO) {
@@ -55,8 +60,10 @@ export async function detectEip1967Proxy(
   return {
     type: 'EIP1967 proxy',
     values: {
-      $admin: admin,
-      $implementation: implementation,
+      $admin: admin.toString(),
+      $implementation: implementation.toString(),
+      $pastUpgrades: pastUpgrades as ContractValue,
+      $upgradeCount: pastUpgrades.length,
     },
   }
 }
